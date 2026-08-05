@@ -1,0 +1,35 @@
+language: "en-US"
+
+reviews:
+  # 'chill' provides balanced feedback without nitpicky noise ('quiet' = critical only)
+  profile: "chill"
+
+  # Auto-Review Settings
+  auto_review:
+    enabled: true
+    drafts: false
+    # Skip automatic reviews when PR title contains 'dependabot' or 'bump'
+    ignore_title_keywords:
+      - "dependabot"
+      - "bump"
+
+  # Path Filters: Exclude lockfiles, virtualenvs, and log files from review
+  path_filters:
+    - "!poetry.lock"
+    - "!package-lock.json"
+    - "!.venv/**"
+    - "!**.log"
+
+  # Domain Path Instructions: Enforce project-specific architectural rules automatically
+  path_instructions:
+    - path: "src/sigma_mcp/server.py"
+      instructions: "Ensure all newly added tools declare read_only_hint, destructive_hint, or idempotent_hint annotations, and enforce explicit confirm=True parameters on all delete, archive, deactivate, and bulk-removal endpoints."
+    - path: "src/sigma_mcp/client.py"
+      instructions: "Verify HTTP 429 retry backoff includes jitter and preserves Retry-After minimum delay."
+
+  # Enables '🤖 Prompt for AI Agents' blocks in review comments for one-click resolution
+  enable_prompt_for_ai_agents: true
+
+  # Clean presentation settings
+  poem: false
+  collapse_walkthrough: true

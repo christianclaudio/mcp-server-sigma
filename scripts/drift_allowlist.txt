@@ -1,0 +1,6 @@
+# Drift allowlist: endpoints in client.py NOT in the OpenAPI spec
+# Each entry is justified — do NOT add entries just to make the check pass.
+#
+# Format: METHOD /path/with/{}/placeholders  # justification
+
+PATCH /v2/user-attributes/{}  # Works in production for updating attribute name/defaultValue; spec only documents sub-resource PATCH endpoints but the parent resource PATCH is functional and needed for basic attribute updates

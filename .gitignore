@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+
+# Local code-review artifacts
+coderabbit-review*.txt
+uv.lock

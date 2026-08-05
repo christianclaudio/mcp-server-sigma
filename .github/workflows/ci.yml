@@ -1,0 +1,173 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  lint:
+    name: Lint and types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" pip-licenses
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check .
+      - name: Mypy strict
+        run: mypy --strict src/
+      - name: License compliance
+        run: pip-licenses --fail-on="GNU General Public License" --partial-match --order=license --ignore-packages docutils
+
+  test:
+    name: Tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Unit and mocked tests
+        run: pytest --cov=src/sigma_mcp --cov-report=term-missing --cov-fail-under=100 -q
+
+  contract:
+    name: Tool contract and env gating
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      # Guards the counts published in README against silent drift, and proves
+      # the safety env vars actually change what gets registered.
+      - name: Assert tool counts and safety gating
+        run: python scripts/check_tool_contract.py
+
+  openapi-drift:
+    name: OpenAPI drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+      # Fails the build if any client path is absent from Sigma's published
+      # OpenAPI spec. This is the guard against the wrong-path class of bug.
+      - name: Check client paths against Sigma spec
+        run: python scripts/check_openapi_drift.py
+
+  build:
+    name: Build and package check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      - name: Build
+        run: python -m build
+      - name: Twine check
+        run: twine check dist/*
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 14
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - name: Build Docker image
+        run: docker build -t mcp-server-sigma:ci-${{ github.sha }} .
+      - name: Verify entrypoint
+        run: docker run --rm mcp-server-sigma:ci-${{ github.sha }} --help
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - uses: github/codeql-action/analyze@v3
+        # SARIF upload may fail with "Resource not accessible by integration" on
+        # repos where the default GITHUB_TOKEN lacks security-events write access.
+        # The scan itself still runs; this only affects result visibility in the
+        # Security tab. Safe to suppress until GitHub fixes token propagation.
+        continue-on-error: true
+
+  live-smoke:
+    name: Live smoke (main only, requires secrets)
+    runs-on: ubuntu-latest
+    needs: [lint, test, contract, openapi-drift]
+    # Never runs on forks or PRs: it needs org credentials and touches a real
+    # Sigma organization.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository_owner == 'christianclaudio'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Live smoke test
+        env:
+          SIGMA_CLIENT_ID: ${{ secrets.SIGMA_CLIENT_ID }}
+          SIGMA_CLIENT_SECRET: ${{ secrets.SIGMA_CLIENT_SECRET }}
+          SIGMA_API_BASE_URL: ${{ secrets.SIGMA_API_BASE_URL }}
+        # Skips cleanly rather than failing when secrets are unavailable.
+        run: |
+          if [ -z "$SIGMA_CLIENT_ID" ] || [ -z "$SIGMA_CLIENT_SECRET" ] || [ -z "$SIGMA_API_BASE_URL" ]; then
+            echo "One or more Sigma secrets not set; skipping live smoke."
+            exit 0
+          fi
+          PYTHONPATH=src python tests/smoke_test.py
