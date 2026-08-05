@@ -43,7 +43,7 @@ jobs:
       - name: Generate CycloneDX SBOM
         run: cyclonedx-py environment -o sbom.cdx.json
 
-      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65822d53b0323c2227  # v4.4.3
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v4.4.3
         with:
           name: dist
           path: |
