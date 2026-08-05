@@ -3,7 +3,7 @@
 [![CI](https://github.com/christianclaudio/mcp-server-sigma/actions/workflows/ci.yml/badge.svg)](https://github.com/christianclaudio/mcp-server-sigma/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/mcp-server-sigma)](https://pypi.org/project/mcp-server-sigma/)
 [![Python](https://img.shields.io/pypi/pyversions/mcp-server-sigma)](https://pypi.org/project/mcp-server-sigma/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/christianclaudio/mcp-server-sigma/blob/main/LICENSE)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/christianclaudio/mcp-server-sigma)
 
 > **Supercharge your AI Agents with native Sigma Computing superpowers!** ⚡  
@@ -22,7 +22,7 @@
 > This server uses API credentials scoped to your Sigma organization. Tools can mutate workbooks, users, teams, and data models.  
 > - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` (grants 83 read-only tools).  
 > - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
-> - Read [SECURITY.md](SECURITY.md) before deploying to production.
+> - Read [SECURITY.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/SECURITY.md) before deploying to production.
 
 ---
 
@@ -324,7 +324,7 @@ Before writing any Sigma formula, call the built-in reference tool:
 Use tool `sigma_formula_pitfalls` to check formula syntax rules.
 ```
 
-See [docs/formulas.md](docs/formulas.md) for full syntax details.
+See [docs/formulas.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/docs/formulas.md) for full syntax details.
 
 ---
 
@@ -353,13 +353,13 @@ mypy --strict src/
 
 ## 🤝 Contributing & Community
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development rules, [SECURITY.md](SECURITY.md) for security reporting, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
+Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/CONTRIBUTING.md) for development rules, [SECURITY.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/SECURITY.md) for security reporting, and [CODE_OF_CONDUCT.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/CODE_OF_CONDUCT.md) for community standards.
 
 ---
 
 ## 📜 License
 
-[MIT License](LICENSE).  
+[MIT License](https://github.com/christianclaudio/mcp-server-sigma/blob/main/LICENSE).  
 Copyright (c) 2026 Christian Claudio.
 
 *Disclaimer: Not affiliated with, sponsored by, or endorsed by Sigma Computing, Inc.*
