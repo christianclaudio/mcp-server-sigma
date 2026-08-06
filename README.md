@@ -349,6 +349,9 @@ ruff format --check .
 mypy --strict src/
 ```
 
+> [!NOTE]
+> **Automated Drift Checks**: This repository runs a weekly scheduled GitHub Action (`sigma-drift-monitor.yml`) that compares client methods against the live Sigma OpenAPI specification. If drift is detected, the workflow automatically opens an issue in the repository.
+
 ---
 
 ## 🤝 Contributing & Community
