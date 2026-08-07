@@ -2228,7 +2228,7 @@ async def sigma_api_capabilities() -> str:
         {
             "supported": {
                 "data_models_as_code": "Create/update full semantic layers (tables, calculated columns, metrics) from JSON",
-                "template_instantiation": "Create workbooks from templates — the ONLY way to get charts/tables programmatically",
+                "template_instantiation": "Create workbooks from templates — the primary way to get charts/tables programmatically (or use the Beta /v2/workbooks/spec endpoints for code representation)",
                 "save_template_from_workbook": "Capture a workbook's visual design as a reusable template",
                 "source_swap": "Repoint a workbook/data model/template at different tables or connections",
                 "duplicate_workbook": "Clone an existing workbook",
@@ -2240,7 +2240,7 @@ async def sigma_api_capabilities() -> str:
             "not_supported": {
                 "create_page": "No endpoint exists to add a page to a workbook",
                 "create_element": "No endpoint exists to add a chart/table/KPI to a page",
-                "workbook_as_code": "Does not exist, not even in beta. Only data models have a code representation.",
+                "workbook_as_code": "Supported by this server via template instantiation; see the Beta /v2/workbooks/spec endpoints for raw layout representation.",
                 "set_control_defaults": "Control/parameter default values are UI-only",
             },
             "composite_recipes": {
@@ -2257,7 +2257,7 @@ async def sigma_api_capabilities() -> str:
                 "data_model_update_verb": "Use PUT /v2/dataModels/{id}/spec — PATCH and POST both 404.",
                 "workbook_deletion": "Use DELETE /v2/files/{inodeId} — there is no delete-workbook endpoint.",
                 "sources_endpoint_params": "GET /v2/workbooks/{id}/sources returns 400 if given query params.",
-                "regional_base_url": "The generic aws-api host authenticates but then fails; use your region-specific host.",
+                "regional_base_url": "Ensure you are using your organization's specific regional base URL (e.g. do not use the default aws-api host if your organization is hosted on aws-us-east).",
                 "new_schemas": "Call connection sync before referencing newly created warehouse schemas.",
                 "swap_source_body": "connectionMapping uses fromId/toId and paths[].fromPath/toPath — not source/target.",
             },

@@ -24,9 +24,10 @@ from pathlib import Path
 
 import httpx
 
-# Sigma splits its OpenAPI definition across two files. The advertised
-# /openapi.json is an HTML index page, not a spec.
+# Sigma's canonical public spec is hosted as a single combined file on assets.sigmacomputing.com.
+# We fall back to the split help.sigmacomputing.com URLs if the main spec fails.
 SPEC_URLS = [
+    "https://assets.sigmacomputing.com/openapi/public-rest-api/sigma-computing-public-rest-api.json",
     "https://help.sigmacomputing.com/openapi/sigma-rest-api.json",
     "https://help.sigmacomputing.com/openapi/code-representation.json",
 ]
@@ -52,13 +53,27 @@ def load_allowlist(path: Path) -> set[tuple[str, str]]:
 
 
 def fetch_spec(urls: list[str]) -> dict:
-    """Fetch and merge Sigma's OpenAPI specs into one paths dict."""
-    merged: dict = {"paths": {}}
-    for url in urls:
-        r = httpx.get(url, timeout=60.0, follow_redirects=True)
+    """Fetch Sigma's OpenAPI spec, trying the primary URL first and falling back to split specs."""
+    # The first URL in the list is the primary canonical public spec
+    primary_url = urls[0]
+    try:
+        r = httpx.get(primary_url, timeout=60.0, follow_redirects=True)
         r.raise_for_status()
-        spec = r.json()
-        merged["paths"].update(spec.get("paths", {}))
+        return r.json()
+    except Exception as e:
+        print(f"Warning: Failed to fetch primary spec ({primary_url}): {e}")
+        print("Falling back to split documentation specs...")
+        
+    merged: dict = {"paths": {}}
+    for url in urls[1:]:
+        try:
+            r = httpx.get(url, timeout=60.0, follow_redirects=True)
+            r.raise_for_status()
+            spec = r.json()
+            merged["paths"].update(spec.get("paths", {}))
+        except Exception as err:
+            print(f"Error: Failed to fetch fallback spec ({url}): {err}")
+            raise err
     return merged
 
 
