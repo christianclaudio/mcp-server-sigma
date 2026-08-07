@@ -31,7 +31,7 @@
 Sigma Computing has a unique architectural asymmetry that shapes how you automate it:
 
 1. **Data Models are 100% Code-Representable:** You can programmatically construct data models, define columns, joins, and SQL logic, update JSON specs, and swap warehouse sources via API.
-2. **Workbook Layouts are UI-Only:** Workbook pages, elements, charts, KPIs, and controls have no direct layout-as-code API. 
+2. **Workbook Layouts are primarily UI-driven:** While Sigma has introduced Beta endpoints for workbook specifications (`/v2/workbooks/spec`), programmatically constructing layout elements from scratch remains highly complex. 
 
 The canonical path to automated BI dashboards is:  
 **Build the layout once in the Sigma UI, save it as a template, then instantiate and source-swap it programmatically forever after!** 🎨 ➡️ 🤖
@@ -243,7 +243,7 @@ Configure behavior using environment variables:
 | `SIGMA_CLIENT_ID` | *Required* | Your Sigma API client ID. |
 | `SIGMA_CLIENT_SECRET` | *Required* | Your Sigma API client secret. |
 | `SIGMA_API_BASE_URL` | *Required* | Region-specific Sigma API host URL. |
-| `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (36 tools), `admin` (52), `embed` (55), `full` (155). |
+| `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (38 tools), `admin` (54), `embed` (57), `full` (155). |
 | `SIGMA_MCP_READONLY` | `0` | Set `1` to register **only** read-only tools (83 tools). Models cannot alter org state. |
 | `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) (157 total). |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
