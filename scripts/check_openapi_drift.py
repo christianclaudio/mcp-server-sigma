@@ -63,7 +63,7 @@ def fetch_spec(urls: list[str]) -> dict:
     except Exception as e:
         print(f"Warning: Failed to fetch primary spec ({primary_url}): {e}")
         print("Falling back to split documentation specs...")
-        
+
     merged: dict = {"paths": {}}
     for url in urls[1:]:
         try:
