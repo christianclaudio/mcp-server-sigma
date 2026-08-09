@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.christianclaudio/sigma",
   "title": "mcp-server-sigma",
-  "description": "Enterprise Model Context Protocol (MCP) server for Sigma Computing — provision dashboards, construct data models, and automate cloud analytics.",
+  "description": "MCP server for Sigma Computing. Provision dashboards, build models, and automate cloud analytics.",
   "repository": {
     "url": "https://github.com/christianclaudio/mcp-server-sigma",
     "source": "github"
