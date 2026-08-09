@@ -1,6 +1,12 @@
 # Changelog
 
-## 1.0.4 (Unreleased)
+## 1.0.5 (Unreleased)
+
+### Added
+- **CodeRabbit Noise Reduction**: Excluded documentation markdown files (`CHANGELOG.md`, `README.md`), manifests (`server.json`), local cookbooks, and `.gitignore` from auto-reviews to focus comments strictly on code changes.
+- **Cookbook Improvements**: Documented the MCP Registry 100-character description constraints and the PyPI file-overwrite collision release recovery procedure inside the developer `COOKBOOK.md`.
+
+## 1.0.4 (2026-08-09)
 
 ### Fixed
 - **Description Length Validation**: Shortened the `server.json` description to comply with the MCP Registry's 100-character constraint.
