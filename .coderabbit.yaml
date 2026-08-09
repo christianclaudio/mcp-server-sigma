@@ -3,6 +3,7 @@ language: "en-US"
 reviews:
   # 'chill' provides balanced feedback without nitpicky noise ('quiet' = critical only)
   profile: "chill"
+  review_status: false
 
   # Auto-Review Settings
   auto_review:
