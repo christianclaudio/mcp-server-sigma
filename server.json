@@ -7,12 +7,12 @@
     "url": "https://github.com/christianclaudio/mcp-server-sigma",
     "source": "github"
   },
-  "version": "1.0.2",
+  "version": "1.0.4",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "mcp-server-sigma",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "transport": {
         "type": "stdio"
       },
