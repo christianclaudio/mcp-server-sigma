@@ -1,21 +1,44 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.christianclaudio/mcp-server-sigma",
-  "description": "155-tool MCP server for Sigma Computing — workbooks, data models, permissions, exports, and multi-tenant governance.",
-  "title": "Sigma Computing MCP Server",
+  "name": "io.github.christianclaudio/sigma",
+  "title": "mcp-server-sigma",
+  "description": "Enterprise Model Context Protocol (MCP) server for Sigma Computing — provision dashboards, construct data models, and automate cloud analytics.",
   "repository": {
     "url": "https://github.com/christianclaudio/mcp-server-sigma",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "1.0.2",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "mcp-server-sigma",
-      "version": "1.0.0",
+      "version": "1.0.2",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "environmentVariables": [
+        {
+          "name": "SIGMA_CLIENT_ID",
+          "description": "Your Sigma API client ID",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "SIGMA_CLIENT_SECRET",
+          "description": "Your Sigma API client secret",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "SIGMA_API_BASE_URL",
+          "description": "Region-specific Sigma API host URL (e.g. https://api.us-a.aws.sigmacomputing.com)",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
     }
   ]
 }

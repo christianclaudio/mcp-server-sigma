@@ -366,3 +366,5 @@ Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/chri
 Copyright (c) 2026 Christian Claudio.
 
 *Disclaimer: Not affiliated with, sponsored by, or endorsed by Sigma Computing, Inc.*
+
+<!-- mcp-name: io.github.christianclaudio/sigma -->
