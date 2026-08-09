@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.0.3 (Unreleased)
+## 1.0.4 (Unreleased)
+
+### Fixed
+- **Description Length Validation**: Shortened the `server.json` description to comply with the MCP Registry's 100-character constraint.
+
+## 1.0.3 (2026-08-09)
 
 ### Added
 - **MCP Registry Integration**: Created the `server.json` manifest specifying standard environment variables and metadata for OIDC publishing to the official Model Context Protocol Registry.
