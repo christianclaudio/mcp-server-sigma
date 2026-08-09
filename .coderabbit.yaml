@@ -8,17 +8,25 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-    # Skip automatic reviews when PR title contains 'dependabot' or 'bump'
+    # Skip automatic reviews when PR title contains keywords
     ignore_title_keywords:
       - "dependabot"
       - "bump"
+      - "release"
+      - "version"
+      - "changelog"
 
-  # Path Filters: Exclude lockfiles, virtualenvs, and log files from review
+  # Path Filters: Exclude lockfiles, docs, manifests, and configs from review
   path_filters:
     - "!poetry.lock"
     - "!package-lock.json"
     - "!.venv/**"
     - "!**.log"
+    - "!CHANGELOG.md"
+    - "!README.md"
+    - "!server.json"
+    - "!COOKBOOK.md"
+    - "!.gitignore"
 
   # Domain Path Instructions: Enforce project-specific architectural rules automatically
   path_instructions:
