@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 (Unreleased)
+
+### Added
+- **MCP Registry Integration**: Created the `server.json` manifest specifying standard environment variables and metadata for OIDC publishing to the official Model Context Protocol Registry.
+- **Development Cookbook**: Added a git-ignored developer `COOKBOOK.md` to define strict local type checks, AI self-reviews, and CodeRabbit review wait-states prior to merging.
+
+### Fixed
+- **Release CI Workflow**: Checked out the workspace in the PyPI/MCP publish job so `server.json` is present during version bumps, and pinned the `mcp-publisher` tool to release version `v1.8.1` as recommended by CodeRabbit reviews.
+
 ## 1.0.2 (2026-08-07)
 
 ### Fixed

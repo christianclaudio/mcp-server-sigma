@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-sigma"
-version = "1.0.2"
+version = "1.0.3"
 description = "Enterprise Model Context Protocol (MCP) server for Sigma Computing — provision dashboards, construct data models, and automate cloud analytics."
 readme = "README.md"
 license = "MIT"
