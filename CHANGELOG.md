@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2 (2026-08-07)
+
+### Fixed
+- **OpenAPI Drift Target**: Pointed the drift monitor target to the canonical unified public REST API spec (`assets.sigmacomputing.com`), bringing visibility to 33 previously hidden endpoints (including the Beta code-representation spec APIs).
+- **Layout & Spec Wording**: Softened the workbook layout descriptions in `sigma_api_capabilities` and `README.md` to reference the Beta `/v2/workbooks/spec` code representation spec.
+- **Base URL Troubleshooting**: Clarified region-specific connection troubleshooting text in `server.py` to avoid false alerts for AWS US-West users.
+- **Profile Counts**: Corrected tool registration count figures in the `README.md` configuration tables.
+
+## 1.0.1 (2026-08-05)
+
+### Fixed
+- **PyPI Rendering**: Converted relative documentation links to absolute GitHub URLs to prevent 404 errors on PyPI project pages.
+
 ## 1.0.0 (2026-08-02)
 
 ### Breaking Changes
