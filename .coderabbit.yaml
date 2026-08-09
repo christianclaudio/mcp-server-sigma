@@ -12,9 +12,6 @@ reviews:
     ignore_title_keywords:
       - "dependabot"
       - "bump"
-      - "release"
-      - "version"
-      - "changelog"
 
   # Path Filters: Exclude lockfiles, docs, manifests, and configs from review
   path_filters:
@@ -27,6 +24,7 @@ reviews:
     - "!server.json"
     - "!COOKBOOK.md"
     - "!.gitignore"
+    - "!.coderabbit.yaml"
 
   # Domain Path Instructions: Enforce project-specific architectural rules automatically
   path_instructions:
