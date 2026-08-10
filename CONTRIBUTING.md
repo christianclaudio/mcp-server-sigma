@@ -158,8 +158,9 @@ pytest tests/test_integration_live.py -v
 ## 🔀 Pull Request Merging & Git History
 
 To maintain a clean, linear, and readable commit history on the default branch:
+*   **Branch Synchronization**: Always keep your feature branch updated with `main`. You can safely merge `main` back into your branch or use GitHub's "Update branch" feature. Ensure all tests and lint checks pass on the synchronized state before merging.
 *   **Squash Merging**: This repository enforces **Squash Merging only**. When your PR is merged, all commits on your branch will be squashed into a single commit on `main`.
-*   **PR Title Convention**: Because the Pull Request title becomes the final commit message on `main`, please ensure it follows the **Conventional Commits** specification (e.g., `feat: add user attribute tools`, `fix: sanitize path inputs`).
+*   **PR Title Convention**: Because the Pull Request title is used to generate the default squash commit title on `main`, please ensure it follows the **Conventional Commits** specification (e.g., `feat: add user attribute tools`, `fix: sanitize path inputs`).
 
 ---
 
