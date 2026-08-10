@@ -5,6 +5,7 @@
 ### Added
 - **CodeRabbit Noise Reduction**: Excluded documentation markdown files (`CHANGELOG.md`, `README.md`), manifests (`server.json`), local cookbooks, and `.gitignore` from auto-reviews to focus comments strictly on code changes.
 - **Cookbook Improvements**: Documented the MCP Registry 100-character description constraints and the PyPI file-overwrite collision release recovery procedure inside the developer `COOKBOOK.md`.
+- **Contribution Merge Strategy**: Documented the repository's strict git squash-merging and Conventional Commit pull request title conventions in `CONTRIBUTING.md` and `COOKBOOK.md`.
 
 ## 1.0.4 (2026-08-09)
 
