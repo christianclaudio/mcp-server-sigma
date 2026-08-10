@@ -155,6 +155,14 @@ pytest tests/test_integration_live.py -v
 
 ---
 
+## 🔀 Pull Request Merging & Git History
+
+To maintain a clean, linear, and readable commit history on the default branch:
+*   **Squash Merging**: This repository enforces **Squash Merging only**. When your PR is merged, all commits on your branch will be squashed into a single commit on `main`.
+*   **PR Title Convention**: Because the Pull Request title becomes the final commit message on `main`, please ensure it follows the **Conventional Commits** specification (e.g., `feat: add user attribute tools`, `fix: sanitize path inputs`).
+
+---
+
 ## 💬 Community Standards
 
 Please adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions. Let's build something awesome together! 🎉
