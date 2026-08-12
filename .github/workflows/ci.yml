@@ -132,10 +132,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: python
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         # SARIF upload may fail with "Resource not accessible by integration" on
         # repos where the default GITHUB_TOKEN lacks security-events write access.
         # The scan itself still runs; this only affects result visibility in the
