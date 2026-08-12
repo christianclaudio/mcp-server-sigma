@@ -6,10 +6,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      # Batch low-risk bumps into one PR to keep review noise down.
-      minor-and-patch:
+      # Batch all updates into a single PR to keep pull requests focused and minimal
+      pip-dependencies:
         patterns: ["*"]
-        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -17,6 +16,5 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      actions-minor-and-patch:
+      actions-dependencies:
         patterns: ["*"]
-        update-types: ["minor", "patch"]
