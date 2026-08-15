@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/mcp-server-sigma)](https://pypi.org/project/mcp-server-sigma/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/christianclaudio/mcp-server-sigma/blob/main/LICENSE)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/christianclaudio/mcp-server-sigma)
+[![CodeRabbit Reviews](https://img.shields.io/coderabbit/prs/github/christianclaudio/mcp-server-sigma?utm_source=oss&utm_medium=github&utm_campaign=christianclaudio%2Fmcp-server-sigma&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 > **Supercharge your AI Agents with native Sigma Computing superpowers!** ⚡  
 > An enterprise-grade Model Context Protocol (MCP) server with **155 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
