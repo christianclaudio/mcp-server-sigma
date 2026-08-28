@@ -1,0 +1,1052 @@
+<header>
+  <p>
+    Sigma Documentation
+  </p>
+
+  How can we help?
+
+  <p>
+    Guides, references, and answers for building apps, analyzing data, and administering Sigma.
+  </p>
+</header>
+
+#### Get started
+
+#### Build with AI
+
+#### What's new
+
+#### AI apps
+
+#### Workbooks
+
+#### Data modeling
+
+#### Administration
+
+#### Embedded analytics
+
+#### Functions
+
+#### Developer documentation
+
+#### Get help
+
+> Official documentation and guidance for using Sigma to build AI apps, dashboards, and agents on governed warehouse data.
+
+## Instructions for AI Agents
+
+- For clean Markdown of any page, append `.md` to the page URL
+- For section-specific indexes, append `/llms.txt` to any section URL
+- For AI client integration (Claude Code, Cursor, etc.), connect to the MCP server at https://help.sigmacomputing.com/_mcp/server
+
+## Docs
+
+- [About Sigma](https://help.sigmacomputing.com/docs/about-sigma.md): Sigma empowers ad hoc analysis, enterprise analytics, data apps, and embedded analytics powered by live cloud data.
+- [Sigma basics](https://help.sigmacomputing.com/docs/sigma-basics.md): Learn basic Sigma concepts and terminology for organizations, documents, data, and core product workflows.
+- [Start your Sigma trial](https://help.sigmacomputing.com/docs/start-your-sigma-trial.md): Start a free Sigma trial to connect your data platform, explore live cloud data, and build your first workbook.
+- [Get around in Sigma](https://help.sigmacomputing.com/docs/get-around-in-sigma.md): Explore the Sigma UI and options available on the Sigma Home page.
+- [About billable usage events](https://help.sigmacomputing.com/docs/about-billable-usage-events.md): With Sigma usage-based pricing, your organization incurs credit costs when specific billable events or user activities occur.
+- [Start using Sigma](https://help.sigmacomputing.com/docs/start-using-sigma.md): Sigma provides instructional material, document templates, and sample data to help you get started.
+- [Sigma's sample connection](https://help.sigmacomputing.com/docs/sigmas-sample-connection.md): Access sample connections on Snowflake and Databricks, named the Sigma Sample Database and Sigma Sample Catalog .
+- [Sigma Public](https://help.sigmacomputing.com/docs/sigma-public.md): Sigma Public is a free-to-use platform where you can create, share, and explore apps built in Sigma.
+- [Get started with templates](https://help.sigmacomputing.com/docs/get-started-with-templates.md): Sigma provides templates to help you get started using Sigma features and functionality.
+- [Create documents from templates](https://help.sigmacomputing.com/docs/create-workbooks-from-templates.md): Create Sigma workbooks, reports, and AI apps from reusable templates for consistent, faster document building.
+- [AI cost templates](https://help.sigmacomputing.com/docs/ai-cost-templates.md): Compare the Sigma templates that monitor AI spend and usage across Claude, OpenAI, and Snowflake Cortex, and choose the one that matches your data.
+- [Claude spend template](https://help.sigmacomputing.com/docs/claude-spend-template.md): Monitor your organization's Claude Enterprise (Anthropic) spend and usage with an executive cost overview, adoption metrics, and skill and connector usage details.
+- [OpenAI spend template](https://help.sigmacomputing.com/docs/openai-spend-template.md): Monitor your organization's OpenAI API spend with an executive cost overview showing total spend, trend, and the line items, projects, and people driving it.
+- [Snowflake AI spend template](https://help.sigmacomputing.com/docs/snowflake-ai-spend-template.md): Monitor your organization's Snowflake Cortex AI Functions spend and usage with an executive cost overview and per-warehouse, per-user, and per-department attribution.
+- [Snowflake Cortex cost template](https://help.sigmacomputing.com/docs/snowflake-cortex-cost-template.md): Monitor spend and adoption across every Snowflake Cortex product — Agents, AISQL, AI Functions, Analyst, Code (CoCo), CoWork, and Search — with an executive cost overview and per-product, per-user, and per-department attribution.
+- [Snowflake usage templates](https://help.sigmacomputing.com/docs/snowflake-usage-templates.md): Use Sigma Snowflake usage templates for prebuilt analysis of Snowflake consumption, performance, and costs.
+- [Get started with AI in Sigma](https://help.sigmacomputing.com/docs/getting-started-with-ai.md): AI-powered features in Sigma help accelerate analysis and reduce friction when understanding data, building logic, and interpreting outputs.
+- [Learn Sigma](https://help.sigmacomputing.com/docs/learn-sigma.md): Sigma offers written tutorials, live training sessions, and interactive coursework for you and your team to learn Sigma.
+- [Sigma Fundamentals for Builders](https://help.sigmacomputing.com/docs/sigma-fundamentals-for-builders.md): Fundamentals for Builders is a tutorial series that helps build a solid foundation in Sigma, using hands-on learning.
+- [Lesson one: Basic organization and navigation](https://help.sigmacomputing.com/docs/lesson-one-basic-organization-and-navigation.md): Sigma Fundamentals for Builders: lesson one covers basic organization and navigation with hands-on workbook exercises.
+- [Lesson two: Working with data tables](https://help.sigmacomputing.com/docs/lesson-two-working-with-data-tables.md): Sigma Fundamentals for Builders: lesson two covers working with data tables with hands-on workbook exercises.
+- [Lesson three: Grouped tables and pivot tables](https://help.sigmacomputing.com/docs/lesson-three-grouped-tables-and-pivot-tables.md): Sigma Fundamentals for Builders: lesson three covers grouped tables and pivot tables with hands-on workbook exercises.
+- [Lesson four: Charts and visualizations](https://help.sigmacomputing.com/docs/lesson-four-charts-and-visualizations.md): Sigma Fundamentals for Builders: lesson four covers charts and visualizations with hands-on workbook exercises.
+- [Lesson five: Controls and actions](https://help.sigmacomputing.com/docs/lesson-five-controls-and-actions.md): Sigma Fundamentals for Builders: lesson five covers controls and actions with hands-on workbook exercises.
+- [Lesson six: Organization](https://help.sigmacomputing.com/docs/lesson-six-organization.md): Sigma Fundamentals for Builders: lesson six covers organization with hands-on workbook exercises.
+- [Lesson seven: Style](https://help.sigmacomputing.com/docs/lesson-seven-style.md): Sigma Fundamentals for Builders: lesson seven covers style with hands-on workbook exercises.
+- [Lesson eight: Input tables and combining data](https://help.sigmacomputing.com/docs/lesson-eight-input-tables-and-combining-data.md): Sigma Fundamentals for Builders: lesson eight covers input tables and combining data with hands-on workbook exercises.
+- [Connect to data sources](https://help.sigmacomputing.com/docs/connect-to-data-sources.md): A data source connection enables Sigma to communicate with your data platform and perform live data queries.
+- [Connect to Snowflake](https://help.sigmacomputing.com/docs/connect-to-snowflake.md): Sigma supports secure connections to Snowflake.
+- [Connect to Snowflake with OAuth](https://help.sigmacomputing.com/docs/connect-to-snowflake-oauth.md): Authenticate from Sigma to Snowflake with OAuth to allow users to inherit access policies from Snowflake.
+- [Set up a Snowflake connection for Python](https://help.sigmacomputing.com/docs/set-up-a-snowflake-connection-for-python.md): Set up Python on your Snowflake connection in Sigma to run notebook-style code for complex analysis and data science workflows.
+- [Specify session variables for a Snowflake connection (Beta)](https://help.sigmacomputing.com/docs/specify-session-variables-for-a-snowflake-connection.md): Set Snowflake session variables on a Sigma connection to apply per-query SQL variables, including row access policy examples.
+- [Restore input table access for a Snowflake connection or user](https://help.sigmacomputing.com/docs/restore-input-table-access-for-a-snowflake-connection-or-user.md): Fix Snowflake input table access in Sigma when role or OAuth changes block creating tables or saving edits.
+- [Connect to Databricks](https://help.sigmacomputing.com/docs/connect-to-databricks.md): Connect to Databricks in Sigma. Configure SQL warehouses, credentials, and secure connections so users in your organization can analyze Databricks data.
+- [Connect to Databricks with OAuth](https://help.sigmacomputing.com/docs/connect-to-databricks-oauth.md): Connect Databricks to Sigma with OAuth. Use organization-level or connection-level OAuth configs so users authenticate with inherited permissions.
+- [Set up a Databricks connection for Python](https://help.sigmacomputing.com/docs/set-up-a-databricks-connection-for-python.md): Enable Python on your Databricks connection in Sigma to write and run notebook-style code for advanced analytics and data science.
+- [Connect to Redshift](https://help.sigmacomputing.com/docs/connect-to-redshift.md): Sigma supports secure connections to Amazon Redshift.
+- [Connect to BigQuery](https://help.sigmacomputing.com/docs/connect-to-bigquery.md): Connect to BigQuery in Sigma. Create a service account, configure credentials, and set up secure warehouse connections for your organization.
+- [Connect to BigQuery with OAuth (Beta)](https://help.sigmacomputing.com/docs/connect-to-bigquery-oauth.md): Connect to BigQuery with OAuth in Sigma. Set up connection-level OAuth so users inherit BigQuery permissions per account.
+- [Connect to AlloyDB](https://help.sigmacomputing.com/docs/connect-to-alloydb.md): Connect to AlloyDB in Sigma. Set up secure database connections so your organization can query AlloyDB data in workbooks and analyses.
+- [Connect to MySQL](https://help.sigmacomputing.com/docs/connect-to-mysql.md): Sigma supports secure connections to MySQL (release 8.x and higher).
+- [Connect to PostgreSQL](https://help.sigmacomputing.com/docs/connect-to-postgresql.md): Sigma supports secure connections to PostgreSQL.
+- [Connect to Starburst](https://help.sigmacomputing.com/docs/connect-to-starburst.md): Sigma supports using Starburst Galaxy, a SaaS distribution of Trino, to connect to a Snowflake, Databricks, BigQuery, or PostgreSQL data warehouse.
+- [Connect to Azure SQL Database](https://help.sigmacomputing.com/docs/connect-to-azure-sql-database.md): Connect Sigma to Azure SQL Database, a managed PaaS engine. Configure secure connections and verify supported instance types.
+- [Connect to SQL Server 2022 and Azure SQL Managed Instance](https://help.sigmacomputing.com/docs/connect-to-sql-server-2022.md): Connect Sigma to your SQL Server 2022 or Azure SQL Managed Instance data.
+- [Connect to ClickHouse (Beta)](https://help.sigmacomputing.com/docs/connect-to-clickhouse.md): Connect to ClickHouse in Sigma. Set up secure server connections and review supported features, requirements, and limitations.
+- [Set up write access](https://help.sigmacomputing.com/docs/set-up-write-access.md): Set up write access on Sigma connections to enable input tables, warehouse views, materializations, CSV uploads, and running Python code.
+- [About OAuth with write access](https://help.sigmacomputing.com/docs/configure-oauth-with-write-access.md): Learn how write access works with OAuth connections for features like input tables, warehouse views, materializations, and CSV uploads.
+- [Run a workbook with service account credentials](https://help.sigmacomputing.com/docs/run-a-workbook-with-service-account-credentials.md): Run Sigma workbooks with service account credentials instead of OAuth user credentials for scheduled exports and materializations.
+- [Dynamically assign roles used by a connection](https://help.sigmacomputing.com/docs/dynamically-assign-roles-used-by-a-connection.md): Dynamically assign connection roles in Sigma by user or team based on user attribute values for supported connections.
+- [Connect through SSH](https://help.sigmacomputing.com/docs/connect-through-ssh.md): Connect Sigma to PostgreSQL, Redshift, AlloyDB, or MySQL databases securely using SSH tunnel connections.
+- [AWS PrivateLink Connections](https://help.sigmacomputing.com/docs/aws-privatelink-connections.md): Connect Sigma to your data on AWS using PrivateLink for secure VPC-to-VPC access without sending traffic over the public internet.
+- [Azure Private Link Connections](https://help.sigmacomputing.com/docs/azure-private-link-connections.md): Connect Sigma to Azure-hosted data warehouses using Azure Private Link for secure, private network connectivity.
+- [GCP Private Service Connect](https://help.sigmacomputing.com/docs/gcp-private-link-connections.md): Use GCP Private Service Connect in Sigma to securely access Snowflake data from your own VPC on Google Cloud.
+- [Troubleshoot your connection](https://help.sigmacomputing.com/docs/troubleshoot-your-connection.md): Fix Sigma connection issues like missing tables or failed connections with admin and user troubleshooting steps, including connection indexing and sync guidance and details.
+- [Troubleshoot input table connection issues](https://help.sigmacomputing.com/docs/troubleshoot-input-table-connection-issues.md): Resolve Sigma input table connection errors caused by configuration or data platform issues affecting saves and new tables.
+- [Get started with data modeling](https://help.sigmacomputing.com/docs/get-started-with-data-modeling.md): Data models provide a semantic layer for your data, letting you organize and store data in a structured governed way without modifying raw data.
+- [Tutorial: Intro to data models](https://help.sigmacomputing.com/docs/data-modeling-tutorial.md): Tutorial to guide users through creating data models, enabling business users to explore and analyze data from curated and constrained sources.
+- [Data modeling best practices](https://help.sigmacomputing.com/docs/data-modeling-best-practices.md): Build a clear Sigma semantic layer with metadata and context to improve Assistant accuracy and data source relevance.
+- [Create and manage data models](https://help.sigmacomputing.com/docs/create-and-manage-data-models.md): Build a data model to create a collection of table and input table elements that you can reference as data sources in workbooks and other data.
+- [Manage AI context for a data model (Beta)](https://help.sigmacomputing.com/docs/manage-ai-context-for-data-models.md): Add AI context to a data model to help Sigma Assistant better understand how to use your data model as a data source.
+- [Navigate data models](https://help.sigmacomputing.com/docs/navigate-data-models.md): Explore and use the different pages of a data model: Overview, including details and document lineage, Workbook to view the data elements, and the ERD to visualize relationships.
+- [Define relationships in data models](https://help.sigmacomputing.com/docs/define-relationships-in-data-models.md): Add relationships between tables in a data model to enable business users to work with related data without performing ad hoc joins.
+- [Validate content in a data model](https://help.sigmacomputing.com/docs/validate-content-data-model.md): Validate content to prevent cases where deleting a column or element causes errors in documents that rely on the data model in Sigma.
+- [About metrics](https://help.sigmacomputing.com/docs/about-metrics.md): Metrics are dynamic and reusable calculations that are specific to a data source in Sigma.
+- [Create and manage metrics](https://help.sigmacomputing.com/docs/create-and-manage-metrics.md): A metric is a custom aggregate calculation that can be reused across data elements that share a data source in Sigma.
+- [Review and manage your data catalog](https://help.sigmacomputing.com/docs/manage-data-catalog.md): Explore the databases or catalogs, schemas, and tables available in Sigma in a data catalog or connection browser, and add descriptions and other metadata to tables and columns.
+- [Migrate a dataset to a data model](https://help.sigmacomputing.com/docs/migrate-a-dataset-to-a-data-model.md): Migrate a dataset to a data model to take advantage of the capabilities that exist only in data models.
+- [Supported data types and formats](https://help.sigmacomputing.com/docs/data-types-and-formats.md): Sigma supports various data types and formats to facilitate effective analysis and reporting.
+- [Upload CSV data](https://help.sigmacomputing.com/docs/upload-csv-data.md): Upload a CSV file to write CSV data to a connected data platform in Sigma.
+- [Overview of joining data](https://help.sigmacomputing.com/docs/joins-overview.md): Sigma supports creating joins in workbooks, data models, and datasets, allowing you to combine information from multiple records based on matching information.
+- [Create and edit joins in data models and workbooks](https://help.sigmacomputing.com/docs/create-and-edit-joins-in-data-models-and-workbooks.md): Joins allow you to combine data from multiple tables based on matching information in Sigma.
+- [Create and edit unions](https://help.sigmacomputing.com/docs/create-and-edit-unions.md): Sigma supports creating unions in workbooks, data models, and datasets.
+- [Define custom datetime formats](https://help.sigmacomputing.com/docs/define-custom-datetime-formats.md): Define custom datetime formats in Sigma to control how date data displays in workbooks using common format specifiers.
+- [Generate and access structured objects](https://help.sigmacomputing.com/docs/generate-and-access-structured-objects.md): Record formulas improve data processing and interaction by enabling you to generate structured objects (like JSON) directly in workbooks and data.
+- [Set up row-level security](https://help.sigmacomputing.com/docs/set-up-row-level-security.md): Row-level security (RLS) restricts access to data based on the characteristics of the person viewing the data in Sigma.
+- [Configure column-level security](https://help.sigmacomputing.com/docs/column-level-security.md): Column-level security lets admins restrict or grant access to column-level data so sensitive information stays accessible to authorized users only.
+- [Workbooks overview](https://help.sigmacomputing.com/docs/workbooks-overview.md): Sigma workbooks combine spreadsheet and BI capabilities for analysis and reporting, building interactivity while interacting with tables and charts.
+- [Workbook modes overview](https://help.sigmacomputing.com/docs/workbook-modes-overview.md): Sigma offers View, Explore, and Edit workbook modes with different levels of interaction, customization, and configuration.
+- [Navigate a workbook](https://help.sigmacomputing.com/docs/navigating-a-workbook.md): Navigate and use Sigma workbooks. Learn how to move through pages, elements, and features to analyze and explore your data.
+- [Collaborate with Live Edit in workbooks](https://help.sigmacomputing.com/docs/collaborate-with-live-edit-in-workbooks.md): Collaborate on Sigma workbook drafts in real time with Live Edit. Share one live draft, see who is editing, and work together.
+- [Intro to Element Types](https://help.sigmacomputing.com/docs/intro-to-element-types.md): Learn Sigma document element types. Elements are the building blocks of workbooks and reports across single or multiple pages.
+- [Create a workbook](https://help.sigmacomputing.com/docs/create-a-workbook.md): Create a Sigma workbook for ad hoc exploration or long-term reporting. Add data, charts, controls, and configure layouts and create AI apps.
+- [Ad hoc data explorations](https://help.sigmacomputing.com/docs/ad-hoc-data-explorations.md): Use ad hoc data explorations in Sigma to perform flexible, on-the-fly data analysis.
+- [Use your organization's plugins](https://help.sigmacomputing.com/docs/use-your-organizations-plugins.md): Add organization-registered plugin elements to Sigma workbooks for custom functionality beyond the standard product.
+- [Draft and publish a workbook](https://help.sigmacomputing.com/docs/edit-draft-and-publish-a-workbook.md): Draft and publish Sigma workbooks so changes become visible to users with view and explore access.
+- [Copy workbook pages](https://help.sigmacomputing.com/docs/copy-and-paste-workbook-pages.md): Copy workbook pages in Sigma between workbooks or within the same workbook to reuse layouts and elements.
+- [Copy and paste workbook elements](https://help.sigmacomputing.com/docs/copy-and-paste-elements.md): Copy and paste one or more elements within a workbook or from one workbook to another to quickly replicate them.
+- [Design workbook layouts](https://help.sigmacomputing.com/docs/design-workbook-layouts.md): Design Sigma workbook layouts: add and arrange elements, containers, theme and color settings on a blank canvas.
+- [Use Sigma Assistant to build dashboards and apps (Beta)](https://help.sigmacomputing.com/docs/use-ai-to-build-dashboards-and-apps.md): Use Sigma Assistant in plan and build modes to design dashboards and apps with natural language prompts.
+- [Create AI columns (Beta)](https://help.sigmacomputing.com/docs/create-ai-columns.md): Create AI columns in Sigma to enrich table data with natural language prompts. Preview JSON or text output before applying.
+- [Create a data element](https://help.sigmacomputing.com/docs/create-a-data-element.md): Create Sigma data elements in workbooks: tables, pivot tables, and charts built directly from a data source.
+- [Use related columns in a workbook or data model](https://help.sigmacomputing.com/docs/use-related-columns-in-a-workbook.md): Add columns from related tables in Sigma workbooks and data models to analyze and explore related data with ad hoc joins.
+- [Use linked columns in workbooks](https://help.sigmacomputing.com/docs/use-linked-columns-in-workbooks.md): Use linked columns in Sigma workbooks when using a dataset as a source to analyze and explore connected data.
+- [Add columns through Lookup](https://help.sigmacomputing.com/docs/add-columns-through-lookup.md): Use Lookup in Sigma to connect related columns between data elements and inject matching data from one into another.
+- [Create and edit period-over-period analysis](https://help.sigmacomputing.com/docs/create-and-edit-period-over-period-analysis.md): Build period-over-period analyses in Sigma with a guided workflow to compare performance over time without complex formulas.
+- [Organize columns into folders](https://help.sigmacomputing.com/docs/organize-columns-into-folders.md): Organize Sigma data element columns into folders in workbooks and data models to nest columns into relevant groups.
+- [Create and manage tables](https://help.sigmacomputing.com/docs/create-and-manage-tables.md): Create and manage tables in Sigma from warehouses, data models, or CSV files.
+- [Format and customize a table](https://help.sigmacomputing.com/docs/format-and-customize-a-table.md): Format and customize tables in Sigma with brand styles, conditional formatting, and highlights for interactive data.
+- [Add hyperlinks and images to columns](https://help.sigmacomputing.com/docs/add-hyperlinks-to-columns.md): If your table or pivot table contains URLs, use the column menu to hyperlink data in another column or display a linked image.
+- [Extract columns from JSON or variant data](https://help.sigmacomputing.com/docs/extract-columns-from-json-or-variant-data.md): Extract columns from JSON or variant data in Sigma using the column menu or formulas for structured fields.
+- [Working with pivot tables](https://help.sigmacomputing.com/docs/working-with-pivot-tables.md): Create Sigma pivot tables to group, summarize, and explore multi-dimensional data and category relationships in your analysis.
+- [Pivot table totals and subtotals](https://help.sigmacomputing.com/docs/pivot-table-subtotals.md): Calculate pivot table totals and subtotals in Sigma from sums, averages, and other aggregated values in grouped tables.
+- [Format pivot table totals](https://help.sigmacomputing.com/docs/format-pivot-table-totals.md): Format pivot table totals in Sigma separately from other values to customize how totals appear in reports and dashboards.
+- [Work with hierarchies](https://help.sigmacomputing.com/docs/hierarchies.md): Group pivot table columns with Sigma hierarchies to define categorical order and data granularity, like country to city or product levels.
+- [Create ad hoc calculations](https://help.sigmacomputing.com/docs/create-ad-hoc-calculations.md): Create ad hoc calculations in Sigma pivot tables for one-off metrics without modifying the underlying data table.
+- [Transpose a table](https://help.sigmacomputing.com/docs/transpose-a-table.md): Transpose Sigma tables from rows to columns or columns to rows for easier analysis, reporting, and presentation.
+- [Create a table from an array](https://help.sigmacomputing.com/docs/create-a-table-from-an-array.md): Create a table from an array in Sigma using Unnest to expand or flatten array items or a column of arrays.
+- [Write and run Python code in Sigma](https://help.sigmacomputing.com/docs/write-and-run-python-code.md): Write and run Python code in Sigma for data science, data engineering, and data analysis tasks in your workbooks.
+- [Python method reference](https://help.sigmacomputing.com/docs/python-method-reference.md): Browse available Python methods for Sigma Python elements. Reference built-in functions when writing data science and analysis code.
+- [Write custom SQL](https://help.sigmacomputing.com/docs/write-custom-sql.md): Write custom SQL in Sigma. Preview query results and create workbooks, data models, and datasets directly from SQL.
+- [Reference workbook control values in SQL statements](https://help.sigmacomputing.com/docs/reference-workbook-control-values-in-sql-statements.md): Reference workbook control values in Sigma SQL by wrapping a control ID in curly brackets and using relevant directives within your SQL statements.
+- [Query a dbt Semantic Layer integration](https://help.sigmacomputing.com/docs/query-a-dbt-semantic-layer-integration.md): Query dbt Semantic Layer metrics in Sigma workbooks for ad hoc analysis, recurring reports, and dashboards.
+- [Query and extend Snowflake semantic views in Sigma (Beta)](https://help.sigmacomputing.com/docs/query-and-extend-snowflake-semantic-views-in-sigma.md): Query and extend Snowflake semantic views in Sigma to model governed metrics, dimensions, and relationships.
+- [Query Databricks metric views in Sigma (Beta)](https://help.sigmacomputing.com/docs/query-databricks-metric-views-in-sigma.md): Query Databricks metric views in Sigma using Unity Catalog governed metrics, dimensions, and joins.
+- [About Sigma agents (Beta)](https://help.sigmacomputing.com/docs/sigma-agents.md): Learn about Sigma agents (Beta)—AI interfaces in workbooks for business tasks like forecasting and summarizing data.
+- [Build Sigma agents (Beta)](https://help.sigmacomputing.com/docs/build-agents.md): Build Sigma agents in workbooks to add AI capabilities to dashboards using instructions, data sources, actions, and third-party agents and MCP tools.
+- [Chat with Sigma agents (Beta)](https://help.sigmacomputing.com/docs/chat-with-agent.md): Chat with Sigma agents in workbook chat elements to ask data questions and accomplish analysis tasks.
+- [Example use cases for Sigma agents (Beta)](https://help.sigmacomputing.com/docs/example-agent-implementations.md): Explore example use cases for Sigma agents to set up agents that store conversational memory, notify users about anomalies, run a forecasting model, retrieve data from an API, or automatically send a usage summary on a schedule.
+- [View workbook and data model data lineage](https://help.sigmacomputing.com/docs/workbook-data-lineage.md): Data lineage refers to the ancestry and relationships between data elements in a workbook or data model in Sigma.
+- [Change the data source for a workbook, data model, or element](https://help.sigmacomputing.com/docs/change-the-data-source-for-a-workbook-data-model-or-element.md): Change the data source used by an entire workbook or data model, or change the data source used by a specific data element in Sigma.
+- [Manage workbook refresh options](https://help.sigmacomputing.com/docs/workbook-refresh-options.md): Set a custom refresh schedule to refresh document data on a schedule without user interaction.
+- [Manage workbook localization](https://help.sigmacomputing.com/docs/manage-workbook-localization.md): Translate Sigma UI text, configure translations for user-added text, and format dates and numbers in workbooks and embeds.
+- [Add shortcuts to documents](https://help.sigmacomputing.com/docs/add-shortcuts-to-documents.md): If you want to save links to documents in more than one location, you can add a shortcut in Sigma.
+- [Workbook page settings overview](https://help.sigmacomputing.com/docs/workbook-page-settings-overview.md): Configure page settings that apply to individual pages in a workbook in Sigma.
+- [Manage workbook page visibility](https://help.sigmacomputing.com/docs/manage-workbook-page-visibility.md): Customize Sigma workbook page visibility to restrict which pages users with different levels of access to a document can use.
+- [Add custom page panels to a workbook](https://help.sigmacomputing.com/docs/add-custom-page-panels-to-a-workbook.md): Create custom panels that appear on one or more workbook pages by enabling the page header and page sidebar options in Sigma.
+- [Create and edit document templates](https://help.sigmacomputing.com/docs/create-and-edit-workbook-templates.md): Create and edit Sigma document templates to reuse workbook and report structures and share them across your organization.
+- [Workbook lifecycle: explore, draft, and publish](https://help.sigmacomputing.com/docs/workbook-lifecycle-explore-draft-and-publish.md): Workbooks support both ad hoc data exploration and complex long-term reporting in Sigma.
+- [Add context with a document description](https://help.sigmacomputing.com/docs/add-context-with-document-descriptions.md): Add descriptions to Sigma workbooks, reports, and data models to document contents, status, quality, and reliability.
+- [View and manage document badges](https://help.sigmacomputing.com/docs/view-and-manage-document-badges.md): Set certification badges (endorsed, warning, and deprecated) on workbooks and data models to reflect document status, quality, and reliability.
+- [Workbook versions and version history](https://help.sigmacomputing.com/docs/workbook-versions-and-version-history.md): Manage and review document version history and changes made to workbooks, data models, and reports in Sigma.
+- [About version tags to workbooks, data models, and reports](https://help.sigmacomputing.com/docs/add-version-tags-to-workbooks-and-data-models.md): Learn about version tags in Sigma for read-only workbook, data model, and report versions you can share, embed, or deploy.
+- [Tag a workbook, data model, or report version](https://help.sigmacomputing.com/docs/tag-a-document-version.md): Tag a workbook, data model, or report version in Sigma to create a read-only version for sharing, embedding, or deployment.
+- [Use warehouse views with version tagging](https://help.sigmacomputing.com/docs/use-warehouse-views-with-version-tagging.md): Create warehouse views from a tagged version of a workbook or data model in Sigma.
+- [Use input tables with version tagging](https://help.sigmacomputing.com/docs/use-input-tables-with-version-tagging.md): Apply version tags to documents that contain input tables in Sigma.
+- [Best practices for improved document performance](https://help.sigmacomputing.com/docs/best-practices-for-improved-performance.md): If your document, such as a workbook, is slow to load data elements, Sigma provides several options to accelerate the performance of your document.
+- [About materialization](https://help.sigmacomputing.com/docs/materialization.md): Learn about Sigma materialization for data elements in workbooks and data models.
+- [Schedule materialization for a data model or workbook (Beta)](https://help.sigmacomputing.com/docs/schedule-materialization-for-a-data-model-or-workbook.md): Schedule Sigma materialization for workbook or data model elements to control data freshness and reduce warehouse queries.
+- [Schedule materialization for a version-tagged data model](https://help.sigmacomputing.com/docs/schedule-materialization-for-a-version-tagged-data-model.md): If you have a data model with one or more tagged versions, you can set up materialization schedules for each version of the data model.
+- [Caching and data freshness](https://help.sigmacomputing.com/docs/caching-and-data-freshness.md): About caching options in Sigma to manage data freshness in documents, such as with Alpha Query, the universal result cache, or query results cached in your data platform.
+- [Set a query ID cache duration](https://help.sigmacomputing.com/docs/set-a-query-id-cache-duration.md): Set the cache duration to be used when retrieving query results from a data platform cache.
+- [Manage universal result cache (Beta)](https://help.sigmacomputing.com/docs/manage-universal-result-cache.md): Sigma allows you to cache recent queries to reduce warehouse compute costs and improve performance.
+- [Configure data loading](https://help.sigmacomputing.com/docs/configure-data-loading.md): Optimize performance of documents in Sigma by configuring when an element uses the browser cache to load data from your data platform.
+- [Create and manage warehouse views](https://help.sigmacomputing.com/docs/create-and-manage-workbook-warehouse-views.md): Create warehouse views, which are virtual tables saved to your data platform in Sigma, to simplify queries and retrieve subsets of data in Sigma data elements from your data platform.
+- [Examine workbook and data model queries](https://help.sigmacomputing.com/docs/examine-workbook-queries.md): See optimized SQL queries Sigma generates for workbooks and data models and how results return securely to your browser.
+- [Override the Snowflake warehouse used by a workbook](https://help.sigmacomputing.com/docs/override-snowflake-warehouse-workbook.md): Override the Snowflake virtual warehouse used by a Sigma workbook so admins can route queries to a different warehouse.
+- [Intro to charts](https://help.sigmacomputing.com/docs/intro-to-visualizations.md): Intro to Sigma charts and visualizations. Create graphical data elements in workbooks and reports to reveal trends, patterns, and insights.
+- [Build a bar chart](https://help.sigmacomputing.com/docs/build-a-bar-chart.md): Build bar charts in Sigma to compare values across categories, from basic single-series charts to advanced multi-variable visualizations.
+- [Build a line chart](https://help.sigmacomputing.com/docs/build-a-line-chart.md): Build line charts in Sigma to spot trends, track changes over time, and compare multiple variables with advanced multi-line options.
+- [Build a KPI chart](https://help.sigmacomputing.com/docs/build-a-kpi-chart.md): KPI charts highlight a single metric value to measure performance or progress toward a goal or target.
+- [Build a scatter plot](https://help.sigmacomputing.com/docs/build-a-scatter-plot.md): Build scatter plots in Sigma to assess correlations between variables. Identify patterns, trends, outliers, and add trend lines or quadrants.
+- [Build a Sankey diagram](https://help.sigmacomputing.com/docs/build-a-sankey-diagram.md): Build Sankey diagrams in Sigma to visualize data flow across process stages. Analyze distribution, workflows, and multi-level relationships.
+- [Build a funnel chart](https://help.sigmacomputing.com/docs/build-a-funnel-chart.md): Build funnel charts in Sigma to measure values across sequential stages, evaluate each step, and identify workflow bottlenecks.
+- [Build a gauge chart](https://help.sigmacomputing.com/docs/build-a-gauge-chart.md): Build gauge charts in Sigma to display measurable values on a radial scale. Track performance, growth, and progress toward goals.
+- [Build a progress bar (Beta)](https://help.sigmacomputing.com/docs/build-a-progress-bar.md): Add progress bars in Sigma to show progress toward goals as a percentage or proportion. Track budget usage and KPIs in workbooks.
+- [Build a progress ring (Beta)](https://help.sigmacomputing.com/docs/build-a-progress-ring.md): Add progress rings in Sigma to display goal progress as a percentage or proportion. Track status and budget usage in workbooks and reports.
+- [Build a treemap (Beta)](https://help.sigmacomputing.com/docs/build-a-treemap.md): Build treemap charts in Sigma to compare values as nested boxes within categories like products, regions, and periods.
+- [Build a geography map](https://help.sigmacomputing.com/docs/build-a-geography-map.md): Build geography maps in Sigma with GeoJSON or Geography data. Create connection or choropleth maps to visualize geospatial patterns.
+- [Build a waterfall chart](https://help.sigmacomputing.com/docs/build-a-waterfall-chart.md): Build waterfall charts in Sigma to show how category values change over time. Visualize positive and negative contributions to totals.
+- [Area charts](https://help.sigmacomputing.com/docs/area-charts.md): Learn to build area charts in Sigma workbooks. Create stacked or 100% stacked visuals from data elements.
+- [Combo charts](https://help.sigmacomputing.com/docs/combo-charts.md): Combo charts are a type of visualization that uses a mixture of chart types. Sigma combo charts support bars, lines, areas and scatter plots.
+- [Box and whisker charts](https://help.sigmacomputing.com/docs/box-and-whisker-charts.md): Box and whisker charts display the distribution of a set of values along an axis. They are also commonly known as box plots.
+- [Pie and donut charts](https://help.sigmacomputing.com/docs/pie-and-donut-charts.md): Build pie and donut charts in Sigma to visualize data as a percentage of a total. Configure colors, values, trellis, and donut KPIs.
+- [Maps](https://help.sigmacomputing.com/docs/maps.md): Create region, point, and geography maps in Sigma. Visualize measures by region, chart lat/long coordinates, or map GeoJSON data.
+- [Create sparklines in a table](https://help.sigmacomputing.com/docs/create-sparklines-in-a-table.md): Create sparklines in Sigma tables to show data trends at a glance in a single cell. Save space and build compact sales or traffic overviews.
+- [Customize chart background and style](https://help.sigmacomputing.com/docs/customize-chart-background-and-style.md): Customize chart background and style in Sigma. Add colors, images, borders, padding, and corner shapes to match your branding.
+- [Create and format trellis charts](https://help.sigmacomputing.com/docs/create-and-format-trellis-charts.md): Trellis charts compare multiple subsets of data in a grid of smaller panels, making it easier to spot patterns and trends across dimensions.
+- [Customize chart mark tooltip fields](https://help.sigmacomputing.com/docs/customize-chart-mark-tooltip-fields.md): Customize Sigma chart mark tooltip fields to show the metrics and data attributes most relevant when you hover data points.
+- [Format chart legend](https://help.sigmacomputing.com/docs/format-chart-legend.md): Format a chart legend in Sigma to change its visibility, position, font size, and text color and improve chart readability.
+- [Display chart data labels](https://help.sigmacomputing.com/docs/display-chart-data-labels.md): Display chart data labels in Sigma for area, bar, line, pie, funnel, gauge, scatter, map, and more visualization types.
+- [Format chart axis position](https://help.sigmacomputing.com/docs/format-chart-axis-position.md): Format Sigma chart axis position to move y-axes or add second axes and build dual-axis charts that compare multiple series.
+- [Configure chart axis marks](https://help.sigmacomputing.com/docs/configure-chart-axis-marks.md): Configure Sigma chart axis marks like ticks and grid lines. Control appearance, spacing, and step size for readable visualizations.
+- [Customize chart axis range](https://help.sigmacomputing.com/docs/customize-chart-axis-range.md): Customize Sigma chart axis range by setting min and max values to control displayed data or override automatic defaults.
+- [Display chart reference marks](https://help.sigmacomputing.com/docs/display-chart-reference-marks.md): Display chart reference marks in Sigma to highlight averages, medians, min/max values, custom metrics, or formulas as lines or bands.
+- [Add trend lines](https://help.sigmacomputing.com/docs/add-trend-lines.md): Add trend lines to Sigma charts to highlight patterns and predict values. Choose linear, logarithmic, exponential, and other regression models.
+- [Add a custom color scale](https://help.sigmacomputing.com/docs/add-a-custom-color-scale.md): Add custom color scales in Sigma for charts and tables. Choose predefined palettes or create your own at the organization, workbook, or element level.
+- [Dynamically filter and modify data in Sigma](https://help.sigmacomputing.com/docs/dynamically-filter-and-modify-data-in-sigma.md): Dynamically filter and modify data in Sigma workbooks and data models based on user inputs and control selections.
+- [Filter data in data elements](https://help.sigmacomputing.com/docs/data-element-filters.md): Filter data in Sigma tables, pivot tables, and visualizations to focus on specific subsets of data for analysis and exploration.
+- [Sort filter and control values](https://help.sigmacomputing.com/docs/sort-filter-values.md): Sort filter and control values in Sigma by count, alphanumeric order, or custom order when working with large lists.
+- [Intro to control elements](https://help.sigmacomputing.com/docs/intro-to-control-elements.md): Intro to Sigma control elements: add filters, data inputs, drilldown paths, and predefined interactions to workbooks.
+- [Create and manage a control element](https://help.sigmacomputing.com/docs/create-and-manage-a-control-element.md): Create and manage control elements in Sigma workbooks for filters, inputs, drilldown paths, and interactive data manipulation.
+- [Create and configure a segmented control](https://help.sigmacomputing.com/docs/segmented-control.md): Create segmented controls in Sigma with up to seven single-select sections to filter target elements.
+- [Drill down control](https://help.sigmacomputing.com/docs/drill-down-control.md): Learn how the drill down control element works in Sigma workbooks for step-by-step interactive data exploration.
+- [Top N filter](https://help.sigmacomputing.com/docs/top-n-filter.md): Use Top N filters in Sigma to show the top number of rows by criteria. Ideal for sorted lists with many values.
+- [Create and configure a legend control](https://help.sigmacomputing.com/docs/create-and-configure-a-legend-control.md): Add a legend control in Sigma to align chart colors and filter data across multiple visualizations with a single click.
+- [Create and configure a file upload control (Beta)](https://help.sigmacomputing.com/docs/create-and-configure-a-file-upload-control.md): Use file upload controls in Sigma to upload images, documents, and videos to input table file columns or forms.
+- [Reference control values as parameters](https://help.sigmacomputing.com/docs/parameters-in-workbooks.md): Reference Sigma control element values as parameters in formulas and SQL statements for dynamic calculations.
+- [Set control values in a URL using query string parameters](https://help.sigmacomputing.com/docs/workbook-control-values-in-the-url.md): Pre-populate Sigma workbook control values when embedding by encoding control IDs and values in URL query parameters.
+- [Synced controls](https://help.sigmacomputing.com/docs/synced-controls.md): Synced controls in Sigma keep identical, synchronized filter controls and parameters across a workbook.
+- [Intro to UI elements](https://help.sigmacomputing.com/docs/intro-to-ui-elements.md): Learn Sigma UI elements including buttons, text, images, dividers, spacers, and embeds to style workbook pages.
+- [Button elements](https://help.sigmacomputing.com/docs/button-elements.md): Add Sigma button elements for one-click workbook actions like workflows, navigation, exports, and API calls.
+- [Image elements](https://help.sigmacomputing.com/docs/image-elements.md): Add Sigma image elements to workbook pages by uploading files or linking static or dynamic image URLs.
+- [Text elements](https://help.sigmacomputing.com/docs/text-elements.md): Create Sigma text elements with preset or custom styles, dynamic formulas, links, and labels for workbook page headers and titles.
+- [Value lists](https://help.sigmacomputing.com/docs/value-lists.md): Build organized Sigma value lists from formulas, controls, and data sources, or create dynamic lists with containers.
+- [Workbook settings overview](https://help.sigmacomputing.com/docs/workbook-settings-overview.md): Customize Sigma workbook settings for all pages and elements to match your brand, project needs, and analysis workflows.
+- [Customize element title](https://help.sigmacomputing.com/docs/customize-element-title.md): Customize element titles in workbooks to provide context, communicate insights, and improve accessibility.
+- [Customize element background and styles](https://help.sigmacomputing.com/docs/customize-element-background-and-styles.md): Customize Sigma element backgrounds, borders, padding, and corner styles for charts, tables, input tables, and text.
+- [Customize the sort order of data elements](https://help.sigmacomputing.com/docs/configure-custom-sort.md): Customize sort order for Sigma tables, pivot tables, and charts, including hidden columns and null value placement.
+- [Limit displayed values in a data element](https://help.sigmacomputing.com/docs/limit-displayed-values-in-a-data-element.md): Limit which values display for a column in Sigma grouped tables, pivot tables, or charts to focus on top results.
+- [About Sigma AI apps](https://help.sigmacomputing.com/docs/ai-apps.md): About Sigma AI apps: Purpose-built solutions that integrate live data, workflows, and user inputs using write-back, layouts, and AI tools.
+- [App tutorial: Build an employee feedback survey](https://help.sigmacomputing.com/docs/app-tutorial-data-collection.md): Build an employee feedback survey in Sigma. Learn app fundamentals and best practices for a data collection form with input table submissions.
+- [Input tables overview](https://help.sigmacomputing.com/docs/intro-to-input-tables.md): Input tables are dynamic workbook elements for structured data entry that add new data points and augment existing data without overwriting sources.
+- [Create new input tables](https://help.sigmacomputing.com/docs/create-new-input-tables.md): Create new Sigma input tables to add data points to your analysis. Build empty, CSV, or linked tables with validation, permissions, and row history.
+- [Edit input table data](https://help.sigmacomputing.com/docs/add-or-edit-input-table-data.md): Edit Sigma input table data in draft or published workbooks. Add rows, edit cells, and save changes based on access and data entry permissions.
+- [Configure single-select or multi-select columns in input tables](https://help.sigmacomputing.com/docs/configure-single-select-and-multi-select-columns-on-input-tables.md): Configure single-select and multi-select columns in Sigma input tables. Users can pick values from predefined lists formatted as colored pills.
+- [Configure file columns in input tables (Beta)](https://help.sigmacomputing.com/docs/configure-file-upload-columns-on-input-tables.md): Configure file upload columns on Sigma input tables. Upload images, documents, and videos with column-level file type, count, and size limits.
+- [View input table audit history](https://help.sigmacomputing.com/docs/view-input-table-audit-history.md): View Sigma input table audit history. See row-level and schema-level changes over time with details about who changed data, what changed, and when it changed.
+- [Apply data validation to input table columns](https://help.sigmacomputing.com/docs/apply-data-validation-to-input-table-columns.md): Apply data validation to Sigma input table columns. Restrict entries to predefined dropdown values for consistent text, number, and date data.
+- [Change the data entry permission on input tables](https://help.sigmacomputing.com/docs/customize-data-entry-permission-on-input-tables.md): Change data entry permission on Sigma input tables. Control which workbook versions and access levels allow collaborative edits to table data.
+- [Add system-generated columns to input tables](https://help.sigmacomputing.com/docs/add-system-generated-columns-to-input-tables.md): Add system-generated columns to Sigma input tables. Expose row edit history and row ID metadata for auditing and data management.
+- [Intro to layout elements](https://help.sigmacomputing.com/docs/intro-to-layout-elements.md): Intro to Sigma layout elements: Dynamic workbook elements that group content, manage visibility, and build intuitive user workflows.
+- [Use containers to organize workbook layouts](https://help.sigmacomputing.com/docs/use-containers-to-organize-workbook-layouts.md): Use containers to organize Sigma workbook layouts. Group canvas elements together and style them for focused, user-friendly AI apps.
+- [Use tabbed containers to organize workbook content](https://help.sigmacomputing.com/docs/use-tabbed-containers-to-organize-workbook-content.md): Add tabbed containers in Sigma workbooks to group content, show multiple views in one space, and guide users without extra navigation.
+- [Use single row containers to show records in detail](https://help.sigmacomputing.com/docs/use-single-row-containers-to-show-records-in-detail.md): Use single row containers in Sigma to show records in detail. Display one data source row at a time with dynamic text, images, and values.
+- [Use repeated containers to generate layouts from data](https://help.sigmacomputing.com/docs/use-repeated-containers-to-generate-layouts-from-data.md): Use repeated containers in Sigma to generate layouts from data. Create a card grid or list that repeats for each row with dynamic content.
+- [Use modals to create focused content views](https://help.sigmacomputing.com/docs/use-modals-to-create-focused-content-views.md): Use modals in Sigma for focused workbook views. Overlay content to reduce clutter and deliver app-like forms, drilldowns, and controls.
+- [Use popovers to simplify a workbook interface](https://help.sigmacomputing.com/docs/use-popovers-to-simplify-a-workbook-interface.md): Use Sigma popovers to simplify workbook interfaces. Display contextual tables, charts, and filters in floating containers on demand.
+- [Use the navigation element to guide user exploration](https://help.sigmacomputing.com/docs/use-the-navigation-element-to-guide-user-exploration.md): Add a Sigma navigation element to your workbook with buttons that link to pages, elements, or external destinations and nested submenus.
+- [Use forms to streamline user data entry](https://help.sigmacomputing.com/docs/use-forms-to-streamline-user-data-entry.md): Use Sigma forms to streamline user data entry. Collect inputs for actions like adding input table rows, setting controls, and calling APIs.
+- [Intro to actions](https://help.sigmacomputing.com/docs/intro-to-actions.md): Learn Sigma workbook actions: conditions, triggers, and effects that automate responses to user interactions.
+- [Create actions that navigate to destinations](https://help.sigmacomputing.com/docs/create-actions-that-navigate-to-destinations.md): Create Sigma workbook actions that navigate to destinations. Send users to URLs, other Sigma documents, or locations within the current workbook.
+- [Create actions that manage control values](https://help.sigmacomputing.com/docs/create-actions-that-manage-control-values.md): Create Sigma actions that set or clear control values so users can quickly filter and refocus workbook views.
+- [Create actions that modify or refresh elements](https://help.sigmacomputing.com/docs/create-actions-that-modify-or-refresh-elements.md): Create Sigma workbook actions that modify or refresh elements. Control column visibility, axis scales, refresh, and sorting for tailored charts.
+- [Create actions that control modals and tabbed containers](https://help.sigmacomputing.com/docs/create-actions-that-control-modals-and-tabbed-containers.md): Create Sigma actions that open or close modals and select tabs in tabbed containers for seamless content transitions.
+- [Create actions that control single row containers](https://help.sigmacomputing.com/docs/create-actions-that-control-single-row-containers.md): Create Sigma actions that set which row displays in a single row container using the unique identifier column.
+- [Create actions that modify input table data](https://help.sigmacomputing.com/docs/create-actions-that-modify-input-table-data.md): Create Sigma actions that insert, update, or delete input table rows to support forms and app workflows.
+- [Create actions that modify forms](https://help.sigmacomputing.com/docs/create-actions-that-modify-forms.md): Create Sigma actions that set or reset form fields to prepopulate values or clear forms after submission.
+- [Create actions that send notifications and export data](https://help.sigmacomputing.com/docs/create-actions-that-send-notifications-and-export-data.md): Create Sigma actions that export workbooks and send notifications via email, Slack, Teams, SharePoint, webhooks, and cloud storage.
+- [Create actions that generate embed iframe events](https://help.sigmacomputing.com/docs/create-actions-that-trigger-embed-iframe-events.md): Create Sigma embed iframe event actions. Send events from embedded workbooks to host apps for custom tracking, UI changes, and API triggers.
+- [Create actions that modify plugins](https://help.sigmacomputing.com/docs/create-actions-that-modify-plugins.md): Create Sigma workbook actions that modify plugins. Use element interactions to trigger plugin effects, such as selecting a table cell.
+- [Create actions that call stored procedures](https://help.sigmacomputing.com/docs/create-actions-that-call-stored-procedures.md): Create Sigma workbook actions that call stored procedures and reuse their output as variables in downstream actions.
+- [Create actions that call API endpoints](https://help.sigmacomputing.com/docs/create-actions-that-call-api-endpoints.md): Create Sigma workbook actions that call API endpoints to retrieve data, trigger workflows, and build integrations.
+- [Create actions to interact with Sigma agents (Beta)](https://help.sigmacomputing.com/docs/create-actions-that-interact-with-agents.md): Create Sigma actions that run agents or clear chat conversations to automate agent tasks in workbooks.
+- [Create and manage action sequences](https://help.sigmacomputing.com/docs/create-and-manage-action-sequences.md): Create and manage Sigma action sequences in workbooks. Trigger a series of actions from user interactions.
+- [Define an action condition](https://help.sigmacomputing.com/docs/make-an-action-conditional.md): Define optional conditions for Sigma action sequences using custom formulas or control values to control when actions run.
+- [Run action sequences automatically (Beta)](https://help.sigmacomputing.com/docs/configure-action-sequences-to-run-automatically.md): Run Sigma action sequences automatically based on a schedule or in response to an incoming webhook request.
+- [Use variables in actions](https://help.sigmacomputing.com/docs/use-variables-in-actions.md): Use action variables in Sigma to reference selected table values or prior action results in formulas and conditions.
+- [Create cross-element filters](https://help.sigmacomputing.com/docs/create-cross-element-filters.md): Configure workbook actions to enable cross-element filtering, where interacting with one element automatically filters others in the workbook.
+- [Create custom context menu actions](https://help.sigmacomputing.com/docs/create-custom-context-menu-actions.md): Add custom context menu actions in Sigma tables and charts to trigger workflows on selected cells and data points.
+- [Build if/else control flow in an action sequence](https://help.sigmacomputing.com/docs/build-if-else-control-flow-in-an-action-sequence.md): Add if/else control flow to Sigma action sequences to build dynamic workbook workflows that respond to conditions.
+- [View and manage existing actions](https://help.sigmacomputing.com/docs/view-and-manage-existing-actions.md): View, edit, duplicate, and delete existing actions on Sigma workbook pages from the actions overview for each element.
+- [Reports overview](https://help.sigmacomputing.com/docs/reports-overview.md): Learn how Sigma reports deliver predictable, pixel-perfect paginated PDF exports for compliance, branding, and enterprise reporting.
+- [Tutorial: Build and export a sales report](https://help.sigmacomputing.com/docs/tutorial-build-and-export-a-sales-report.md): Build and export a pixel-perfect sales report in Sigma. Create a cover page, paginated data, and filters for email burst exports.
+- [Create and edit reports](https://help.sigmacomputing.com/docs/create-and-edit-reports.md): Create and edit Sigma reports for predictable, pixel-perfect PDF exports. Support compliance, external reporting, and embedded analytics needs.
+- [Add elements and data to a report](https://help.sigmacomputing.com/docs/add-elements-and-data-to-a-report.md): Add elements and data to Sigma reports. Build report content and paginate tables and pivot tables for clearer, easier-to-read exports.
+- [Customize element size, layering, and alignment in reports](https://help.sigmacomputing.com/docs/customize-element-size-position-and-layering.md): Customize Sigma report layout by resizing, rearranging, layering, and aligning elements. Control element size, position, and distribution.
+- [Edit report page setup, headers, and footers](https://help.sigmacomputing.com/docs/edit-report-page-setup-headers-and-footers.md): Configure Sigma report page setup, margins, orientation, and size. Add and resize headers and footers for polished exports.
+- [Edit report page order, visibility, and numbers](https://help.sigmacomputing.com/docs/edit-report-page-order-visibility-and-numbers.md): Reorder Sigma report pages, add page numbers, and control page visibility. Manage pages to improve navigation and export control.
+- [Customize text typeface, size, and style in reports](https://help.sigmacomputing.com/docs/customize-text-typeface-size-and-style.md): Customize text typeface, size, and style in Sigma reports. Use preset text styles or granular font options to match branding.
+- [Customize report settings and themes](https://help.sigmacomputing.com/docs/customize-report-elements-settings-and-branding.md): Customize Sigma report themes, fonts, colors, layout, and table styles. Tailor report branding and appearance to match your requirements.
+- [Convert workbooks to reports](https://help.sigmacomputing.com/docs/convert-workbooks-to-reports.md): Convert Sigma workbooks to reports for pixel-level formatting and reliable exports without rebuilding content manually.
+- [Share and export reports](https://help.sigmacomputing.com/docs/share-and-export-reports.md): Share and export Sigma reports as PDFs. Control access, configure export settings, and distribute pixel-perfect reports to your audience.
+- [Ask natural language queries with Sigma Assistant](https://help.sigmacomputing.com/docs/ask-natural-language-queries-with-assistant.md): Ask natural language queries with Sigma Assistant to get AI-generated answers, charts, and conversational insights from your data.
+- [Use Sigma Assistant to explore and analyze workbook data (Beta)](https://help.sigmacomputing.com/docs/sigma-assistant-in-the-workbook.md): Use Sigma Assistant in workbooks to ask natural language questions, explore data in analyze mode, and iterate on analysis.
+- [Ask a question about a data source table](https://help.sigmacomputing.com/docs/ask-data-source.md): Use Sigma Assistant to ask questions about data source tables in your catalog and explore any data source visible to you.
+- [Use the Sigma MCP Server](https://help.sigmacomputing.com/docs/use-sigma-mcp-server.md): Use the Sigma MCP Server to interact with your organization via natural language—search, describe, and query data.
+- [Install skills for AI assistants](https://help.sigmacomputing.com/docs/install-skills-for-ai-assistants.md): Install agent skills published by Sigma to give AI assistants and tools reference materials for REST API and document workflows.
+- [Create and interact with custom views](https://help.sigmacomputing.com/docs/create-and-interact-with-custom-views.md): Create custom views in Sigma to explore and change workbooks privately without affecting the published version.
+- [Create and share saved views](https://help.sigmacomputing.com/docs/create-and-share-saved-views.md): Create saved views in Sigma to capture filter, control, and chart changes on published workbooks for personal or shared use.
+- [View column details](https://help.sigmacomputing.com/docs/view-column-details.md): View column details in Sigma for distribution statistics that help you assess data shape and quality across column types.
+- [Find a specific value in a table or input table](https://help.sigmacomputing.com/docs/find-a-value-in-a-table.md): Use Find in table in Sigma to locate values across visible columns in tables and input tables and navigate between matches.
+- [Choose your Snowflake role for an OAuth connection](https://help.sigmacomputing.com/docs/choose-snowflake-role.md): Change the Snowflake role used in Sigma for OAuth connections to control how data is queried in Snowflake.
+- [Keyboard shortcuts: Mac OS](https://help.sigmacomputing.com/docs/keyboard-shortcuts-mac-os.md): Mac OS keyboard shortcuts for Sigma workbooks and users.
+- [Keyboard shortcuts: Microsoft Windows](https://help.sigmacomputing.com/docs/keyboard-shortcuts-microsoft-windows.md): Microsoft Windows keyboard shortcuts for Sigma workbooks and users.
+- [Drill down into data](https://help.sigmacomputing.com/docs/drill-into-data.md): Drill down or up into data in Sigma using drill paths to explore ad hoc slices of chart data and identify patterns.
+- [View underlying data](https://help.sigmacomputing.com/docs/view-underlying-data.md): Maximize data elements in Sigma workbooks to view underlying data and focus on details behind charts and tables.
+- [Explain charts with AI](https://help.sigmacomputing.com/docs/explain-visualizations-with-ai.md): Explain this chart uses AI to instantly generate a detailed explanation of any chart, including key insights and observations.
+- [Highlight chart values](https://help.sigmacomputing.com/docs/highlight-chart-values.md): Highlight single values in Sigma charts by clicking them to focus analysis on specific data points.
+- [Use comments in workbooks and data models](https://help.sigmacomputing.com/docs/workbook-comments.md): Add comments to Sigma workbooks and data models on elements or documents to share context and request feedback.
+- [Capture and annotate images in comments](https://help.sigmacomputing.com/docs/annotate-element-images-as-comments.md): Capture, annotate, and share images of Sigma workbook elements in comments for clearer collaboration and feedback.
+- [Search for content in your organization](https://help.sigmacomputing.com/docs/search-in-sigma.md): Use global search in Sigma to locate workbooks, data models, reports, folders, and other content across your organization.
+- [Set up an app for two-factor authentication](https://help.sigmacomputing.com/docs/app-based-authentication-for-users.md): Set up an authenticator app for two-factor authentication in Sigma instead of receiving login codes by email.
+- [Refresh your connection sign-in sessions](https://help.sigmacomputing.com/refresh-connection-sign-in-sessions.md): Refresh OAuth connection sign-in sessions in Sigma when your organization requires re-authentication to data sources.
+- [Share a workbook, data model, or report](https://help.sigmacomputing.com/docs/share-a-workbook.md): Learn how to set permissions and share a Sigma workbook with individuals, teams, or everyone in your organization.
+- [Share a folder](https://help.sigmacomputing.com/docs/share-a-folder.md): Categorize and share documents with people using folders in Sigma.
+- [Share document templates](https://help.sigmacomputing.com/docs/share-workbook-templates.md): Share workbook and report templates with other users and teams in your organization for quick and consistent reuse in Sigma.
+- [Share and accept cross-org document templates](https://help.sigmacomputing.com/docs/share-and-accept-cross-org-workbook-templates.md): Share templates with other organizations to share the structure and layout of a workbook or report with another Sigma organization.
+- [Send or schedule workbook exports](https://help.sigmacomputing.com/docs/send-or-schedule-workbook-exports.md): Export or download workbook contents to use outside of Sigma, enabling automated reporting and workflows.
+- [Schedule a conditional export or alert](https://help.sigmacomputing.com/docs/schedule-a-conditional-export-or-alert.md): Schedule an export to send only if specific conditions are met, functioning as a conditional alert in Sigma.
+- [Download workbook data](https://help.sigmacomputing.com/docs/download-workbook-data.md): Download an entire workbook, a specific workbook page, or a specific workbook element from Sigma at any time.
+- [Export to email](https://help.sigmacomputing.com/docs/export-to-email.md): Send workbooks, their pages, and individual elements to email recipients on a set schedule or as-needed basis in Sigma.
+- [Format an email message](https://help.sigmacomputing.com/docs/format-an-email-message.md): Options for formatting the text included in email export messages in Sigma.
+- [Export to Slack](https://help.sigmacomputing.com/docs/export-to-slack.md): You can send documents, document pages, and individual elements to any channel in a connected Slack workspace.
+- [Format a Slack message](https://help.sigmacomputing.com/docs/format-a-slack-message.md): Format a Slack message sent from a Slack export or Slack notification action.
+- [Export to Google Sheets](https://help.sigmacomputing.com/docs/export-to-google-sheets.md): Send one or more individual workbook elements to Google Sheets on a set schedule or an as-needed basis in Sigma.
+- [Export to Google Drive](https://help.sigmacomputing.com/docs/export-to-google-drive.md): Send individual workbook elements, workbook pages, or an entire workbook to Google Drive on a set schedule or an as-needed basis in Sigma.
+- [Export to cloud storage](https://help.sigmacomputing.com/docs/export-to-cloud-storage.md): Sigma allows you to export data to cloud storage on a scheduled or ad hoc basis.
+- [Export to webhook](https://help.sigmacomputing.com/docs/export-to-webhook.md): Export Sigma workbook data to webhook endpoints or apps like Marketo, Segment, or Airtable on demand or on a schedule.
+- [Export as email burst](https://help.sigmacomputing.com/docs/export-as-email-burst.md): Send a custom-filtered report to a dynamic list of recipients as a scheduled email burst in Sigma.
+- [Export to Microsoft Teams](https://help.sigmacomputing.com/docs/export-to-microsoft-teams.md): To send documents, reports, and data to Microsoft Teams, schedule or set up an export to Microsoft Teams from Sigma.
+- [Format a Microsoft Teams message](https://help.sigmacomputing.com/docs/format-a-microsoft-teams-message.md): Format a notification or export sent from Sigma to Microsoft Teams.
+- [Export to Microsoft SharePoint](https://help.sigmacomputing.com/docs/export-to-microsoft-sharepoint.md): To send documents, reports, and data to a Microsoft SharePoint site, schedule or set up an export in Sigma.
+- [Configure additional options for exports](https://help.sigmacomputing.com/docs/configure-additional-options-for-exports.md): When you export workbook or report data from Sigma, you can configure additional options to control the appearance and content that gets exported.
+- [Manage scheduled exports](https://help.sigmacomputing.com/docs/manage-scheduled-exports.md): View and manage scheduled Sigma exports to stagger schedules, remove outdated exports, or update export configuration.
+- [Download and export limitations](https://help.sigmacomputing.com/docs/download-export-and-upload-limitations.md): Limitations to consider when downloading your data or exporting it to other systems from Sigma.
+- [Use metrics in a workbook](https://help.sigmacomputing.com/docs/use-metrics-in-a-workbook.md): Reuse Sigma metrics as custom aggregates across workbook elements that share a dataset, data model table, or connection table as a source.
+- [Create reusable custom functions](https://help.sigmacomputing.com/docs/custom-functions.md): You can define custom functions to represent frequently used complex calculations that combine logic, aggregates, and other type of operations.
+- [Intro to embedded analytics](https://help.sigmacomputing.com/docs/intro-to-embedded-analytics.md): Explore Sigma embedded analytics options to integrate workbooks and other documents into your applications.
+- [Create and manage a public embed](https://help.sigmacomputing.com/docs/create-and-manage-a-public-embed.md): Create and manage public embeds in Sigma to share workbooks, pages, or chart elements with real-time data from your data platform.
+- [Create a secure embed](https://help.sigmacomputing.com/docs/create-a-secure-embed.md): Create a secure Sigma embed to integrate workbooks into another application without requiring separate Sigma login.
+- [Generate embed client credentials](https://help.sigmacomputing.com/docs/generate-embed-client-credentials.md): Generate Sigma embed client credentials, including a unique client ID and embed secret, to create secure embeds.
+- [Manage access to a secure embed](https://help.sigmacomputing.com/docs/manage-access-to-a-secure-embed.md): Manage who can access Sigma securely embedded content with team assignments, JWTs, and embed permission controls.
+- [Create an embed API with JSON Web Tokens](https://help.sigmacomputing.com/docs/create-an-embed-api-with-json-web-tokens.md): Authenticate Sigma secure embeds with JSON Web Tokens (JWTs) for a secure way to embed content in host applications.
+- [JSON web token claims reference](https://help.sigmacomputing.com/docs/json-web-token-claims-reference.md): Reference for JWT claims used with Sigma secure embeds to pass user identity, teams, attributes, and other settings.
+- [Embed URL parameters](https://help.sigmacomputing.com/docs/embed-url-parameters.md): Customize Sigma secure embeds with URL query string parameters to control menus, controls, and embed behavior.
+- [URL encoding reference for parameters](https://help.sigmacomputing.com/docs/special-characters-for-url-parameters.md): URL-encode special characters in Sigma embed and control URL parameters so query strings parse correctly.
+- [Test an embed URL in the embed sandbox](https://help.sigmacomputing.com/docs/test-an-embed-url-in-the-embed-sandbox.md): Test a Sigma embed URL in the embed sandbox before integrating content into your host application.
+- [Common embed error codes and messages](https://help.sigmacomputing.com/docs/common-embed-error-codes-and-messages.md): Troubleshoot Sigma secure embeds using common embed error codes and workbook:error outbound event messages.
+- [Restrict access to data in embedded content](https://help.sigmacomputing.com/docs/restrict-access-to-data-in-embedded-content.md): Secure and manage data access for Sigma embedded content with user attributes, row-level security, and related controls.
+- [Embed Sigma Assistant](https://help.sigmacomputing.com/docs/embed-assistant.md): Embed Sigma Assistant so users can ask natural language questions about data from within your host application.
+- [Implement inbound and outbound events in embeds](https://help.sigmacomputing.com/docs/inbound-and-outbound-events-in-embeds.md): Build Sigma embed interactivity with inbound and outbound events using the JavaScript Embed API and host app listeners.
+- [Inbound event reference](https://help.sigmacomputing.com/docs/inbound-event-reference.md): Reference of all available Sigma embed inbound events triggered from your host application or parent window to control embedded content.
+- [Outbound event reference](https://help.sigmacomputing.com/docs/outbound-event-reference.md): Reference of all Sigma embed outbound events that report user interactions from embedded content to your host application.
+- [Manage iframes for embeds](https://help.sigmacomputing.com/docs/manage-iframes-for-embeds.md): Configure Sigma embed iframes and CSS options to control embedded content display and manage available functionality in your app.
+- [Configure a shareable link for an embed](https://help.sigmacomputing.com/docs/configure-a-shareable-link-for-an-embed.md): Let Sigma embed users share workbooks, explorations, and bookmarks via shareable links on your own custom domain.
+- [Manage embed user settings (Beta)](https://help.sigmacomputing.com/docs/manage-embed-user-settings.md): Manage settings that let embed users interact with other users in your organization and export workbook content to Slack, Microsoft Teams, or SharePoint.
+- [Embed SDK for React](https://help.sigmacomputing.com/docs/embed-sdk-for-react.md): Use the Sigma Embed SDK for React to integrate secure embeds and interactive analytics into React applications.
+- [Sigma Tenants](https://help.sigmacomputing.com/docs/multitenancy-at-sigma.md): Set up multitenancy with Sigma Tenants. Manage users and resources across organizations by region, business unit, environment, or customer.
+- [Create and manage tenant organizations](https://help.sigmacomputing.com/docs/create-and-manage-tenant-organizations.md): Create and manage Sigma tenant organizations from a parent organization for multi-tenant deployments.
+- [Deploy content to tenant organizations](https://help.sigmacomputing.com/docs/deploy-content-to-tenant-organizations.md): Deploy documents and folders to Sigma tenant organizations from a parent or tenant organization. Deployed content auto-updates when the source is published.
+- [Sigma Tenants deployment use cases and examples](https://help.sigmacomputing.com/docs/deployment-use-cases-and-examples.md): Explore end-to-end Sigma tenant deployment examples for SDLC workflows, business units, customer tenants, and data sovereignty.
+- [Deploy content from one tenant organization to one or more tenants](https://help.sigmacomputing.com/docs/deploy-content-from-one-tenant-to-other-tenants.md): Deploy Sigma documents from one tenant organization to other tenants after being granted capabilities from a parent organization.
+- [Deploy content from a parent organization to one or more tenants](https://help.sigmacomputing.com/docs/deploy-content-from-parent-organization-to-tenant-organizations.md): Deploy Sigma documents and folders from a parent organization to one or more tenant organizations with Sigma Tenants.
+- [Manage content deployed in tenant organizations](https://help.sigmacomputing.com/docs/manage-deployed-content.md): Manage documents and folders deployed in Sigma tenant organizations from a parent or tenant organization, including recreating some configurations.
+- [Embed content from a tenant organization](https://help.sigmacomputing.com/docs/embed-content-from-a-tenant-organization.md): Embed content from a Sigma tenant organization and sign it with a JWT using parent or tenant organization embed credentials.
+- [About the Sigma REST API](https://help.sigmacomputing.com/docs/get-started-with-sigmas-api.md): Access Sigma connections, workbooks, teams, and more programmatically with the secure HTTP-based Sigma REST API.
+- [Get started with custom plugins](https://help.sigmacomputing.com/docs/get-started-with-custom-plugins.md): Get started with Sigma custom workbook plugins to extend charts, visuals, and interactions with third-party functionality.
+- [Develop plugins for Sigma](https://help.sigmacomputing.com/docs/develop-plugins-for-sigma.md): Build Sigma workbook plugins with the Plugin API to add custom functionality and connect external applications to your analytics.
+- [Plugin development API](https://help.sigmacomputing.com/docs/plugin-development-api.md): Reference the Sigma Plugin API arguments, events, and methods for building custom workbook plugin elements.
+- [Plugin examples](https://help.sigmacomputing.com/docs/plugin-examples.md): Explore Sigma example plugins to learn patterns for building custom workbook elements with the Plugin API.
+- [Configure plugins to work with actions](https://help.sigmacomputing.com/docs/configure-plugins-to-work-with-actions.md): Learn how Sigma workbook actions integrate with custom plugins to trigger workflows and extend workbook functionality.
+- [Manage data models as code](https://help.sigmacomputing.com/docs/manage-data-models-as-code.md): Use the Sigma API to create, update, and retrieve data models as JSON or YAML for programmatic workflows, CI/CD, and AI-assisted development.
+- [Get the code representation of a data model](https://help.sigmacomputing.com/docs/get-the-code-representation-of-a-data-model.md): Retrieve a Sigma data model as JSON or YAML code by calling the API Get code representation endpoint with the dataModelId.
+- [Create a data model from a code representation](https://help.sigmacomputing.com/docs/create-a-data-model-from-a-code-representation.md): Create a Sigma data model from a JSON or YAML code representation using the Sigma API Create data model endpoint in the request body.
+- [Update a data model from a code representation](https://help.sigmacomputing.com/docs/update-a-data-model-from-a-code-representation.md): Update an existing Sigma data model from a JSON or YAML code representation using the Sigma API Update data model endpoint.
+- [Specify column order in the code representation of a data model](https://help.sigmacomputing.com/docs/specify-column-order-in-the-code-representation-of-a-data-model.md): Specify column order in Sigma data model code representations using the order array to control how tables appear when created via the API.
+- [Sort data in the code representation of a data model](https://help.sigmacomputing.com/docs/sort-data-in-the-code-representation-of-a-data-model.md): Sort table data in Sigma data model code representations using the sort array to control column order when creating models via the API.
+- [Format columns and metrics in the code representation of a data model](https://help.sigmacomputing.com/docs/format-columns-and-metrics-in-the-code-representation-of-a-data-model.md): Format numbers and dates in Sigma data model code representations to control how columns and metrics appear for users in the Sigma UI.
+- [Data model representation example library](https://help.sigmacomputing.com/docs/data-model-representation-example-library.md): Browse Sigma data model code representation examples to troubleshoot API formatting, map UI features to code, and support AI-assisted modeling.
+- [Example representation: Data model with a single table](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-single-table.md): Example Sigma code representation of a data model with a single table.
+- [Example representation: Data model with a table and a calculated column](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-table-and-a-calculated-column.md): Example Sigma code representation of a data model with a table and a calculated column.
+- [Example representation: Data model with a table and metric](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-table-and-a-metric.md): Example Sigma code representation of a data model with a table and metric.
+- [Example representation: Data model with a metric timeline](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-metric-timeline.md): Example Sigma code representation of a data model with a metric timeline.
+- [Example representation: Data model with a table and relationship](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-table-and-a-relationship.md): Example Sigma code representation of a data model with a table and relationship.
+- [Example representation: Data model with a custom SQL element](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-custom-sql-element.md): Example Sigma code representation of a data model with a custom SQL element.
+- [Example representation: Data model with a folder](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-folder.md): Example Sigma code representation of a data model with a folder.
+- [Example representation: Data model with a grouping](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-grouping.md): Example Sigma code representation of a data model with a grouping.
+- [Example representation: Data model with filters](https://help.sigmacomputing.com/docs/example-representation-data-model-with-filters.md): Example Sigma code representation of a data model with filters.
+- [Example representation: Data model with a join](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-join.md): Example Sigma code representation of a data model with a join.
+- [Example representation: Data model with a union](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-union.md): Example Sigma code representation of a data model with a union.
+- [Example representation: Data model with a transposed table](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-transposed-table.md): Example Sigma code representation of a data model with a transposed table.
+- [Example representation: Data model with column-level security](https://help.sigmacomputing.com/docs/example-representation-data-model-with-column-level-security.md): Example Sigma code representation of a data model with column-level security.
+- [Example representation: Data model with a list values control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-list-values-control.md): Example Sigma code representation of a data model with a list values control.
+- [Example representation: Data model with a text input control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-text-input-control.md): Example Sigma code representation of a data model with a text input control.
+- [Example representation: Data model with a text area control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-text-area-control.md): Example Sigma code representation of a data model with a text area control.
+- [Example representation: Data model with a number input control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-number-input-control.md): Example Sigma code representation of a data model with a number input control.
+- [Example representation: Data model with a number range control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-number-range-control.md): Example Sigma code representation of a data model with a number range control.
+- [Example representation: Data model with a date control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-date-control.md): Example Sigma code representation of a data model with a date control.
+- [Example representation: Data model with a date range control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-date-range-control.md): Example Sigma code representation of a data model with a date range control.
+- [Example representation: Data model with a slider control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-slider-control.md): Example Sigma code representation of a data model with a slider control.
+- [Example representation: Data model with a range slider control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-range-slider-control.md): Example Sigma code representation of a data model with a range slider control.
+- [Example representation: Data model with a segmented control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-segmented-control.md): Example Sigma code representation of a data model with a segmented control.
+- [Example representation: Data model with a switch control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-switch-control.md): Example Sigma code representation of a data model with a switch control.
+- [Example representation: Data model with a checkbox control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-checkbox-control.md): Example Sigma code representation of a data model with a checkbox control.
+- [Example representation: Data model with a top N control](https://help.sigmacomputing.com/docs/example-representation-data-model-with-a-top-n-control.md): Example Sigma code representation of a data model with a top N control.
+- [Sigma CLI](https://help.sigmacomputing.com/docs/sigma-cli.md): Use the Sigma CLI to work programmatically with the Sigma REST API. Automate administrative tasks, integrate Sigma operations into CI/CD pipelines, and programmatically query data.
+- [Install and configure the Sigma CLI](https://help.sigmacomputing.com/docs/install-and-configure-the-sigma-cli.md): Install and configure the Sigma CLI on your machine. Set up authentication, profiles, and settings to manage Sigma REST API access.
+- [Use the Sigma CLI](https://help.sigmacomputing.com/docs/use-the-sigma-cli.md): Programmatically manage Sigma documents, users, and data with the Sigma CLI. Learn command structure, outputs, and logging.
+- [Administer Sigma](https://help.sigmacomputing.com/docs/access-the-administration-portal.md): Open the Sigma Administration portal to customize branding, authentication, connections, users, teams, version tags, and more.
+- [Checklist for new Sigma admins](https://help.sigmacomputing.com/docs/checklist-for-new-sigma-admins.md): 
+- [Invite new users to your organization](https://help.sigmacomputing.com/docs/invite-new-organization-members.md): Invite users to your Sigma organization from the Administration portal. Send, resend, or delete pending user invitations.
+- [Manage Users with User 360](https://help.sigmacomputing.com/docs/manage-users-with-user-360.md): Use Sigma User 360 to access user profiles from the Users tab. View a single source of truth and take admin actions on any member.
+- [Guest User Accounts](https://help.sigmacomputing.com/docs/guest-user-accounts.md): Create Sigma guest user accounts for external vendors. Password-authenticated access limited to assigned teams with strict security controls.
+- [Impersonate users](https://help.sigmacomputing.com/docs/impersonate-users.md): Sigma admins can impersonate users in the UI or API to assume their permissions for troubleshooting, security, and document management.
+- [Deactivate users](https://help.sigmacomputing.com/docs/deactivate-users.md): Deactivate Sigma users when they leave. Reassign documents to active users and reactivate inactive accounts in your organization.
+- [Create and manage teams](https://help.sigmacomputing.com/docs/manage-teams.md): Create and manage Sigma teams to group users. Grant access to data and documents for all members of a team.
+- [Manage team members](https://help.sigmacomputing.com/docs/manage-team-members.md): Learn how to add, remove, and transfer members to and from teams in Sigma, where members inherit the team's access and permissions.
+- [Manage team admins](https://help.sigmacomputing.com/docs/manage-team-admins.md): Learn what team admins can do and how to assign or remove team admin status for managing team details and members.
+- [Manage workspaces](https://help.sigmacomputing.com/docs/manage-workspaces.md): Manage Sigma workspaces to categorize folders and documents. Share content with users and teams by granting access.
+- [Data access overview](https://help.sigmacomputing.com/docs/data-permissions-overview.md): Learn how the Sigma additive data access model works for granular, flexible access control.
+- [Manage access to data and connections](https://help.sigmacomputing.com/docs/manage-data-permissions.md): Learn how to view, add, edit, and revoke additive data permission grants for users and teams at the connection, schema, or table level.
+- [Folder and document access](https://help.sigmacomputing.com/docs/folder-and-document-permissions.md): Manage folder and document access in Sigma for workbooks, data models, reports, datasets, workspaces, and folders.
+- [Configure user attributes](https://help.sigmacomputing.com/docs/user-attributes.md): Configure user attributes in Sigma for row-level security, dynamic connection roles, and customized team and embed experiences.
+- [Account type and license overview](https://help.sigmacomputing.com/docs/account-type-and-license-overview.md): Overview of Sigma account types and licenses for the View/Act/Analyze/Build license model and related permissions.
+- [Create and manage account types](https://help.sigmacomputing.com/docs/create-and-manage-account-types.md): Create and manage account types in Sigma for the View/Act/Analyze/Build license model. Configure permissions and roles for your organization.
+- [Basic explore vs. Full explore](https://help.sigmacomputing.com/docs/basic-explore-vs-full-explore.md): Compare Basic explore and Full explore Sigma account type permissions. Control how users with Can explore access interact with workbooks.
+- [View license utilization](https://help.sigmacomputing.com/docs/view-license-utilization.md): View Sigma license utilization for your organization. Monitor usage for cost control, license allocation, and compliance purposes.
+- [Respond to account upgrade requests](https://help.sigmacomputing.com/docs/respond-to-account-upgrade-requests.md): Respond to Sigma account upgrade requests when users need to create or explore workbooks. Admins receive email for each request.
+- [Authentication methods for your Sigma organization](https://help.sigmacomputing.com/docs/organization-authentication-methods.md): Compare the available Sigma organization authentication methods (SAML, OAuth, and password) and choose the right option.
+- [Manage password authentication](https://help.sigmacomputing.com/docs/manage-password-authentication.md): Manage password authentication and mandatory two-factor authentication for users in your Sigma organization.
+- [Set up single sign-on with SAML](https://help.sigmacomputing.com/docs/single-sign-on-with-saml.md): Set up SAML single sign-on (SSO) in Sigma for a streamlined, secure sign-in experience with your IdP.
+- [Manage users and teams with SCIM](https://help.sigmacomputing.com/docs/manage-users-and-teams-with-scim.md): Configure SCIM to centrally manage Sigma users and teams through your identity provider (IdP).
+- [Manage users and teams with SCIM and Okta](https://help.sigmacomputing.com/docs/manage-users-and-teams-with-scim-and-okta.md): Configure SCIM with Okta to centrally provision and manage Sigma users and teams from your identity provider.
+- [Use custom account types with your IdP](https://help.sigmacomputing.com/docs/use-custom-account-types-with-your-idp.md): Assign users to Sigma account types in your identity provider when managing permissions centrally with an IdP.
+- [Custom Session Timeouts for Okta](https://help.sigmacomputing.com/docs/custom-session-timeouts-for-okta.md): Set custom session timeouts for Okta SAML in Sigma to shorten the default 30-day user session length.
+- [About using OAuth with Sigma](https://help.sigmacomputing.com/docs/configure-oauth.md): Configure OAuth in Sigma for authentication to your Sigma organization, connection-level authentication to data platforms, or both.
+- [Configure a Sigma OAuth application](https://help.sigmacomputing.com/docs/configure-a-sigma-oauth-application.md): Create a Sigma OAuth application in your identity provider to enable IdP-managed authentication for Sigma.
+- [Configure an OAuth application for Databricks](https://help.sigmacomputing.com/docs/configure-an-oauth-application-for-databricks.md): Configure OAuth for Databricks to authenticate users to Sigma, a Databricks connection, or both.
+- [Configure OAuth authentication for your Sigma organization](https://help.sigmacomputing.com/docs/configure-oauth-authentication-for-your-sigma-organization.md): Configure OAuth single sign-on (SSO) so users authenticate to your Sigma organization through your IdP.
+- [Restrict access to Sigma by IP address](https://help.sigmacomputing.com/docs/restrict-access-to-sigma-by-ip-address.md): Restrict Sigma and API access with an IP allowlist so only users accessing from approved IP addresses can sign in or make requests.
+- [Set up inactivity timeouts](https://help.sigmacomputing.com/docs/set-up-inactivity-timeouts.md): Configure inactivity timeouts in Sigma to automatically log users out after a set period of idle time.
+- [Set up customer-managed keys](https://help.sigmacomputing.com/docs/set-up-customer-managed-keys-cmk.md): Set up customer-managed keys (CMK) in Sigma with AWS, Azure, or GCP KMS for greater encryption control.
+- [About using customer-managed keys in Sigma](https://help.sigmacomputing.com/docs/customer-managed-keys-cmk-faqs.md): Learn how customer-managed keys (CMK) work in Sigma so you can manage encryption keys for your organization.
+- [Using multiple identity providers for your Sigma organization](https://help.sigmacomputing.com/docs/using-multiple-identity-providers-for-your-sigma-organization.md): Use multiple identity providers with Sigma so different departments or user groups can sign in with their IdP.
+- [Manage dbt integration](https://help.sigmacomputing.com/docs/manage-dbt-integration.md): Manage dbt integration in Sigma to access dbt docs and metadata from dbt Cloud or dbt Core runs directly in Sigma.
+- [Configure a dbt Semantic Layer integration](https://help.sigmacomputing.com/docs/configure-a-dbt-semantic-layer-integration.md): Configure a dbt Semantic Layer integration in Sigma to use predefined dbt metrics in workbooks.
+- [Manage Slack integration](https://help.sigmacomputing.com/docs/manage-slack-integration.md): Manage Slack integration in Sigma to send notifications, schedule alerts, and export workbook data to Slack channels.
+- [Manage Microsoft integration](https://help.sigmacomputing.com/docs/manage-microsoft-integration.md): Set up Microsoft integration in Sigma to enable Teams and SharePoint exports for users in your organization.
+- [Configure API credentials and connectors in Sigma](https://help.sigmacomputing.com/docs/configure-api-credentials-and-connectors-in-sigma.md): Configure API credentials and connectors in Sigma so workbook actions can call external services securely.
+- [Configure mutual transport layer security (mTLS) for API connectors in Sigma](https://help.sigmacomputing.com/docs/configure-mutual-transport-layer-security-for-api-connectors-in-sigma.md): Configure mTLS for Sigma API connectors with client and server certificates for mutual authentication.
+- [Tutorial: Configure API credentials, connectors, and actions for the Sigma REST API](https://help.sigmacomputing.com/docs/tutorial-configure-api-credentials-connectors-and-actions-for-the-sigma-rest-api.md): Tutorial: configure Sigma API credentials, connectors, and workbook actions for the Sigma REST API.
+- [Tutorial: Configure API credentials, connectors, and actions for the NYC Open Data API](https://help.sigmacomputing.com/docs/tutorial-configure-api-credentials-connectors-and-actions-for-the-nyc-open-data-api.md): Tutorial: configure Sigma API credentials, connectors, and workbook actions for the NYC Open Data API.
+- [Configure AI features for your organization](https://help.sigmacomputing.com/docs/configure-ai-features-for-your-organization.md): Configure AI features for a Sigma organization to accelerate insights, automate tasks, and enable Assistant, agents, and more.
+- [Configure a warehouse-hosted model as AI provider](https://help.sigmacomputing.com/docs/configure-warehouse-ai-model-integration.md): Use warehouse-hosted AI models from your connected data platform as the AI provider for Sigma organization features.
+- [Configure an external AI provider](https://help.sigmacomputing.com/docs/manage-external-ai-integrations.md): Set up external AI providers like OpenAI, Anthropic, Gemini, or Amazon Bedrock to power Sigma organization AI features.
+- [Configure the AI usage dashboard](https://help.sigmacomputing.com/docs/configure-a-usage-dashboard-for-assistant.md): Monitor Sigma AI token usage and interactions across Assistant, agents, and other AI-powered features with the AI usage dashboard.
+- [Notice for enabling AI-enabled features in Sigma](https://help.sigmacomputing.com/docs/notice-for-enabling-ai-enabled-features-in-sigma.md): Required information disclaimer for enabling AI features in Sigma Services, including settings, risks, and authorization guidance.
+- [Configure token usage limits for AI columns (Beta)](https://help.sigmacomputing.com/docs/configure-ai-column-token-limit.md): Set monthly token limits in Sigma to control AI column usage costs and manage organization-wide AI spending for AI columns.
+- [Add MCP tools to Sigma (Beta)](https://help.sigmacomputing.com/docs/configure-mcp-tools.md): Integrate MCP servers with Sigma agents to extend context, fetch ad hoc data, and trigger actions in third-party tools.
+- [Use warehouse agents with Sigma (Beta)](https://help.sigmacomputing.com/docs/use-warehouse-agents-sigma.md): Use Snowflake Cortex Agents and Databricks Genie Spaces in Sigma Assistant and Sigma agents for direct warehouse AI interaction.
+- [Manage export frequency and authentication settings](https://help.sigmacomputing.com/docs/restrict-export-recipients.md): Configure Sigma export frequency and authentication settings. Admins control export options and recipient restrictions for users.
+- [Configure CSV upload and storage options](https://help.sigmacomputing.com/docs/configure-csv-upload-and-storage-options.md): Enable or disable CSV upload in Sigma and configure storage options that control data flow between Sigma and your data platform.
+- [Enable or disable account upgrade requests](https://help.sigmacomputing.com/docs/license-upgrade-requests.md): Restrict Sigma account upgrade requests so users can or cannot request access to features beyond their current account type.
+- [Enable or disable comments](https://help.sigmacomputing.com/docs/disable-commenting.md): Enable or disable workbook commenting across a Sigma organization to manage collaboration on workbooks.
+- [Manage annotated image ability and storage period](https://help.sigmacomputing.com/docs/manage-annotated-images-in-comments.md): Manage annotated image settings in Sigma. Configure screenshot commenting and storage periods for annotated element images.
+- [Enable or disable public embeds](https://help.sigmacomputing.com/docs/enable-or-disable-public-embeds.md): Public embeds let you display workbooks and data elements in other applications. Learn how to enable or disable them for your organization.
+- [Set up custom home pages](https://help.sigmacomputing.com/docs/enable-a-custom-homepage.md): Set up custom Sigma home pages for teams and users to display the most relevant content to users when they sign in.
+- [Upload custom fonts](https://help.sigmacomputing.com/docs/custom-fonts.md): Upload organization-level custom fonts in Sigma and apply them to document elements and charts.
+- [Create and manage workbook themes](https://help.sigmacomputing.com/docs/create-and-manage-workbook-themes.md): Create and manage reusable Sigma workbook themes for fonts, colors, layout, and table styles, and set an organization default.
+- [Customize welcome and invite emails](https://help.sigmacomputing.com/docs/customize-welcome-and-invite-emails.md): Customize Sigma invite and welcome emails so new users get branded signup and onboarding messages.
+- [Customize email branding](https://help.sigmacomputing.com/docs/custom-email-branding.md): Customize Sigma export email branding with logos, signatures, footers, and global Bcc recipients for your organization.
+- [Change the account time zone](https://help.sigmacomputing.com/docs/account-time-zone.md): Change the account time zone in Sigma to display date data in your organization's preferred time zone instead of UTC.
+- [Set organization language](https://help.sigmacomputing.com/docs/manage-organization-language.md)
+- [Manage organization translation files](https://help.sigmacomputing.com/docs/manage-organization-translation-files.md): Create organization translation files in Sigma to deliver custom workbook text and column names in users' preferred languages.
+- [Review warehouse view details](https://help.sigmacomputing.com/docs/review-warehouse-view-details.md): Review warehouse view details in the Sigma Administration portal, including status, paths, and audit history for all views.
+- [Manage organization schedules](https://help.sigmacomputing.com/docs/manage-organization-schedules.md): View and manage an organization-wide list of scheduled reports in the Sigma Administration portal as an Admin.
+- [View your organization's automated action sequences (Beta)](https://help.sigmacomputing.com/docs/view-automated-action-sequences.md): View information about all automated action sequences in your organization. Details provided include trigger type, last run status, sequence status, and run history.
+- [Manage materializations](https://help.sigmacomputing.com/docs/manage-materializations.md): Manage materializations in Sigma for datasets and data elements in data models and workbooks to improve query performance.
+- [Recover deleted documents](https://help.sigmacomputing.com/docs/recover-deleted-documents.md): Recover deleted workbooks, data models, reports, and datasets in Sigma to restore access after a document is removed from your workspace.
+- [Create and manage version tags](https://help.sigmacomputing.com/docs/create-and-manage-version-tags.md): Create and manage version tags in Sigma to support testing and publishing workflows for workbooks, data models, and reports.
+- [External storage integration overview](https://help.sigmacomputing.com/docs/external-storage-integration-overview.md): Overview of Sigma external storage integrations with Amazon S3, Google Cloud Storage, or Azure Blob for uploads, cache, and exports.
+- [Configure an external storage integration with Amazon S3](https://help.sigmacomputing.com/docs/configure-an-external-storage-integration-with-amazon-s3.md): Configure a Sigma external storage integration with Amazon S3 for file uploads, result cache, and exports with full data control.
+- [Configure an external storage integration with Google Cloud Storage](https://help.sigmacomputing.com/docs/configure-an-external-storage-integration-with-gcs.md): Configure a Sigma external storage integration with Google Cloud Storage for file uploads, result cache, and cloud exports.
+- [Configure an external storage integration with Azure Blob Storage](https://help.sigmacomputing.com/docs/configure-an-external-storage-integration-with-azure-blob.md): Configure a Sigma external storage integration with Azure Blob Storage for file uploads, result cache, and exports with full control.
+- [Usage overview](https://help.sigmacomputing.com/docs/usage-overview.md): Explore Sigma Usage dashboards for organization trends, query statistics, and measurable product adoption insights.
+- [AI usage dashboard](https://help.sigmacomputing.com/docs/ai-usage.md): Monitor organization-wide AI token usage in Sigma across agents, Assistant, and other AI product surfaces.
+- [Assistant usage dashboard (Deprecated)](https://help.sigmacomputing.com/docs/assistant-usage.md): Deprecated Assistant usage dashboard in Sigma. Prefer the AI usage dashboard for current token insights.
+- [Consumption usage dashboard](https://help.sigmacomputing.com/docs/consumption-usage.md): Monitor credit usage across your organization with the Consumption usage dashboard.
+- [Enable or disable audit logging](https://help.sigmacomputing.com/docs/enable-audit-logging.md): Learn how to enable the Sigma Audit Logs connection to record data about user-initiated events in your organization.
+- [Access and explore audit logs](https://help.sigmacomputing.com/docs/access-and-explore-audit-logs.md): Access the Sigma Audit Log connection to troubleshoot issues and monitor user activity for security and compliance.
+- [Audit log events and metadata](https://help.sigmacomputing.com/docs/audit-log-events-and-metadata.md): Explore Sigma audit log event categories, event types, and entry metadata for user-initiated events in your organization.
+- [Manage an audit logs storage integration](https://help.sigmacomputing.com/docs/manage-an-audit-logs-storage-integration.md): Learn how to create an audit log storage integration to export data to an Amazon S3 bucket, Azure container, or Google Cloud Storage bucket.
+- [Export audit log data to cloud storage](https://help.sigmacomputing.com/docs/export-audit-log-data-to-cloud-storage.md): Learn how to configure a recurring export of your Sigma audit log data to cloud storage using an existing storage integration.
+- [Register a Plugin with your Sigma Organization](https://help.sigmacomputing.com/docs/register-a-plugin-with-your-sigma-organization.md): Register third-party plugins with your Sigma organization to add custom chart types and functionality to workbooks.
+- [Register a Sigma Plugin Dev Playground](https://help.sigmacomputing.com/docs/register-a-sigma-plugin-dev-playground.md): Create a Sigma Plugin Dev Playground so developers in your organization can build and test workbook plugins.
+- [Sigma support](https://help.sigmacomputing.com/docs/sigma-support.md): How to contact Sigma support via live chat, office hours, filing a support request, and other methods.
+- [Submit a support request](https://help.sigmacomputing.com/docs/submit-a-support-request.md): Submit a Sigma support request with a severity level and optional attachments when live chat is unavailable. This document explains how to submit a support request with different severity levels and optional attachments.
+- [Escalate critical issues](https://help.sigmacomputing.com/docs/escalate-critical-issues.md): Escalate critical Sigma issues via in-app live chat (Mon–Fri, 2:00 am–6:00 pm PT) or by submitting a support request.
+- [About Sigma RADAR](https://help.sigmacomputing.com/docs/about-sigma-radar.md): RADAR is the proactive support program for Sigma, which is designed to alert customers to issues occurring in their Sigma environment that are impacting users.
+- [Access Sigma documentation from AI tools](https://help.sigmacomputing.com/docs/use-documentation-mcp-server.md): Access Sigma documentation from AI tools via the docs MCP server or LLMs.txt to improve chatbot and agent accuracy.
+- [Sigma product releases](https://help.sigmacomputing.com/docs/sigma-product-releases.md): How Sigma Computing releases changes to the product, how those changes are announced in What’s new in Sigma, and what to expect for different release stages.
+- [Supported regions, data platforms, and features](https://help.sigmacomputing.com/docs/region-warehouse-and-feature-support.md): Sigma supports various cloud platforms and regions, connections to many data platforms, and some features are supported only on specific data platforms or in specific regions.
+- [Function index](https://help.sigmacomputing.com/docs/function-index.md): Browse 200+ Sigma functions by category to find calculations, transformations, and extractions for your data.
+- [Aggregate functions](https://help.sigmacomputing.com/docs/aggregate-functions.md): Browse Sigma aggregate functions available in formulas and calculations.
+- [ArrayAgg](https://help.sigmacomputing.com/docs/arrayagg.md): Use the Sigma ArrayAgg function to identify non-null row values in a column or group and aggregate them into a single array.
+- [ArrayAggDistinct](https://help.sigmacomputing.com/docs/arrayaggdistinct.md): Use the Sigma ArrayAggDistinct function to identify distinct non-null row values in a column or group and aggregate them into a single array.
+- [Avg](https://help.sigmacomputing.com/docs/avg.md): Use the Sigma Avg function to calculate the average value of a column of numbers.
+- [AvgIf](https://help.sigmacomputing.com/docs/avgif.md): Use the Sigma AvgIf function to find the average value for a column or group for entries that the condition is true.
+- [Corr](https://help.sigmacomputing.com/docs/corr.md): Use the Sigma Corr function to calculate the Pearson correlation coefficient, also known as the bivariate correlation, of two numerical columns.
+- [Count](https://help.sigmacomputing.com/docs/count.md): Use the Sigma Count function to return the number of non-Null and non-empty values within a column or group.
+- [CountDistinct](https://help.sigmacomputing.com/docs/countdistinct.md): Use the Sigma CountDistinct function to return the number of unique values within a column or group.
+- [CountDistinctIf](https://help.sigmacomputing.com/docs/countdistinctif.md): Use the Sigma CountDistinctIf function to return the number of unique values within a column or group for which all given conditions are true.
+- [CountIf](https://help.sigmacomputing.com/docs/countif.md): Use the Sigma CountIf function to return the number of rows in a table or group for which all given conditions are true.
+- [GrandTotal](https://help.sigmacomputing.com/docs/grandtotal.md): Use the Sigma GrandTotal function to return the grand total for all records in a column based on a provided aggregate formula.
+- [ListAgg](https://help.sigmacomputing.com/docs/listagg.md): Use the Sigma ListAgg function to join a given column's row values into a single list.
+- [ListAggDistinct](https://help.sigmacomputing.com/docs/listaggdistinct.md): Use the Sigma ListAggDistinct function to join multiple values from a column into a list (as a single text string).
+- [Max](https://help.sigmacomputing.com/docs/max.md): Use the Sigma Max function to find the maximum value for a column or group.
+- [MaxIf](https://help.sigmacomputing.com/docs/maxif.md): Use the Sigma MaxIf function to find the maximum value for a column or group if the conditions are true.
+- [Median](https://help.sigmacomputing.com/docs/median.md): Use the Sigma Median function to find the mathematical median of a column or group.
+- [Min](https://help.sigmacomputing.com/docs/min.md): Use the Sigma Min function to find the minimum value for a column or group.
+- [MinIf](https://help.sigmacomputing.com/docs/minif.md): Use the Sigma MinIf function to find the minimum value for a column or group if the conditions are true.
+- [PercentileCont](https://help.sigmacomputing.com/docs/percentilecont.md): Use the Sigma PercentileCont function to calculate the continuous kth percentile value for a column or group.
+- [PercentileDisc](https://help.sigmacomputing.com/docs/percentiledisc.md): Use the Sigma PercentileDisc function to calculate the discrete kth percentile value for a column or group.
+- [PercentOfTotal](https://help.sigmacomputing.com/docs/percentoftotal.md): Use the Sigma PercentOfTotal function to return the percent of total for an aggregate formula.
+- [RegressionIntercept](https://help.sigmacomputing.com/docs/regressionintercept.md): Use the Sigma RegressionIntercept function to calculate the y-intercept of the linear regression line.
+- [RegressionR2](https://help.sigmacomputing.com/docs/regressionr2.md): Use the Sigma RegressionR2 function to calculate the R2 value, or coefficient of determination, of the linear regression line.
+- [RegressionSlope](https://help.sigmacomputing.com/docs/regressionslope.md): Use the Sigma RegressionSlope function to calculate the slope of the linear regression line.
+- [StdDev](https://help.sigmacomputing.com/docs/stddev.md): Use the Sigma StdDev function to compute the standard deviation of a column or group.
+- [Subtotal](https://help.sigmacomputing.com/docs/subtotal.md): Use the Sigma Subtotal function to return the subtotal for an aggregate formula.
+- [Sum](https://help.sigmacomputing.com/docs/sum.md): Use the Sigma Sum function to add the numerical values in a column or group.
+- [SumIf](https://help.sigmacomputing.com/docs/sumif.md): Use the Sigma SumIf function to add the numbers in a column if all conditions are True for that row.
+- [SumProduct](https://help.sigmacomputing.com/docs/sumproduct.md): Use the Sigma SumProduct function to return the sum of the product of values in a series of columns.
+- [Variance](https://help.sigmacomputing.com/docs/variance.md): The Variance function estimates the sample variance of a column or group, measuring how far values deviate from the mean.
+- [VariancePop](https://help.sigmacomputing.com/docs/variancepop.md): The VariancePop function calculates the population variance of a column or group, measuring how far values deviate from the mean.
+- [Array functions](https://help.sigmacomputing.com/docs/array-functions.md): Browse Sigma array functions available in formulas and calculations.
+- [Array](https://help.sigmacomputing.com/docs/array.md): Use the Sigma Array function to return an array containing specified values.
+- [ArrayCompact](https://help.sigmacomputing.com/docs/arraycompact.md): Use the Sigma ArrayCompact function to remove null values from an array and return the resulting array.
+- [ArrayConcat](https://help.sigmacomputing.com/docs/arrayconcat.md): Use the Sigma ArrayConcat function to combine multiple arrays into one array.
+- [ArrayContains](https://help.sigmacomputing.com/docs/arraycontains.md): Use the Sigma ArrayContains function to search for a specific value in a list or array.
+- [ArrayDistinct](https://help.sigmacomputing.com/docs/arraydistinct.md): Use the Sigma ArrayDistinct function to return the input array without duplicate values and including null values.
+- [ArrayExcept](https://help.sigmacomputing.com/docs/arrayexcept.md): Use the Sigma ArrayExcept function to return an array of all unique elements from one specified array not included in another specified array.
+- [ArrayIntersection](https://help.sigmacomputing.com/docs/arrayintersection.md): Use the Sigma ArrayIntersection function to compare two arrays and return an array of all overlapping elements, without duplicates.
+- [ArrayJoin](https://help.sigmacomputing.com/docs/arrayjoin.md): Use the Sigma ArrayJoin function to join elements of an array into a single text string.
+- [ArrayLength](https://help.sigmacomputing.com/docs/arraylength.md): Use the Sigma ArrayLength function to return the number of entries in a list.
+- [ArraySlice](https://help.sigmacomputing.com/docs/arrayslice.md): Use the Sigma ArraySlice function to return a portion of an array, defined by the starting index and length.
+- [RaggedHierarchy](https://help.sigmacomputing.com/docs/raggedhierarchy.md): Use the Sigma RaggedHierarchy function to build a parent-child path across columns that each represent a hierarchy level.
+- [Sequence](https://help.sigmacomputing.com/docs/sequence.md): Use the Sigma Sequence function to return an arithmetic sequence as an array of integers based on a specified range and increment.
+- [SplitToArray](https://help.sigmacomputing.com/docs/splittoarray.md): Use the Sigma SplitToArray function to split a specified string by a given delimiter and return an array of substrings.
+- [Sparkline](https://help.sigmacomputing.com/docs/sparkline.md): Use the Sigma Sparkline function to create sparkline charts from an array of JSON objects.
+- [SparklineAgg](https://help.sigmacomputing.com/docs/sparklineagg.md): Use the Sigma SparklineAgg function to generate sparkline charts by aggregating values over time.
+- [Date functions](https://help.sigmacomputing.com/docs/date-functions.md): Browse Sigma date functions to analyze, convert, and manipulate date and time values in formulas.
+- [BusinessDays](https://help.sigmacomputing.com/docs/businessdays.md): Use the Sigma BusinessDays function to count the weekdays between two dates, excluding Saturdays and Sundays.
+- [ConvertTimezone](https://help.sigmacomputing.com/docs/converttimezone.md): Use the Sigma ConvertTimezone function to convert datetime values to the specified time zone.
+- [DateAdd](https://help.sigmacomputing.com/docs/dateadd.md): Use the Sigma DateAdd function to add or subtracts a specified amount of time from a date.
+- [DateDiff](https://help.sigmacomputing.com/docs/datediff.md): Use the Sigma DateDiff function to calculate the time difference between two dates.
+- [DateFormat](https://help.sigmacomputing.com/docs/dateformat.md): Use the Sigma DateFormat function to evaluate a date value and extract datetime components (as text strings) in the specified format.
+- [DateFromUnix](https://help.sigmacomputing.com/docs/datefromunix.md): Use the Sigma DateFromUnix function to convert a Unix timestamp to the date data type in ISO date time format.
+- [DateFromUnixMs](https://help.sigmacomputing.com/docs/datefromunixms.md): Use the Sigma DateFromUnixMs function to convert a Unix timestamp in milliseconds to the date data type in ISO date time format.
+- [DateFromUnixUs](https://help.sigmacomputing.com/docs/datefromunixus.md): Use the Sigma DateFromUnixUs function to convert a Unix timestamp in microseconds to the date data type in ISO date time format.
+- [DateLookback](https://help.sigmacomputing.com/docs/datelookback.md): Use the Sigma DateLookback function to return the value of a variable at a previous point in time (or lookback period) determined by a specified.
+- [DatePart](https://help.sigmacomputing.com/docs/datepart.md): Use the Sigma DatePart function to extract a specified part of a date from a date value.
+- [DateParse](https://help.sigmacomputing.com/docs/dateparse.md): Use the Sigma DateParse function to parse a text string representing a date in the specified format and return the equivalent ISO datetime value.
+- [DateTrunc](https://help.sigmacomputing.com/docs/datetrunc.md): Truncates the date to the specified date part.
+- [Day](https://help.sigmacomputing.com/docs/day.md): Returns the day of the month of a date value as a number.
+- [DayOfYear](https://help.sigmacomputing.com/docs/dayofyear.md): Converts a date to the number day of the year, from 1 (Jan 1) to 365 (Dec 31).
+- [EndOfMonth](https://help.sigmacomputing.com/docs/endofmonth.md): Returns the last day of the month of a Date value.
+- [Hour](https://help.sigmacomputing.com/docs/hour.md): Returns the hour component of the given Date as a number.
+- [InDateRange](https://help.sigmacomputing.com/docs/indaterange.md): Use the Sigma InDateRange function to determine if an inputted date is within a specified range of dates, returning True or False.
+- [InPriorDateRange](https://help.sigmacomputing.com/docs/inpriordaterange.md): Use the Sigma InPriorDateRange function to determine if an inputted date is within a specified date range in a previous time period, returning True.
+- [LastDay](https://help.sigmacomputing.com/docs/lastday.md): Use the Sigma LastDay function to evaluate a specified date component (i.e., year, quarter, month, or week) in a date value and return the last.
+- [MakeDate](https://help.sigmacomputing.com/docs/makedate.md): Use the Sigma MakeDate function to evaluate specified values representing individual date (year, month, day) and time (hour, minute, second).
+- [Minute](https://help.sigmacomputing.com/docs/minute.md): Use the Sigma Minute function to return an integer representing the minute component of a specified date and time.
+- [Month](https://help.sigmacomputing.com/docs/month.md): Use the Sigma Month function to return an integer representing the month component of a specified date and time.
+- [MonthName](https://help.sigmacomputing.com/docs/monthname.md): Use the Sigma MonthName function to return the name of the month component from a specified datetime value.
+- [Now](https://help.sigmacomputing.com/docs/now.md): Use the Sigma Now function to return the current date and time and present it in your Account Time Zone.
+- [Quarter](https://help.sigmacomputing.com/docs/quarter.md): Use the Sigma Quarter function to return an integer representing the quarter in which a specified date and time occurs.
+- [Second](https://help.sigmacomputing.com/docs/second.md): Use the Sigma Second function to return an integer representing the second component of a specified date and time.
+- [Today](https://help.sigmacomputing.com/docs/today.md): Use the Sigma Today function to return the current date in ISO format and present it in your Account Time Zone.
+- [Weekday](https://help.sigmacomputing.com/docs/weekday.md): Use the Sigma Weekday function to evaluate a specified date and return an integer representing the day of the week (with 1 representing Sunday, 2.
+- [WeekdayName](https://help.sigmacomputing.com/docs/weekdayname.md): Use the Sigma WeekdayName function to evaluate a specified date and return the day of the week by name (Sunday, Monday, Tuesday, etc.).
+- [Year](https://help.sigmacomputing.com/docs/year.md): Use the Sigma Year function to return an integer representing the year component of a specified date and time.
+- [Financial functions](https://help.sigmacomputing.com/docs/financial-functions.md): Browse Sigma financial functions available in formulas and calculations.
+- [CAGR](https://help.sigmacomputing.com/docs/cagr.md): Use the Sigma CAGR function to return the compound annual growth rate of an investment.
+- [Effect](https://help.sigmacomputing.com/docs/effect.md): Use the Sigma Effect function to return the effective annual interest rate.
+- [FV](https://help.sigmacomputing.com/docs/fv.md): Use the Sigma FV function to return the future value of an investment.
+- [IPmt](https://help.sigmacomputing.com/docs/ipmt.md): Use the Sigma IPmt function to return the interest portion of a periodic, constant payment for an investment or loan with a constant interest rate.
+- [Nominal](https://help.sigmacomputing.com/docs/nominal.md): Use the Sigma Nominal function to return the nominal annual interest rate.
+- [NPer](https://help.sigmacomputing.com/docs/nper.md): Use the Sigma NPer function to return the number of periods for a loan or investment based on known amount, interest rate, and periodic payment.
+- [Pmt](https://help.sigmacomputing.com/docs/pmt.md): Use the Sigma Pmt function to return the periodic payment for an investment.
+- [PPmt](https://help.sigmacomputing.com/docs/ppmt.md): Use the Sigma PPmt function to return the principal portion of a periodic, constant payment for an investment or loan with a constant interest rate.
+- [PV](https://help.sigmacomputing.com/docs/pv.md): Use the Sigma PV function to return the present value of a loan or an investment, when using constant and regular periodic payments.
+- [XNPV](https://help.sigmacomputing.com/docs/xnpv.md): Use the Sigma XNPV function to return the net present value of an investment for payments or incomes at irregular intervals.
+- [Geography functions](https://help.sigmacomputing.com/docs/geography-functions.md): Browse Sigma geography functions available in formulas and calculations.
+- [Area](https://help.sigmacomputing.com/docs/area.md): Use the Sigma Area function to calculate the area of a geography polygon, in specified units.
+- [Centroid](https://help.sigmacomputing.com/docs/centroid.md): Use the Sigma Centroid function to calculate the center of any geography object, and return it as a point.
+- [Distance](https://help.sigmacomputing.com/docs/distance.md): Use the Sigma Distance function to calculate the minimum distance between two geographies, in specified units.
+- [Geography](https://help.sigmacomputing.com/docs/geography.md): Use the Sigma Geography function to convert GeoJSON or WKT data into the Geography data type.
+- [Intersects](https://help.sigmacomputing.com/docs/intersects.md): Use the Sigma Intersects function to determine if one geography intersects another geography.
+- [Latitude](https://help.sigmacomputing.com/docs/latitude.md): Use the Sigma Latitude function to obtain the latitude of a point.
+- [Longitude](https://help.sigmacomputing.com/docs/longitude.md): Use the Sigma Longitude function to obtain the longitude of a point.
+- [MakeLine](https://help.sigmacomputing.com/docs/makeline.md): Use the Sigma MakeLine function to construct a LineString from a series of Point or LineString data.
+- [MakePoint](https://help.sigmacomputing.com/docs/makepoint.md): Use the Sigma MakePoint function to construct a point from latitude and longitude data that describe a location within the Geographic Coordinate.
+- [Perimeter](https://help.sigmacomputing.com/docs/perimeter.md): Use the Sigma Perimeter function to calculate the perimeter of a geography, in specified units.
+- [Within](https://help.sigmacomputing.com/docs/within.md): Use the Sigma Within function to determine if one geography is fully contained within another geography.
+- [Join functions](https://help.sigmacomputing.com/docs/join-functions.md): Browse Sigma join functions available in formulas and calculations.
+- [Lookup](https://help.sigmacomputing.com/docs/lookup.md): Use the Sigma Lookup function to find matching data inside a data element, either in the same table, or in an external table.
+- [Rollup](https://help.sigmacomputing.com/docs/rollup.md): Use the Sigma Rollup function to perform a lookup and return an aggregation.
+- [Logical functions](https://help.sigmacomputing.com/docs/logical-functions.md): Browse Sigma logical functions available in formulas and calculations.
+- [Between](https://help.sigmacomputing.com/docs/between.md): Use the Sigma Between function to check whether a value lies within a given range.
+- [Choose](https://help.sigmacomputing.com/docs/choose.md): Use the Sigma Choose function to return the value at an index position from a list of inputs or a column.
+- [Coalesce](https://help.sigmacomputing.com/docs/coalesce.md): Use the Sigma Coalesce function to return the value of the first argument that is not Null.
+- [If](https://help.sigmacomputing.com/docs/if.md): Use the Sigma If function to return a value based on a conditional statement.
+- [In](https://help.sigmacomputing.com/docs/in.md): Use the Sigma In function to test if a value matches any candidate value in a subsequent list of candidate values.
+- [IsNotNull](https://help.sigmacomputing.com/docs/isnotnull.md): Use the Sigma IsNotNull function to return True if the argument does not contain missing data values, and False if the argument is Null (i.e..
+- [IsNull](https://help.sigmacomputing.com/docs/isnull.md): Use the Sigma IsNull function to return True if the argument contains missing data values, and False if the argument is not Null (i.e., does not.
+- [Switch](https://help.sigmacomputing.com/docs/switch.md): Use the Sigma Switch function to return the result corresponding to the first matching value.
+- [Zn](https://help.sigmacomputing.com/docs/zn.md): Use the Sigma Zn function to return the argument value if it is not Null, otherwise returns zero.
+- [NullIf](https://help.sigmacomputing.com/docs/nullif.md): Use the Sigma NullIf function to return Null if the first argument is equal to the second.
+- [Math functions](https://help.sigmacomputing.com/docs/math-functions.md): Browse Sigma math functions available in formulas and calculations.
+- [Abs](https://help.sigmacomputing.com/docs/abs.md): Use the Sigma Abs function to return the absolute, non-negative value of a number.
+- [Acos](https://help.sigmacomputing.com/docs/acos.md): Use the Sigma Acos function to compute the arccosine of the given angle.
+- [Asin](https://help.sigmacomputing.com/docs/asin.md): Use the Sigma Asin function to compute the arcsine of the given angle.
+- [Atan](https://help.sigmacomputing.com/docs/atan.md): Use the Sigma Atan function to compute the arctangent of the given angle.
+- [Atan2](https://help.sigmacomputing.com/docs/atan2.md): Computes the arctangent of the given coordinates.
+- [BinFixed](https://help.sigmacomputing.com/docs/binfixed.md): Use the Sigma BinFixed function to compute the bin for a value among the specified number of identically sized bins within the given bounds.
+- [BinRange](https://help.sigmacomputing.com/docs/binrange.md): Assigns the input value to a bin based on the provided cutoffs.
+- [BitAnd](https://help.sigmacomputing.com/docs/bitand.md): Returns the bitwise AND of two numbers.
+- [BitOr](https://help.sigmacomputing.com/docs/bitor.md): Returns the bitwise OR of two numbers.
+- [Ceiling](https://help.sigmacomputing.com/docs/ceiling.md): Rounds the input number up to the closest multiple of equal or greater value.
+- [Cos](https://help.sigmacomputing.com/docs/cos.md): Computes the cosine of the given angle.
+- [Cot](https://help.sigmacomputing.com/docs/cot.md): Computes the cotangent of the given angle.
+- [Degrees](https://help.sigmacomputing.com/docs/degrees.md): Converts an angle in radians to degrees.
+- [DistanceGlobe](https://help.sigmacomputing.com/docs/distanceglobe.md): Calculates the distance between two points on the globe, in kilometers.
+- [DistancePlane](https://help.sigmacomputing.com/docs/distanceplane.md): Calculates the distance between two points on the plane.
+- [Div](https://help.sigmacomputing.com/docs/div.md): Use the Sigma Div function to return the integer component of a division operation.
+- [Exp](https://help.sigmacomputing.com/docs/exp.md): Returns the mathematical constant e, also known as Euler's number (2.7183…), raised to the given power.
+- [Floor](https://help.sigmacomputing.com/docs/floor.md): Use the Sigma Floor function to round the input number up to the closest multiple of equal or lesser value.
+- [Greatest](https://help.sigmacomputing.com/docs/greatest.md): Returns the greatest value from two or more values with matching data types.
+- [GreatestNonNull](https://help.sigmacomputing.com/docs/greatestnonnull.md): Returns the greatest value from two or more values with matching data types, ignoring Null values.
+- [Int](https://help.sigmacomputing.com/docs/int.md): Rounds the input number down to the largest integer of equal or lesser value.
+- [IsEven](https://help.sigmacomputing.com/docs/iseven.md): Use the Sigma IsEven function to return True if the integer part of a number is even and return False is it is odd.
+- [IsOdd](https://help.sigmacomputing.com/docs/isodd.md): Use the Sigma IsOdd function to return True if the integer part of a number is odd and return False is it is even.
+- [Least](https://help.sigmacomputing.com/docs/least.md): Returns the smallest value from two or more values with matching data types.
+- [LeastNonNull](https://help.sigmacomputing.com/docs/leastnonnull.md): Returns the smallest value from two or more values with matching data types, ignoring Null values.
+- [Ln](https://help.sigmacomputing.com/docs/ln.md): Compute the natural logarithm of a number.
+- [Log](https://help.sigmacomputing.com/docs/log.md): Compute the logarithm of a number, defaulting to base 10.
+- [Mod](https://help.sigmacomputing.com/docs/mod.md): The Mod (modulus) function computes the remainder of a division operation, dividing the first value by the second value.
+- [MRound](https://help.sigmacomputing.com/docs/mround.md): Rounds the input number to the closest multiple of the given factor.
+- [Pi](https://help.sigmacomputing.com/docs/pi.md): Returns the mathematical constant π = 3.14159…
+- [Power](https://help.sigmacomputing.com/docs/power.md): Raises a number to the specified power.
+- [Radians](https://help.sigmacomputing.com/docs/radians.md): Converts an angle in degrees to radians.
+- [Round](https://help.sigmacomputing.com/docs/round.md): Use the Sigma Round function to round a number to the specified number of digits.
+- [RoundDown](https://help.sigmacomputing.com/docs/rounddown.md): Use the Sigma RoundDown function to round a number down to the specified number of digits.
+- [RoundUp](https://help.sigmacomputing.com/docs/roundup.md): Use the Sigma RoundUp function to round a number up to the specified number of digits.
+- [RowAvg](https://help.sigmacomputing.com/docs/rowavg.md): Returns the average value of the input numbers.
+- [Sign](https://help.sigmacomputing.com/docs/sign.md): Returns the sign of a number: -1 if negative, 1 if positive, 0 if zero.
+- [Sin](https://help.sigmacomputing.com/docs/sin.md): Computes the sine of the given angle.
+- [Sqrt](https://help.sigmacomputing.com/docs/sqrt.md): Compute the positive square root of a positive number.
+- [Tan](https://help.sigmacomputing.com/docs/tan.md): Computes the tangent of the given angle.
+- [Trunc](https://help.sigmacomputing.com/docs/trunc.md): Truncates the input value to the specified number of digits or decimal places.
+- [Passthrough functions](https://help.sigmacomputing.com/docs/passthrough-functions.md): Browse Sigma passthrough functions available in formulas and calculations.
+- [AggDatetime](https://help.sigmacomputing.com/docs/aggdatetime.md): Use the Sigma AggDatetime function to send a request to run an aggregate warehouse function that returns a date data type.
+- [AggGeography](https://help.sigmacomputing.com/docs/agggeography.md): Use the Sigma AggGeography function to call a warehouse aggregate function that returns a Geography data type.
+- [AggLogical](https://help.sigmacomputing.com/docs/agglogical.md): Use the Sigma AggLogical function to call a warehouse aggregate function that returns a Logical data type.
+- [AggNumber](https://help.sigmacomputing.com/docs/aggnumber.md): Use the Sigma AggNumber function to call a warehouse aggregate function that returns a Number data type.
+- [AggText](https://help.sigmacomputing.com/docs/aggtext.md): Use the Sigma AggText function to send a request to run an aggregate warehouse function that returns a text data type.
+- [AggVariant](https://help.sigmacomputing.com/docs/aggvariant.md): Use the Sigma AggVariant function to call a warehouse aggregate function that returns a Variant data type.
+- [CallDatetime](https://help.sigmacomputing.com/docs/calldatetime.md): Use the Sigma CallDatetime function to call a warehouse function that returns a datetime data value.
+- [CallGeography](https://help.sigmacomputing.com/docs/callgeography.md): Use the Sigma CallGeography function to call a warehouse function that returns a Geography data type.
+- [CallLogical](https://help.sigmacomputing.com/docs/calllogical.md): Use the Sigma CallLogical function to call a warehouse function that returns a Logical datatype.
+- [CallNumber](https://help.sigmacomputing.com/docs/callnumber.md): Use the Sigma CallNumber function to call a warehouse function that returns a Number datatype.
+- [CallText](https://help.sigmacomputing.com/docs/calltext.md): Use the Sigma CallText function to send a request to run a warehouse function that returns a text value.
+- [CallVariant](https://help.sigmacomputing.com/docs/callvariant.md): Use the Sigma CallVariant function to call a warehouse function that returns a Variant datatype.
+- [System functions](https://help.sigmacomputing.com/docs/system-functions.md): Browse Sigma system functions available in formulas and calculations.
+- [CurrentTimezone](https://help.sigmacomputing.com/docs/currenttimezone.md): Use the Sigma CurrentTimezone function to return the name of the IANA time zone configured as your organization's account time zone.
+- [CurrentUserAttributeText](https://help.sigmacomputing.com/docs/currentuserattributetext.md): Use the Sigma CurrentUserAttributeText function to return the corresponding attribute value for the current user as a Text data type.
+- [CurrentUserEmail](https://help.sigmacomputing.com/docs/currentuseremail.md): Use the Sigma CurrentUserEmail function to return the email address associated with the current (signed-in) user's account.
+- [CurrentUserFirstName](https://help.sigmacomputing.com/docs/currentuserfirstname.md): The CurrentUserFirstName function returns the current (signed-in) user’s first name as configured in the user’s profile.
+- [CurrentUserFullName](https://help.sigmacomputing.com/docs/currentuserfullname.md): The CurrentUserFullName function returns the current (signed-in) user’s full name as configured in the user’s profile.
+- [CurrentUserInTeam](https://help.sigmacomputing.com/docs/currentuserinteam.md): Returns True if the current user is a member of any of the given teams.
+- [Text functions](https://help.sigmacomputing.com/docs/text-functions.md): Browse Sigma text functions available in formulas and calculations.
+- [Concat](https://help.sigmacomputing.com/docs/concat.md): Use the Sigma Concat function to combine one or more text strings into a single string.
+- [Contains](https://help.sigmacomputing.com/docs/contains.md): Use the Sigma Contains function to search for a specified substring in a text value.
+- [EndsWith](https://help.sigmacomputing.com/docs/endswith.md): Returns True if a string ends with a substring.
+- [Find](https://help.sigmacomputing.com/docs/find.md): Returns the index at which a substring is first found within a given string.
+- [ILike](https://help.sigmacomputing.com/docs/ilike.md): Returns true if the string value matches the case-insensitive pattern.
+- [Left](https://help.sigmacomputing.com/docs/left.md): Returns a substring that begins at the start of a given string.
+- [Len](https://help.sigmacomputing.com/docs/len.md): Returns the number of characters in a string, including spaces.
+- [Like](https://help.sigmacomputing.com/docs/like.md): Returns true if the string value matches the case-sensitive pattern.
+- [LPad](https://help.sigmacomputing.com/docs/lpad.md): Prepends a pattern to or truncates a string to the desired length.
+- [Lower](https://help.sigmacomputing.com/docs/lower.md): Converts a given string to lowercase.
+- [LTrim](https://help.sigmacomputing.com/docs/ltrim.md): Removes leading spaces from the beginning of a given string.
+- [MD5](https://help.sigmacomputing.com/docs/md5.md): Utilizes the MD5 algorithm to calculate the hash value of a given string.
+- [Mid](https://help.sigmacomputing.com/docs/mid.md): Returns a substring defined by offset and length.
+- [Proper](https://help.sigmacomputing.com/docs/proper.md): Use the Sigma Proper function to convert text to proper case, capitalizing each word and lowercasing the rest.
+- [RegexpCount](https://help.sigmacomputing.com/docs/regexpcount.md): Use the Sigma RegexpCount function to return the number of times a regular expression pattern is matched in a string.
+- [RegexpExtract](https://help.sigmacomputing.com/docs/regexpextract.md): Use the Sigma RegexpExtract function to return the substring that matches a regular expression within a string.
+- [RegexpMatch](https://help.sigmacomputing.com/docs/regexpmatch.md): Returns True if a string matches a regular expression.
+- [RegexpReplace](https://help.sigmacomputing.com/docs/regexpreplace.md): Use the Sigma RegexpReplace function to search a string for a pattern and replace all matches with the replacement string.
+- [Repeat](https://help.sigmacomputing.com/docs/repeat.md): Use the Sigma Repeat function to return a string created by repeating a given string a specified number of times.
+- [Replace](https://help.sigmacomputing.com/docs/replace.md): Use the Sigma Replace function to search through a input string for a substring and replace every instance of it with a replacement string.
+- [Reverse](https://help.sigmacomputing.com/docs/reverse.md): Use the Sigma Reverse function to revers the order of the characters in a string.
+- [Right](https://help.sigmacomputing.com/docs/right.md): Use the Sigma Right function to return a substring from the end of a string.
+- [RPad](https://help.sigmacomputing.com/docs/rpad.md): Use the Sigma RPad function to make a string a desired length by either adding or removing characters at the end of the string.
+- [RTrim](https://help.sigmacomputing.com/docs/rtrim.md): RTrim removes trailing spaces from the end of a string.
+- [SHA256](https://help.sigmacomputing.com/docs/sha256.md): The SHA256 (Secure Hash Algorithm 256-bit) function is a cryptographic hash function that transforms text input into a 256-bit hash value.
+- [SplitPart](https://help.sigmacomputing.com/docs/splitpart.md): Use the Sigma SplitPart function to split a string into multiple parts at the position of a specified delimiter in the string, then returns the nth.
+- [StartsWith](https://help.sigmacomputing.com/docs/startswith.md): Use the Sigma StartsWith function to determine whether a string starts with a specified substring.
+- [Substring](https://help.sigmacomputing.com/docs/substring.md): Use the Sigma Substring function as an alias of Mid. Returns a substring defined by offset and length.
+- [Trim](https://help.sigmacomputing.com/docs/trim.md): Use the Sigma Trim function to remove leading and trailing spaces from a given string.
+- [Upper](https://help.sigmacomputing.com/docs/upper.md): Use the Sigma Upper function to convert a given string to uppercase.
+- [UrlPart](https://help.sigmacomputing.com/docs/urlpart.md): Use the Sigma UrlPart function to extract a specified component from a URL and return it as text.
+- [Type functions](https://help.sigmacomputing.com/docs/type-functions.md): Browse Sigma type functions available in workbook formulas and calculations.
+- [Date](https://help.sigmacomputing.com/docs/date.md): Use the Sigma Date function to convert a text or number value to the date data type in ISO date time format.
+- [Json](https://help.sigmacomputing.com/docs/json.md): Use the Sigma Json function to convert a value to JSON (or GeoJSON when converting geography data).
+- [Logical](https://help.sigmacomputing.com/docs/logical.md): Use the Sigma Logical function to convert the input value into a Boolean type, with a logical value of either True or False.
+- [Number](https://help.sigmacomputing.com/docs/number.md): Use the Sigma Number function to convert the input value into a number type.
+- [Text](https://help.sigmacomputing.com/docs/text.md): Use the Sigma Text function to convert values to text strings (or WKT format when converting geography data).
+- [Variant](https://help.sigmacomputing.com/docs/variant.md): Use the Sigma Variant function to convert the input value to the variant data type.
+- [Window functions](https://help.sigmacomputing.com/docs/window-functions.md): Window functions perform operations across an entire table, table grouping (grouped rows), or defined window of rows.
+- [CumulativeAvg](https://help.sigmacomputing.com/docs/cumulativeavg.md): Use the Sigma CumulativeAvg function to calculate the numerical average of the input column up to and including the current value.
+- [CumulativeCorr](https://help.sigmacomputing.com/docs/cumulativecorr.md): Use the Sigma CumulativeCorr function to calculate the correlation coefficient of the input column up to and including the current value.
+- [CumulativeCount](https://help.sigmacomputing.com/docs/cumulativecount.md): Use the Sigma CumulativeCount function to count the number of non-null values of a column, up and including the current row value.
+- [CumeDist](https://help.sigmacomputing.com/docs/cumedist.md): Use the Sigma CumeDist function to return the cumulative distribution of an input column.
+- [CumulativeMax](https://help.sigmacomputing.com/docs/cumulativemax.md): Use the Sigma CumulativeMax function to calculate the maximum of a column up to and including the current row value.
+- [CumulativeMin](https://help.sigmacomputing.com/docs/cumulativemin.md): Use the Sigma CumulativeMin function to identify the minimum value of a column up to and including the current row value.
+- [CumulativeStdDev](https://help.sigmacomputing.com/docs/cumulativestddev.md): Use the Sigma CumulativeStdDev function to calculate the standard deviation of a column up to and including the current row value.
+- [CumulativeSum](https://help.sigmacomputing.com/docs/cumulativesum.md): Use the Sigma CumulativeSum function to calculate the sum of the input column up to and including the current row value.
+- [CumulativeVariance](https://help.sigmacomputing.com/docs/cumulativevariance.md): Use the Sigma CumulativeVariance function to calculate the variance of a column up to and including the current row value.
+- [FillDown](https://help.sigmacomputing.com/docs/filldown.md): Use the Sigma FillDown function to replace all null values within a column with the closest, prior non-null value.
+- [First](https://help.sigmacomputing.com/docs/first.md): Use the Sigma First function to return the first value in a column for every row, based on the current table sort.
+- [FirstNonNull](https://help.sigmacomputing.com/docs/firstnonnull.md): Use the Sigma FirstNonNull function to return the first non-null value in a column or grouping.
+- [Lag](https://help.sigmacomputing.com/docs/lag.md): Use the Sigma Lag function to access data in preceding rows in the same result set, without having to join the table to itself.
+- [Last](https://help.sigmacomputing.com/docs/last.md): Use the Sigma Last function to return the last row value in a column.
+- [LastNonNull](https://help.sigmacomputing.com/docs/lastnonnull.md): Use the Sigma LastNotNull function to return the last non-Null value in a column or grouping.
+- [Lead](https://help.sigmacomputing.com/docs/lead.md): Use the Sigma Lead function to access data in subsequent rows in the same result set, without having to join the table to itself.
+- [MovingAvg](https://help.sigmacomputing.com/docs/movingavg.md): Use the Sigma MovingAvg function to calculate the average of values in a moving window with specified start and end boundaries.
+- [MovingCorr](https://help.sigmacomputing.com/docs/movingcorr.md): Use the Sigma MovingCorr function to calculate the Pearson correlation coefficient, also known as the bivariate correlation, of two numerical.
+- [MovingCount](https://help.sigmacomputing.com/docs/movingcount.md): Use the Sigma MovingCount function to count the number of non-null values within a column in a moving window.
+- [MovingMax](https://help.sigmacomputing.com/docs/movingmax.md): Use the Sigma MovingMax function to find the maximum value of a column within a moving window.
+- [MovingMin](https://help.sigmacomputing.com/docs/movingmin.md): Use the Sigma MovingMin function to find the minimum value of a column within a moving window.
+- [MovingStddev](https://help.sigmacomputing.com/docs/movingstddev.md): The MovingStddev finds the standard deviation of a column within a moving window.
+- [MovingSum](https://help.sigmacomputing.com/docs/movingsum.md): The MovingSum functions calculates the sum of a column in a moving window.
+- [MovingVariance](https://help.sigmacomputing.com/docs/movingvariance.md): Use the Sigma MovingVariance function to calculate the statistical variance of a column in a moving window.
+- [Nth](https://help.sigmacomputing.com/docs/nth.md): Use the Sigma Nth function to repeat the Nth value of the the given column for every row in a column.
+- [Ntile](https://help.sigmacomputing.com/docs/ntile.md): Use the Sigma Ntile function to assign the rows of a column to a given number of ranks.
+- [Rank](https://help.sigmacomputing.com/docs/rank.md): Use the Sigma Rank function to assign a rank to each value in the specified column.
+- [RankDense](https://help.sigmacomputing.com/docs/rankdense.md): Use the Sigma RankDense function to assign ranks to values in a specified column.
+- [RankPercentile](https://help.sigmacomputing.com/docs/rankpercentile.md): Use the Sigma RankPercentile function to calculate the relative standing of a value in comparison to other values in the same column or group.
+- [RowNumber](https://help.sigmacomputing.com/docs/rownumber.md): Use the Sigma RowNumber function to number the rows in the table using the input column.
+- [VisibilityLimit](https://help.sigmacomputing.com/docs/visibilitylimit.md): Use the Sigma VisibilityLimit function to limit the values displayed in a column to the number of specified values according to an order calculated.
+- [Operators overview](https://help.sigmacomputing.com/docs/operators-overview.md): Sigma supports basic operators for calculations, evaluating them in accepted order.
+- [Use AI with formulas](https://help.sigmacomputing.com/docs/use-ai-with-formulas.md): The Sigma formula assistant uses AI to write new formulas, correct formula errors, and explain existing formulas applied to elements in workbooks.
+- [Perform AI queries](https://help.sigmacomputing.com/docs/perform-ai-queries.md): Run warehouse generative AI SQL functions from Sigma to perform AI queries when your data platform exposes those functions.
+- [API Recipes](https://help.sigmacomputing.com/recipes.md): Ready-to-use code samples for common Sigma API workflows.
+- [Authentication: Get Access Token (JavaScript)](https://help.sigmacomputing.com/recipes/authentication-get-access-token-javascript.md): This script retrieves a bearer token from the Sigma API using client credentials authentication.
+- [Connections: List all (Javascript)](https://help.sigmacomputing.com/recipes/connections-list-all-javascript.md): This script lists all connections in alphabetically order by name.
+- [Connections: Sync All Tables in Schema (Javascript)](https://help.sigmacomputing.com/recipes/connections-sync-all-tables-in-schema-javascript.md): This script automates the synchronization of tables within a specified schema (Snowflake).
+- [Get Column Names by Page and Element (Javascript)](https://help.sigmacomputing.com/recipes/get-column-names-by-page-and-element-javascript.md): This script automates the process of retrieving column names for all elements in each page of a workbook in Sigma.
+- [Workbook - Copy Workbook to Member "My Documents" Folder (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-copy-workbook-to-member-my-documents-folder-javascript.md): This script automates the process of copying a specific workbook for a designated user in Sigma.
+- [Workbook: Export to CSV with Date Range Parameters (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-export-to-csv-with-date-range-parameters-javascript.md): This recipe demonstrates how to trigger an export job for a specific workbook and include a parameter-based date range for the data.
+- [Workbook: Export to PDF (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-export-to-pdf-javascript.md): This script triggers an export to PDF job and downloads the export once ready.
+- [Workbook: Initiate Materialization Job (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-initiate-materialization-job-javascript.md): This script initiates a materialization job for a specified workbook.
+- [Workbook: List All (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-list-all-javascript.md): This script fetches all workbooks accessible to a specific member based on their memberId.
+- [Workbook: Pagination (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-pagination-javascript.md): This script fetches all workbooks from the Sigma API, handling pagination for large datasets.
+- [Workbook: Reassign Ownership by Email (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-reassign-ownership-by-email.md): This script transfers ownership of all workbooks owned by one user to another user using email addresses.
+- [Workbook: Shared with Me (JavaScript)](https://help.sigmacomputing.com/recipes/workbook-shared-with-me-javascript.md): This script fetches all workbooks shared to a specific member based on their memberId.
+- [Workbooks: List all Input Tables (JavaScript)](https://help.sigmacomputing.com/recipes/workbooks-list-all-input-tables-javascript.md): This script searches through all workbooks for specific elements of the type "input-table" and logs details about them.
+- [Workbooks - Update owner (Javascript)](https://help.sigmacomputing.com/recipes/workbooks-update-owner-javascript.md): This script updates the ownership of a specified workbookId.
+- [Member - Get Member Details (JavaScript)](https://help.sigmacomputing.com/recipes/member-get-member-details-javascript.md): This script retrieves the details of a specific member based on the memberId provided in the .env file.
+- [Member: Onboarding (JavaScript)](https://help.sigmacomputing.com/recipes/member-onboarding-javascript.md): This script automates the onboarding process for a new member by creating them and executing a series of actions in a specific order.
+- [Members: Bulk Deactivate](https://help.sigmacomputing.com/recipes/members-bulk-deactivate.md): This script deactivates and deletes all users found using a single parameter that can be configured as a wildcard.
+- [Members: Change Email Address (JavaScript)](https://help.sigmacomputing.com/recipes/members-change-email-address-javascript.md): This script automates the process of changing a member's email address in Sigma.
+- [Members: Create New (JavaScript)](https://help.sigmacomputing.com/recipes/members-create-new-javascript.md): This script creates a new member, workspace and the associated grants in Sigma by sending a POST request to the API endpoints required.
+- [Members: List All (JavaScript)](https://help.sigmacomputing.com/recipes/members-list-all-javascript.md): This script retrieves all members from the Sigma API by making GET requests with pagination until all members are fetched.
+- [Members: Recent Workbooks (JavaScript)](https://help.sigmacomputing.com/recipes/members-recent-workbooks-javascript.md): This script fetches recent documents and folders for a specified member from the Sigma API.
+- [Members: Update (JavaScript)](https://help.sigmacomputing.com/recipes/members-update-javascript.md): This script updates the account type of a member on the Sigma platform by sending a PATCH request to the API with the new member type.
+- [Teams: Bulk Assign Members (JavaScript)](https://help.sigmacomputing.com/recipes/teams-bulk-assign-members-javascript.md): This script is designed to bulk assign existing members to a specific team, utilizing the members' emails as identifiers.
+- [Teams: Bulk Remove Members (JavaScript)](https://help.sigmacomputing.com/recipes/teams-bulk-remove-members-javascript.md): This script is designed to bulk remove existing members to a specific team, utilizing the members' emails as identifiers.
+- [Tenants: Bulk Sync Connection Paths (JavaScript)](https://help.sigmacomputing.com/recipes/tenants-bulk-sync-connection-paths-javascript.md): This script demonstrates how to perform bulk operations across all tenants associated with a given parent organization. The specific example demonstrates syncing a specified connection path for each tenant's connections.
+- [Get started with the Sigma REST API](https://help.sigmacomputing.com/reference/get-started-sigma-api.md)
+- [Generate Sigma API client credentials](https://help.sigmacomputing.com/reference/generate-client-credentials.md)
+- [Identify unique IDs in Sigma](https://help.sigmacomputing.com/reference/identify-unique-ids-in-sigma.md)
+- [Use OAuth override tokens](https://help.sigmacomputing.com/reference/use-oauth-override-tokens.md)
+
+## API Docs
+
+- Sigma REST API > Account types [List account types](https://help.sigmacomputing.com/reference/list-account-types.md)
+- Sigma REST API > Account types [Create an account type](https://help.sigmacomputing.com/reference/create-account-type.md)
+- Sigma REST API > Account types > {accountTypeId} [List account type permissions](https://help.sigmacomputing.com/reference/list-account-type-permissions.md)
+- Sigma REST API > Account types > {accountTypeId} [Delete an account type](https://help.sigmacomputing.com/reference/delete-account-type.md)
+- Sigma REST API > API connectors [List API connectors](https://help.sigmacomputing.com/reference/list-api-connectors.md)
+- Sigma REST API > API connectors [Create an API connector](https://help.sigmacomputing.com/reference/create-api-connector.md)
+- Sigma REST API > API connectors [Get an API connector](https://help.sigmacomputing.com/reference/get-api-connector.md)
+- Sigma REST API > API connectors [Delete an API connector](https://help.sigmacomputing.com/reference/delete-api-connector.md)
+- Sigma REST API > API connectors [Update an API connector](https://help.sigmacomputing.com/reference/update-api-connector.md)
+- Sigma REST API > API credentials [List API credentials](https://help.sigmacomputing.com/reference/list-api-credentials.md)
+- Sigma REST API > API credentials [Create an API credential](https://help.sigmacomputing.com/reference/create-api-credential.md)
+- Sigma REST API > API credentials [Get an API credential](https://help.sigmacomputing.com/reference/get-api-credential.md)
+- Sigma REST API > API credentials [Delete an API credential](https://help.sigmacomputing.com/reference/delete-api-credential.md)
+- Sigma REST API > API credentials [Update an API credential](https://help.sigmacomputing.com/reference/update-api-credential.md)
+- Sigma REST API > Authentication [Get access token](https://help.sigmacomputing.com/reference/post-token.md)
+- Sigma REST API > Connections [List connections](https://help.sigmacomputing.com/reference/list-connections.md)
+- Sigma REST API > Connections [Create a connection](https://help.sigmacomputing.com/reference/create-connection.md)
+- Sigma REST API > Connections > {connectionid} [Get connection details](https://help.sigmacomputing.com/reference/get-connection.md)
+- Sigma REST API > Connections > {connectionid} [Update a connection](https://help.sigmacomputing.com/reference/update-connection.md)
+- Sigma REST API > Connections > {connectionid} [Delete a connection](https://help.sigmacomputing.com/reference/delete-connection.md)
+- Sigma REST API > Connections > {connectionid} [Test a connection](https://help.sigmacomputing.com/reference/test-connection.md)
+- Sigma REST API > Connections > {connectionid} [Add dbt metadata for a connection](https://help.sigmacomputing.com/reference/post-connection-dbt-artifacts.md)
+- Sigma REST API > Connections > connection grants [List grants for a connection](https://help.sigmacomputing.com/reference/list-connection-grants.md)
+- Sigma REST API > Connections > connection grants [Add grants to a connection](https://help.sigmacomputing.com/reference/create-connection-grant.md)
+- Sigma REST API > Connections > connection grants [Delete a grant for a connection](https://help.sigmacomputing.com/reference/delete-connection-grant.md)
+- Sigma REST API > Connections > paths [List connection paths](https://help.sigmacomputing.com/reference/list-connection-paths.md)
+- Sigma REST API > Connections > paths [Get connection path for a table](https://help.sigmacomputing.com/reference/get-inode-connection-path.md)
+- Sigma REST API > Connections > paths [Look up connections by path](https://help.sigmacomputing.com/reference/lookup-connection.md)
+- Sigma REST API > Connections > paths [List columns for a warehouse table](https://help.sigmacomputing.com/reference/list-connection-table-columns.md)
+- Sigma REST API > Connections > paths [Sync a connection by path](https://help.sigmacomputing.com/reference/sync-connection-path.md)
+- Sigma REST API > Connections > paths > path grants [List grants for a connection path](https://help.sigmacomputing.com/reference/list-connection-path-grants.md)
+- Sigma REST API > Connections > paths > path grants [Add grants to a connection path](https://help.sigmacomputing.com/reference/create-connection-path-grant.md)
+- Sigma REST API > Connections > paths > path grants [Delete a grant for a connection path](https://help.sigmacomputing.com/reference/delete-connection-path-grant.md)
+- Sigma REST API > Credentials [Create API credentials](https://help.sigmacomputing.com/reference/create-credentials.md)
+- Sigma REST API > Credentials [Delete API credentials](https://help.sigmacomputing.com/reference/delete-credentials.md)
+- Sigma REST API > Data models [List data models](https://help.sigmacomputing.com/reference/list-data-models.md)
+- Sigma REST API > Data models [Get a data model](https://help.sigmacomputing.com/reference/get-data-model.md)
+- Sigma REST API > Data models > {dataModelId} [List data model sources](https://help.sigmacomputing.com/reference/list-data-model-sources.md)
+- Sigma REST API > Data models > {dataModelId} [List tags for a data model](https://help.sigmacomputing.com/reference/list-data-model-tags.md)
+- Sigma REST API > Data models > {dataModelId} [Tag a data model](https://help.sigmacomputing.com/reference/tag-data-model.md)
+- Sigma REST API > Data models > {dataModelId} [List materialization schedules for a data model](https://help.sigmacomputing.com/reference/list-data-model-materialization-schedules.md)
+- Sigma REST API > Data models > {dataModelId} [Get a materialization job](https://help.sigmacomputing.com/reference/get-data-model-materialization.md)
+- Sigma REST API > Data models > {dataModelId} [Run materialization for a data model element](https://help.sigmacomputing.com/reference/materialize-data-model-element.md)
+- Sigma REST API > Data models > {dataModelId} [Swap data model sources](https://help.sigmacomputing.com/reference/swap-data-model-sources.md)
+- Sigma REST API > Data models > {dataModelId} [List lineage for a data model](https://help.sigmacomputing.com/reference/list-data-model-lineage-tree.md)
+- Sigma REST API > Data models > {dataModelId} [List elements in a data model](https://help.sigmacomputing.com/reference/list-data-model-elements.md)
+- Sigma REST API > Data models > {dataModelId} [List columns for all elements in a data model](https://help.sigmacomputing.com/reference/get-data-model-columns.md)
+- Sigma REST API > Datasets [List datasets (Deprecated)](https://help.sigmacomputing.com/reference/list-datasets.md)
+- Sigma REST API > Datasets [Get a dataset (Deprecated)](https://help.sigmacomputing.com/reference/get-dataset.md)
+- Sigma REST API > Datasets [List dataset sources (Deprecated)](https://help.sigmacomputing.com/reference/get-dataset-sources.md)
+- Sigma REST API > Datasets [Migrate a dataset to a data model (Beta)](https://help.sigmacomputing.com/reference/migrate-dataset-to-data-model.md)
+- Sigma REST API > Datasets > materialization [Materialize a dataset (Deprecated)](https://help.sigmacomputing.com/reference/materialize-dataset.md)
+- Sigma REST API > Datasets > materialization [List materializations for a dataset (Deprecated)](https://help.sigmacomputing.com/reference/list-dataset-materializations.md)
+- Sigma REST API > Datasets > grants [Get grants for a dataset (Deprecated)](https://help.sigmacomputing.com/reference/list-dataset-grants.md)
+- Sigma REST API > Datasets > grants [Grant permissions on a dataset (Deprecated)](https://help.sigmacomputing.com/reference/create-dataset-grant.md)
+- Sigma REST API > Datasets > grants [Delete a dataset permission (Deprecated)](https://help.sigmacomputing.com/reference/delete-dataset-grant.md)
+- Sigma REST API > Deployment policies [List deployment policies](https://help.sigmacomputing.com/reference/list-deployments.md)
+- Sigma REST API > Deployment policies > {deploymentPolicyId} [Get a deployment policy](https://help.sigmacomputing.com/reference/get-deployment.md)
+- Sigma REST API > Deployment policies > {deploymentPolicyId} [Create a deployment policy](https://help.sigmacomputing.com/reference/create-deployment.md)
+- Sigma REST API > Deployment policies > {deploymentPolicyId} [Update a deployment policy](https://help.sigmacomputing.com/reference/update-deployment.md)
+- Sigma REST API > Deployment policies > {deploymentPolicyId} [List tenants for a deployment policy](https://help.sigmacomputing.com/reference/list-tenants-for-deployment.md)
+- Sigma REST API > Deployment policies > {deploymentPolicyId} [Archive a deployment policy](https://help.sigmacomputing.com/reference/archive-deployment.md)
+- Sigma REST API > Deployment policies > documents [Add documents to a deployment policy](https://help.sigmacomputing.com/reference/add-inodes-to-deployment.md)
+- Sigma REST API > Deployment policies > documents [List documents for a deployment policy](https://help.sigmacomputing.com/reference/list-inodes-for-deployment.md)
+- Sigma REST API > Deployment policies > documents [Remove a document from a deployment policy](https://help.sigmacomputing.com/reference/remove-inodes-from-deployment.md)
+- Sigma REST API > Deployment policies > tenants [List deployable tenant organizations](https://help.sigmacomputing.com/reference/list-deployable-tenants.md)
+- Sigma REST API > Deployment policies > tenants [Add a tenant to a deployment policy](https://help.sigmacomputing.com/reference/add-tenant-to-deployment.md)
+- Sigma REST API > Deployment policies > tenants [Remove a tenant from a deployment policy](https://help.sigmacomputing.com/reference/remove-tenant-from-deployment.md)
+- Sigma REST API > Favorites [Favorite a document](https://help.sigmacomputing.com/reference/add-favorite.md)
+- Sigma REST API > Favorites [Get favorite documents for a user](https://help.sigmacomputing.com/reference/list-favorites.md)
+- Sigma REST API > Favorites [Unfavorite a document](https://help.sigmacomputing.com/reference/remove-favorite.md)
+- Sigma REST API > Files [List files](https://help.sigmacomputing.com/reference/list-files.md)
+- Sigma REST API > Files [Create a file](https://help.sigmacomputing.com/reference/create-file.md)
+- Sigma REST API > Files > {inodeId} [Get file information](https://help.sigmacomputing.com/reference/get-file.md)
+- Sigma REST API > Files > {inodeId} [Update a file](https://help.sigmacomputing.com/reference/update-file.md)
+- Sigma REST API > Files > {inodeId} [Delete a file](https://help.sigmacomputing.com/reference/delete-file.md)
+- Sigma REST API > Grants [List grants](https://help.sigmacomputing.com/reference/list-grants.md)
+- Sigma REST API > Grants [Create or update a grant](https://help.sigmacomputing.com/reference/create-grant.md)
+- Sigma REST API > Grants > {grantId} [Get a grant](https://help.sigmacomputing.com/reference/get-grant.md)
+- Sigma REST API > Grants > {grantId} [Delete a grant](https://help.sigmacomputing.com/reference/delete-grant.md)
+- Sigma REST API > Members > List members [List members](https://help.sigmacomputing.com/reference/list-members.md)
+- Sigma REST API > Members > List members [List members (Paginated)](https://help.sigmacomputing.com/reference/v-2-1-list-members.md)
+- Sigma REST API > Members [Create a member](https://help.sigmacomputing.com/reference/create-member.md)
+- Sigma REST API > Members > {memberId} [Get member](https://help.sigmacomputing.com/reference/get-member.md)
+- Sigma REST API > Members > {memberId} [Update member](https://help.sigmacomputing.com/reference/update-member.md)
+- Sigma REST API > Members > {memberId} [Deactivate member](https://help.sigmacomputing.com/reference/delete-member.md)
+- Sigma REST API > Members > {memberId} [List teams for a member](https://help.sigmacomputing.com/reference/list-member-teams.md)
+- Sigma REST API > Members > {memberId} [List scheduled exports for a user](https://help.sigmacomputing.com/reference/list-member-schedules.md)
+- Sigma REST API > Members > {memberId} [Revoke a user's OAuth tokens](https://help.sigmacomputing.com/reference/revoke-member-tokens.md)
+- Sigma REST API > Members > files [List member files](https://help.sigmacomputing.com/reference/list-accessible-inodes.md)
+- Sigma REST API > Members > files [List recent files for a member](https://help.sigmacomputing.com/reference/list-recent-inodes.md)
+- Sigma REST API > Members > files [List all favorite documents of a member](https://help.sigmacomputing.com/reference/list-favorite-inodes.md)
+- Sigma REST API > Query [Download an exported file](https://help.sigmacomputing.com/reference/download-query.md)
+- Sigma REST API > Reports [List reports](https://help.sigmacomputing.com/reference/list-reports.md)
+- Sigma REST API > Reports [Create a report](https://help.sigmacomputing.com/reference/create-report.md)
+- Sigma REST API > Reports > {reportId} [Get a report](https://help.sigmacomputing.com/reference/get-report.md)
+- Sigma REST API > Reports > {reportId} [List report sources](https://help.sigmacomputing.com/reference/list-report-sources.md)
+- Sigma REST API > Reports > {reportId} [Get version history for a report](https://help.sigmacomputing.com/reference/get-report-version-history.md)
+- Sigma REST API > Reports > {reportId} [Duplicate a report](https://help.sigmacomputing.com/reference/copy-report.md)
+- Sigma REST API > Reports > {reportId} [Duplicate a tagged report](https://help.sigmacomputing.com/reference/copy-tagged-report.md)
+- Sigma REST API > Reports > {reportId} [Swap report data sources](https://help.sigmacomputing.com/reference/source-swap-report.md)
+- Sigma REST API > Reports > {reportId} [List SQL queries in a report](https://help.sigmacomputing.com/reference/list-report-queries.md)
+- Sigma REST API > Reports > {reportId} [List report controls](https://help.sigmacomputing.com/reference/list-report-controls.md)
+- Sigma REST API > Reports > {reportId} [List lineage for a report](https://help.sigmacomputing.com/reference/list-report-lineage-tree.md)
+- Sigma REST API > Reports > {reportId} [List columns for all elements in a report](https://help.sigmacomputing.com/reference/list-report-columns.md)
+- Sigma REST API > Reports > elements [List elements in a report](https://help.sigmacomputing.com/reference/list-report-elements.md)
+- Sigma REST API > Reports > elements [List lineage of a report element](https://help.sigmacomputing.com/reference/list-report-element-lineage.md)
+- Sigma REST API > Reports > elements [Get the SQL query for a report element](https://help.sigmacomputing.com/reference/get-report-element-query.md)
+- Sigma REST API > Reports > elements [List columns for a report element](https://help.sigmacomputing.com/reference/list-report-element-columns.md)
+- Sigma REST API > Reports > exports [Export data from a report](https://help.sigmacomputing.com/reference/export-report.md)
+- Sigma REST API > Reports > exports [Export a report](https://help.sigmacomputing.com/reference/send-report.md)
+- Sigma REST API > Reports > export schedules [List scheduled report exports](https://help.sigmacomputing.com/reference/list-report-schedules.md)
+- Sigma REST API > Reports > export schedules [Add report schedule](https://help.sigmacomputing.com/reference/create-report-schedule.md)
+- Sigma REST API > Reports > export schedules [Update a report schedule](https://help.sigmacomputing.com/reference/update-report-schedule.md)
+- Sigma REST API > Reports > export schedules [Delete a scheduled export for a report](https://help.sigmacomputing.com/reference/delete-report-schedule.md)
+- Sigma REST API > Reports > grants [Grant permissions on a report to users or teams](https://help.sigmacomputing.com/reference/create-report-grant.md)
+- Sigma REST API > Reports > grants [Delete a report grant](https://help.sigmacomputing.com/reference/delete-report-grant.md)
+- Sigma REST API > Reports > pages [List report pages](https://help.sigmacomputing.com/reference/list-report-pages.md)
+- Sigma REST API > Reports > pages [List elements in a report page](https://help.sigmacomputing.com/reference/list-report-page-elements.md)
+- Sigma REST API > Reports > tags [List tags for a report](https://help.sigmacomputing.com/reference/list-report-tags.md)
+- Sigma REST API > Reports > tags [Tag a report](https://help.sigmacomputing.com/reference/tag-report.md)
+- Sigma REST API > Reports > tags [Remove a tag from a report](https://help.sigmacomputing.com/reference/delete-tagged-report.md)
+- Sigma REST API > SAML [List SAML service providers (Beta)](https://help.sigmacomputing.com/reference/list-saml-service-providers.md)
+- Sigma REST API > SAML [Create a SAML service provider certificate (Beta)](https://help.sigmacomputing.com/reference/create-saml-service-provider-certificate.md)
+- Sigma REST API > SAML > {samlServiceProviderId} [List SAML service provider certificates (Beta)](https://help.sigmacomputing.com/reference/list-saml-service-provider-certificates.md)
+- Sigma REST API > SAML > {samlServiceProviderId} [Get a SAML service provider certificate (Beta)](https://help.sigmacomputing.com/reference/get-saml-service-provider-certificate.md)
+- Sigma REST API > SAML > {samlServiceProviderId} [Activate a SAML SP certificate (Beta)](https://help.sigmacomputing.com/reference/activate-saml-service-provider-certificate.md)
+- Sigma REST API > SAML > {samlServiceProviderId} [Deactivate a SAML SP certificate (Beta)](https://help.sigmacomputing.com/reference/deactivate-saml-service-provider-certificate.md)
+- Sigma REST API > SAML > {samlServiceProviderId} [Remove a SAML service provider certificate (Beta)](https://help.sigmacomputing.com/reference/remove-saml-service-provider-certificate.md)
+- Sigma REST API > Shared templates [Delete a template share](https://help.sigmacomputing.com/reference/delete-external-share.md)
+- Sigma REST API > Shared templates [Accept a pending template share](https://help.sigmacomputing.com/reference/accept-template-share.md)
+- Sigma REST API > Shared templates [List templates shared with your organization](https://help.sigmacomputing.com/reference/list-templates-shared-with-you.md)
+- Sigma REST API > Source swap policies [List source swap policies](https://help.sigmacomputing.com/reference/list-source-swap-policies.md)
+- Sigma REST API > Source swap policies [Create a source swap policy](https://help.sigmacomputing.com/reference/create-source-swap-policy.md)
+- Sigma REST API > Source swap policies > {policyId} [Get a source swap policy](https://help.sigmacomputing.com/reference/get-source-swap-policy.md)
+- Sigma REST API > Source swap policies > {policyId} [Update a source swap policy](https://help.sigmacomputing.com/reference/update-source-swap-policy.md)
+- Sigma REST API > Source swap policies > {policyId} [Delete a source swap policy](https://help.sigmacomputing.com/reference/delete-source-swap-policy.md)
+- Sigma REST API > Tags [Get tags](https://help.sigmacomputing.com/reference/list-version-tag.md)
+- Sigma REST API > Tags [Create a tag](https://help.sigmacomputing.com/reference/create-version-tag.md)
+- Sigma REST API > Tags > {tagId} [Update a tag](https://help.sigmacomputing.com/reference/update-version-tag.md)
+- Sigma REST API > Tags > {tagId} [Delete a tag](https://help.sigmacomputing.com/reference/delete-version-tag.md)
+- Sigma REST API > Tags > {tagId} [List workbooks for a tag](https://help.sigmacomputing.com/reference/list-workbooks-for-tag.md)
+- Sigma REST API > Teams > List teams [List teams](https://help.sigmacomputing.com/reference/list-teams.md)
+- Sigma REST API > Teams > List teams [List teams (Paginated)](https://help.sigmacomputing.com/reference/v-2-1-list-teams.md)
+- Sigma REST API > Teams [Create a team](https://help.sigmacomputing.com/reference/create-team.md)
+- Sigma REST API > Teams > {teamId} [Get a team](https://help.sigmacomputing.com/reference/get-team.md)
+- Sigma REST API > Teams > {teamId} [Update a team](https://help.sigmacomputing.com/reference/update-team.md)
+- Sigma REST API > Teams > {teamId} [Delete a team](https://help.sigmacomputing.com/reference/delete-team.md)
+- Sigma REST API > Teams > {teamId} [Get team user attributes](https://help.sigmacomputing.com/reference/get-team-user-attribute-assignments.md)
+- Sigma REST API > Teams > {teamId} [Assign user attributes to a team](https://help.sigmacomputing.com/reference/assign-user-attributes-to-team.md)
+- Sigma REST API > Teams > {teamId} > members [List team members](https://help.sigmacomputing.com/reference/get-team-members.md)
+- Sigma REST API > Teams > {teamId} > members [Update team members](https://help.sigmacomputing.com/reference/update-team-members.md)
+- Sigma REST API > Templates [List templates](https://help.sigmacomputing.com/reference/list-templates.md)
+- Sigma REST API > Templates [Get template](https://help.sigmacomputing.com/reference/get-template.md)
+- Sigma REST API > Templates [Swap template data sources](https://help.sigmacomputing.com/reference/source-swap-template.md)
+- Sigma REST API > Templates [Create workbook from template](https://help.sigmacomputing.com/reference/save-workbook-from-template.md)
+- Sigma REST API > Tenants [List tenant organizations](https://help.sigmacomputing.com/reference/list-tenants.md)
+- Sigma REST API > Tenants [Create a tenant organization](https://help.sigmacomputing.com/reference/create-tenant.md)
+- Sigma REST API > Tenants > {tenantOrganizationId} [Get details for a tenant organization](https://help.sigmacomputing.com/reference/get-tenant.md)
+- Sigma REST API > Tenants > {tenantOrganizationId} [Update details of a tenant organization](https://help.sigmacomputing.com/reference/patch-tenant.md)
+- Sigma REST API > Tenants > {tenantOrganizationId} [Delete a tenant organization](https://help.sigmacomputing.com/reference/delete-tenant.md)
+- Sigma REST API > Tenants > {tenantOrganizationId} [Get deployed workbook in tenant org (Beta)](https://help.sigmacomputing.com/reference/get-tenant-workbook.md)
+- Sigma REST API > Tenants > deployment capabilities [List tenant deployment capabilities](https://help.sigmacomputing.com/reference/list-tenant-deployment-capabilities.md)
+- Sigma REST API > Tenants > deployment capabilities [Add deployment capabilities to a tenant](https://help.sigmacomputing.com/reference/add-tenant-deployment-capabilities.md)
+- Sigma REST API > Tenants > deployment capabilities [Remove deployment capabilities (Beta)](https://help.sigmacomputing.com/reference/remove-tenant-deployment-capabilities.md)
+- Sigma REST API > Translations [List organization translation files](https://help.sigmacomputing.com/reference/list-org-locales.md)
+- Sigma REST API > Translations [Create organization translation file](https://help.sigmacomputing.com/reference/create-org-translation.md)
+- Sigma REST API > Translations > {lng} [Get organization translation file](https://help.sigmacomputing.com/reference/get-org-translations.md)
+- Sigma REST API > Translations > {lng} [Update organization translation file](https://help.sigmacomputing.com/reference/update-org-translation.md)
+- Sigma REST API > Translations > {lng} [Delete organization translation file](https://help.sigmacomputing.com/reference/delete-org-translation.md)
+- Sigma REST API > Translations > {lng_variant} [Get organization translation file with variant](https://help.sigmacomputing.com/reference/get-org-translations-with-variant.md)
+- Sigma REST API > Translations > {lng_variant} [Update organization translation file with variant](https://help.sigmacomputing.com/reference/update-org-translation-with-variant.md)
+- Sigma REST API > Translations > {lng_variant} [Delete organization translation file with variant](https://help.sigmacomputing.com/reference/delete-org-translation-with-variant.md)
+- Sigma REST API > User attributes [List user attributes](https://help.sigmacomputing.com/reference/list-user-attributes.md)
+- Sigma REST API > User attributes [Create a user attribute](https://help.sigmacomputing.com/reference/create-user-attribute.md)
+- Sigma REST API > User attributes > {userAttributeId} [Get a user attribute](https://help.sigmacomputing.com/reference/get-user-attribute.md)
+- Sigma REST API > User attributes > {userAttributeId} [Delete a user attribute](https://help.sigmacomputing.com/reference/delete-user-attribute.md)
+- Sigma REST API > User attributes > teams [Get teams for a user attribute](https://help.sigmacomputing.com/reference/get-user-attribute-team-assignments.md)
+- Sigma REST API > User attributes > teams [Set a user attribute for teams](https://help.sigmacomputing.com/reference/set-user-attribute-for-teams.md)
+- Sigma REST API > User attributes > teams [Update a user attribute for teams](https://help.sigmacomputing.com/reference/update-user-attribute-for-teams.md)
+- Sigma REST API > User attributes > teams [Delete a user attribute for a team](https://help.sigmacomputing.com/reference/delete-user-attribute-for-team.md)
+- Sigma REST API > User attributes > users [Get users for a user attribute](https://help.sigmacomputing.com/reference/get-user-attribute-user-assignments.md)
+- Sigma REST API > User attributes > users [Set a user attribute for users](https://help.sigmacomputing.com/reference/set-user-attribute-for-users.md)
+- Sigma REST API > User attributes > users [Update a user attribute for users](https://help.sigmacomputing.com/reference/update-user-attribute-for-users.md)
+- Sigma REST API > User attributes > users [Delete a user attribute for a user](https://help.sigmacomputing.com/reference/delete-user-attribute-for-user.md)
+- Sigma REST API > User attributes > tenants [Get tenants for a user attribute](https://help.sigmacomputing.com/reference/get-user-attribute-tenant-assignments.md)
+- Sigma REST API > User attributes > tenants [Set a user attribute for tenants](https://help.sigmacomputing.com/reference/set-user-attribute-for-tenants.md)
+- Sigma REST API > User attributes > tenants [Update a user attribute for tenants](https://help.sigmacomputing.com/reference/update-user-attribute-for-tenants.md)
+- Sigma REST API > User attributes > tenants [Delete a user attribute for a tenant](https://help.sigmacomputing.com/reference/delete-user-attribute-for-tenant.md)
+- Sigma REST API > Whoami [Get current user](https://help.sigmacomputing.com/reference/whoami.md)
+- Sigma REST API > Workbooks [List workbooks](https://help.sigmacomputing.com/reference/list-workbooks.md)
+- Sigma REST API > Workbooks [Create a workbook](https://help.sigmacomputing.com/reference/create-workbook.md)
+- Sigma REST API > Workbooks > {workbookId} [Get a workbook](https://help.sigmacomputing.com/reference/get-workbook.md)
+- Sigma REST API > Workbooks > {workbookId} [List workbook sources](https://help.sigmacomputing.com/reference/get-workbook-sources.md)
+- Sigma REST API > Workbooks > {workbookId} [Get version history for a workbook](https://help.sigmacomputing.com/reference/get-version-history.md)
+- Sigma REST API > Workbooks > {workbookId} [Restore a workbook to a previous version](https://help.sigmacomputing.com/reference/restore-workbook-version.md)
+- Sigma REST API > Workbooks > {workbookId} [Duplicate a workbook](https://help.sigmacomputing.com/reference/copy-workbook.md)
+- Sigma REST API > Workbooks > {workbookId} [Duplicate a tagged workbook](https://help.sigmacomputing.com/reference/copy-tagged-workbook.md)
+- Sigma REST API > Workbooks > {workbookId} [Share a workbook with another organization](https://help.sigmacomputing.com/reference/share-workbook-cross-org.md)
+- Sigma REST API > Workbooks > {workbookId} [Swap workbook data sources](https://help.sigmacomputing.com/reference/source-swap-workbook.md)
+- Sigma REST API > Workbooks > {workbookId} [Get workbook schema](https://help.sigmacomputing.com/reference/get-workbook-schema.md)
+- Sigma REST API > Workbooks > {workbookId} [List SQL queries in a workbook](https://help.sigmacomputing.com/reference/list-workbook-queries.md)
+- Sigma REST API > Workbooks > {workbookId} [List workbook controls](https://help.sigmacomputing.com/reference/get-workbook-controls.md)
+- Sigma REST API > Workbooks > {workbookId} [Save a template from a workbook](https://help.sigmacomputing.com/reference/save-template-from-workbook.md)
+- Sigma REST API > Workbooks > {workbookId} [List lineage for a workbook](https://help.sigmacomputing.com/reference/list-lineage-tree.md)
+- Sigma REST API > Workbooks > {workbookId} [List elements in a workbook](https://help.sigmacomputing.com/reference/list-workbook-elements.md)
+- Sigma REST API > Workbooks > {workbookId} [List columns for all elements in a workbook](https://help.sigmacomputing.com/reference/get-workbook-columns.md)
+- Sigma REST API > Workbooks > bookmarks [List bookmarks in a workbook](https://help.sigmacomputing.com/reference/get-workbook-bookmarks.md)
+- Sigma REST API > Workbooks > bookmarks [Add a bookmark to a workbook](https://help.sigmacomputing.com/reference/post-workbook-bookmarks.md)
+- Sigma REST API > Workbooks > bookmarks [Get a bookmark](https://help.sigmacomputing.com/reference/get-workbook-bookmark.md)
+- Sigma REST API > Workbooks > bookmarks [Update a workbook bookmark](https://help.sigmacomputing.com/reference/update-workbook-bookmark.md)
+- Sigma REST API > Workbooks > bookmarks [Delete a bookmark from a workbook](https://help.sigmacomputing.com/reference/delete-workbook-bookmarks.md)
+- Sigma REST API > Workbooks > bookmarks [List bookmarks in a tagged workbook](https://help.sigmacomputing.com/reference/get-tagged-workbook-bookmarks.md)
+- Sigma REST API > Workbooks > bookmarks [Get a bookmark in a tagged workbook](https://help.sigmacomputing.com/reference/get-tagged-workbook-bookmark.md)
+- Sigma REST API > Workbooks > bookmarks [Update a bookmark in a tagged workbook](https://help.sigmacomputing.com/reference/update-tagged-workbook-bookmark.md)
+- Sigma REST API > Workbooks > bookmarks [Delete a bookmark from a tagged workbook](https://help.sigmacomputing.com/reference/delete-tagged-workbook-bookmark.md)
+- Sigma REST API > Workbooks > bookmarks [Add a bookmark to a tagged workbook](https://help.sigmacomputing.com/reference/create-tagged-workbook-bookmark.md)
+- Sigma REST API > Workbooks > elements [List lineage of a workbook element](https://help.sigmacomputing.com/reference/list-lineage.md)
+- Sigma REST API > Workbooks > elements [Get the SQL query for a workbook element](https://help.sigmacomputing.com/reference/get-element-query.md)
+- Sigma REST API > Workbooks > elements [List columns for a workbook element](https://help.sigmacomputing.com/reference/get-element-columns.md)
+- Sigma REST API > Workbooks > embeds [Get embeds for a workbook](https://help.sigmacomputing.com/reference/list-workbook-embeds.md)
+- Sigma REST API > Workbooks > embeds [Create an embed for a workbook](https://help.sigmacomputing.com/reference/create-workbook-embed.md)
+- Sigma REST API > Workbooks > embeds [Delete an embed from a workbook](https://help.sigmacomputing.com/reference/delete-workbook-embeds.md)
+- Sigma REST API > Workbooks > exports [Export data from a workbook](https://help.sigmacomputing.com/reference/export-workbook.md)
+- Sigma REST API > Workbooks > exports [Export a workbook](https://help.sigmacomputing.com/reference/send-workbook.md)
+- Sigma REST API > Workbooks > export schedules > List scheduled exports for a workbook [List scheduled workbook exports](https://help.sigmacomputing.com/reference/list-workbook-schedules.md)
+- Sigma REST API > Workbooks > export schedules > List scheduled exports for a workbook [List scheduled workbook exports (Paginated)](https://help.sigmacomputing.com/reference/v-2-1-list-workbook-schedules.md)
+- Sigma REST API > Workbooks > export schedules [Add workbook schedule](https://help.sigmacomputing.com/reference/post-workbook-schedule.md)
+- Sigma REST API > Workbooks > export schedules [Update a workbook schedule](https://help.sigmacomputing.com/reference/update-workbook-schedule.md)
+- Sigma REST API > Workbooks > export schedules [Delete a scheduled export for a workbook](https://help.sigmacomputing.com/reference/delete-workbook-schedule.md)
+- Sigma REST API > Workbooks > grants [Grant permissions on a workbook to users or teams](https://help.sigmacomputing.com/reference/create-workbook-grant.md)
+- Sigma REST API > Workbooks > grants [Delete a workbook grant](https://help.sigmacomputing.com/reference/delete-workbook-grant.md)
+- Sigma REST API > Workbooks > materializations [Get a materialization job](https://help.sigmacomputing.com/reference/get-workbook-materialization.md)
+- Sigma REST API > Workbooks > materializations > List materialization schedules for a workbook [List materialization schedules for a workbook](https://help.sigmacomputing.com/reference/list-materialization-schedules.md)
+- Sigma REST API > Workbooks > materializations > List materialization schedules for a workbook [List materialization schedules (Paginated)](https://help.sigmacomputing.com/reference/v-2-1-list-materialization-schedules.md)
+- Sigma REST API > Workbooks > materializations [Run materialization for a workbook element](https://help.sigmacomputing.com/reference/materialize-workbook-element.md)
+- Sigma REST API > Workbooks > pages [List workbook pages for a workbook](https://help.sigmacomputing.com/reference/list-workbook-pages.md)
+- Sigma REST API > Workbooks > pages [List elements in a workbook page](https://help.sigmacomputing.com/reference/list-workbook-page-elements.md)
+- Sigma REST API > Workbooks > tags [Get tags for a workbook](https://help.sigmacomputing.com/reference/get-workbook-tags.md)
+- Sigma REST API > Workbooks > tags [Tag a workbook](https://help.sigmacomputing.com/reference/tag-workbook.md)
+- Sigma REST API > Workbooks > tags [Remove a tag from a workbook](https://help.sigmacomputing.com/reference/delete-taggedworkbook.md)
+- Sigma REST API > Workbooks [Convert a workbook to a report](https://help.sigmacomputing.com/reference/convert-workbook-to-report.md)
+- Sigma REST API > Workspaces > List workspaces [List workspaces](https://help.sigmacomputing.com/reference/list-workspaces.md)
+- Sigma REST API > Workspaces > List workspaces [List workspaces (Paginated)](https://help.sigmacomputing.com/reference/v-2-1-list-workspaces.md)
+- Sigma REST API > Workspaces [Create a workspace](https://help.sigmacomputing.com/reference/create-workspace.md)
+- Sigma REST API > Workspaces > {workspaceId} [Get a workspace](https://help.sigmacomputing.com/reference/get-workspace.md)
+- Sigma REST API > Workspaces > {workspaceId} [Update a workspace](https://help.sigmacomputing.com/reference/update-workspace.md)
+- Sigma REST API > Workspaces > {workspaceId} [Delete a workspace](https://help.sigmacomputing.com/reference/delete-workspace.md)
+- Sigma REST API > Workspaces > {workspaceId} > grants [Grant workspace permissions to users or teams](https://help.sigmacomputing.com/reference/create-workspace-grant.md)
+- Sigma REST API > Workspaces > {workspaceId} > grants [List grants for a workspace](https://help.sigmacomputing.com/reference/list-workspace-grants.md)
+- Sigma REST API > Workspaces > {workspaceId} > grants [Delete a workspace grant](https://help.sigmacomputing.com/reference/delete-workspace-grant.md)
+- Code Representation > Data models [Get the code representation of a data model](https://help.sigmacomputing.com/reference/get-data-model-spec.md)
+- Code Representation > Data models [Update a data model from a code representation](https://help.sigmacomputing.com/reference/update-data-model-spec.md)
+- Code Representation > Data models [Create a data model from a code representation](https://help.sigmacomputing.com/reference/create-data-model-spec.md)
+
+## OpenAPI Specification
+
+The raw OpenAPI 3.1 specification for this API is available at:
+- [OpenAPI JSON](https://help.sigmacomputing.com/openapi.json)
+- [OpenAPI YAML](https://help.sigmacomputing.com/openapi.yaml)
