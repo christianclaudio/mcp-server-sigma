@@ -1,4 +1,4 @@
-# 🚀 mcp-server-sigma
+# 📊 mcp-server-sigma
 
 [![CI](https://github.com/christianclaudio/mcp-server-sigma/actions/workflows/ci.yml/badge.svg)](https://github.com/christianclaudio/mcp-server-sigma/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/mcp-server-sigma)](https://pypi.org/project/mcp-server-sigma/)
