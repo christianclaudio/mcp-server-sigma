@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -185,6 +185,6 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_handle_shutdown() -> None:
-    with pytest.raises(SystemExit) as exc_info:
+    with patch("os._exit") as mock_exit:
         srv._handle_shutdown(15, None)
-    assert exc_info.value.code == 0
+        mock_exit.assert_called_once_with(0)
