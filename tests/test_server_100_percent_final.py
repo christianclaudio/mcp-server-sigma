@@ -182,3 +182,10 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "Shared WB"}])
     res_shared = await srv.sigma_list_workbooks_shared_with_member("m1")
     assert "Shared WB" in res_shared
+
+
+def test_handle_shutdown() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        srv._handle_shutdown(15, None)
+    assert exc_info.value.code == 0
+
