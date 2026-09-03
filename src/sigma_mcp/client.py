@@ -1127,4 +1127,7 @@ class SigmaClient:
 
     # ─── Member search ────────────────────────────────────────────────────
     async def search_members(self, search: str, limit: int = 120) -> JSONValue:
+        """Lookup members. Uses 'email' query parameter when searching by email address per Sigma API deprecation."""
+        if "@" in search:
+            return await self.get("/v2/members", {"email": search, "limit": limit})
         return await self.get("/v2/members", {"search": search, "limit": limit})

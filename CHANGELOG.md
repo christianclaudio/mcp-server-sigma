@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.4 (2026-09-03)
+
+### Changed
+- **Proactive Parameter Deprecation Mitigation**: Updated `search_members` in `client.py` to prefer the `email` query parameter when looking up members by email address, resolving upstream Sigma deprecation of the `search` parameter on `GET /v2/members`.
+- **Synchronized Sunday Maintenance Schedule**: Standardized upstream API drift monitoring to Sunday 12:00 AM EDT / 04:00 UTC (`cron: '0 4 * * 0'`) and Dependabot dependency reconciliation to Sunday 12:30 AM EDT / 04:30 UTC (`time: "04:30"`).
+- **Enhanced Parameter & Schema Drift Engine**: Upgraded `scripts/check_openapi_drift.py` with AST client inspection and parameter deprecation auditing.
+
 ## 1.1.3 (2026-08-30)
 
 ### Fixed

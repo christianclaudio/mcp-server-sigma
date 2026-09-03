@@ -4,9 +4,11 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: "sunday"
+      time: "04:30"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
     groups:
-      # Batch all updates into a single PR to keep pull requests focused and minimal
       pip-dependencies:
         patterns: ["*"]
 
@@ -14,7 +16,10 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: "sunday"
+      time: "04:30"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
     groups:
       actions-dependencies:
         patterns: ["*"]
