@@ -59,3 +59,21 @@ async def test_recipe_error_branches(monkeypatch: pytest.MonkeyPatch) -> None:
 
     res3 = await srv.sigma_bulk_assign_team_members("", ["a@b.com"])
     assert "team_id is required" in res3
+
+
+@pytest.mark.asyncio
+async def test_search_members_email_and_name_branches() -> None:
+    from unittest.mock import AsyncMock
+
+    from sigma_mcp.client import SigmaClient
+
+    client = SigmaClient("cid", "secret-32-chars-long-client-secret!", "https://api.example.com")
+    client.get = AsyncMock(return_value={"entries": []})  # type: ignore[method-assign]
+
+    # Test email branch (uses "email" parameter)
+    await client.search_members("user@example.com", limit=50)
+    client.get.assert_called_with("/v2/members", {"email": "user@example.com", "limit": 50})
+
+    # Test non-email branch (uses "search" parameter fallback)
+    await client.search_members("Jordan", limit=100)
+    client.get.assert_called_with("/v2/members", {"search": "Jordan", "limit": 100})
