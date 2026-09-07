@@ -27,6 +27,8 @@ from urllib.parse import quote
 import httpx
 from httpx import Response
 
+from sigma_mcp import __version__
+
 from .errors import SigmaAPIError
 
 # JSON type alias for return annotations
@@ -241,6 +243,7 @@ class SigmaClient:
         return {
             "Authorization": f"Bearer {await self._get_token()}",
             "Content-Type": "application/json",
+            "User-Agent": f"mcp-server-sigma/{__version__}",
         }
 
     async def _request(
