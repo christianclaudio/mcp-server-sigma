@@ -4,7 +4,7 @@ Instructions for AI coding agents (Antigravity, Claude Code, Copilot, Cursor, Wi
 
 ---
 
-## 🎯 Project Overview & Scaffolding Purpose
+## 🎯 Project Overview
 
 This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server exposing 155 tools by default (157 with bulk-destructive operations enabled) covering the entire REST API surface (v2 and v3alpha) for **Sigma Computing**.
 
@@ -41,7 +41,6 @@ mcp-server-sigma/
 ├── Dockerfile                    # Multi-stage container build running as non-root USER mcp
 ├── server.json                   # MCP Registry catalog metadata (runtimeHint: uvx, stdio transport)
 ├── pyproject.toml                # Packaging metadata, entrypoint CLI, dependency pinning
-├── COOKBOOK.md                   # Operational maintainer runbook (9-step release SOP, recipes)
 ├── AGENTS.md                     # Agent guidance map, gotchas, and conventions (this file)
 └── README.md                     # User-facing installation, quickstart, and tool index
 ```
@@ -144,4 +143,4 @@ The GitHub Actions CI matrix enforces:
 - Multi-stage Docker image build.
 - CodeQL security scan.
 
-For cutting releases, creating version bumps, and handling PyPI / GitHub tag workflows, refer to the step-by-step runbook in **`COOKBOOK.md`**.
+For cutting releases, creating version bumps, and handling PyPI / GitHub tag workflows, follow standard project guidelines.
