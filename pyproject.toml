@@ -64,6 +64,8 @@ mypy_path = "src"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
 
 [tool.ruff]
 src = ["src"]
