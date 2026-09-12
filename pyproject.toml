@@ -65,7 +65,11 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-python_files = ["test_*.py"]
+pythonpath = ["."]
+markers = [
+    "e2e: end-to-end live network tests against upstream services (run with -m e2e)",
+]
+addopts = "-m 'not e2e' --strict-markers --cov=src/sigma_mcp --cov-report=term-missing --cov-fail-under=100"
 
 [tool.ruff]
 src = ["src"]

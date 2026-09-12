@@ -26,14 +26,13 @@ mcp-server-sigma/
 ├── scripts/
 │   ├── check_tool_contract.py    # AST/reflection contract testing total tool & annotation counts
 │   ├── check_openapi_drift.py    # AST visitor checking client methods against upstream OpenAPI specs
-│   ├── smoke_test.py             # Stdio JSON-RPC protocol handshake verification
 │   └── write_ops_check.py        # Audit verifying all write operations have confirm parameter
 ├── tests/
-│   ├── test_client.py            # Unit tests for HTTP client, retries, headers, and error handling
+│   ├── test_client_internals.py  # Unit tests for HTTP client, retries, headers, and error handling
 │   ├── test_server_*.py          # Tests for tool execution, parameter validation, and confirmation gating
 │   ├── test_security_hardening.py# Tenant allowlist, token exchange, and credential sanitization tests
 │   ├── test_webhooks.py          # HMAC signature and replay protection tests
-│   └── smoke_test.py             # Live smoke test suite against live Sigma credentials (main only)
+│   └── test_protocol.py          # Wire-level stdio & stateless streamable HTTP protocol verification
 ├── .github/workflows/
 │   ├── ci.yml                    # Multi-job matrix: lint, py3.10-3.13 tests, contracts, CodeQL, docker build
 │   ├── release.yml               # Automated release on v* tags: wheels, sdist, CycloneDX SBOM, GHCR docker
@@ -124,8 +123,8 @@ uv run python scripts/check_tool_contract.py
 # Upstream OpenAPI / route drift check
 uv run python scripts/check_openapi_drift.py
 
-# Stdio JSON-RPC protocol smoke test
-uv run python scripts/smoke_test.py
+# Protocol integration tests (stdio handshake & stateless streamable HTTP)
+uv run pytest tests/test_protocol.py
 
 # Local pre-commit CodeRabbit CLI review
 coderabbit review --agent --uncommitted
