@@ -66,6 +66,7 @@ mypy_path = "src"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["."]
 
 [tool.ruff]
 src = ["src"]

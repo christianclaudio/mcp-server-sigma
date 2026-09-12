@@ -2568,6 +2568,7 @@ def _handle_shutdown(signum: int, frame: Any) -> None:
 
 
 def main() -> None:
+    """Run MCPServer with transport selection and graceful shutdown handling."""
     signal.signal(signal.SIGTERM, _handle_shutdown)
     signal.signal(signal.SIGINT, _handle_shutdown)
     parser = argparse.ArgumentParser(
@@ -2575,20 +2576,32 @@ def main() -> None:
     )
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse", "streamable-http"],
+        choices=["stdio", "streamable-http", "sse"],
         default="stdio",
-        help="Transport protocol (default: stdio)",
+        help="Transport protocol: 'stdio' (default), 'streamable-http' (modern), or 'sse'.",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=os.environ.get("PORT", "8000"),
+        default=int(os.environ.get("PORT", "8000")),
         help="Port for network transports (default: 8000 or $PORT)",
     )
     parser.add_argument(
         "--host",
         default=os.environ.get("HOST", "127.0.0.1"),
         help="Host binding for network transports (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--stateless",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("SIGMA_MCP_STATELESS_HTTP", "").lower() in ("1", "true", "yes"),
+        help="Run Streamable HTTP in stateless mode (fresh connection per request, no Mcp-Session-Id).",
+    )
+    parser.add_argument(
+        "--json-response",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("SIGMA_MCP_JSON_RESPONSE", "").lower() in ("1", "true", "yes"),
+        help="Return direct JSON responses instead of SSE text/event-stream over Streamable HTTP.",
     )
     args = parser.parse_args()
 
@@ -2597,14 +2610,32 @@ def main() -> None:
     auth_token = os.environ.get("SIGMA_MCP_AUTH_TOKEN", "")
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8000)
+    stateless = getattr(args, "stateless", False)
+    json_response = getattr(args, "json_response", False)
+
+    if args.transport != "streamable-http":
+        if stateless:
+            logger.warning("--stateless flag is only applicable to 'streamable-http' transport.")
+        if json_response:
+            logger.warning("--json-response flag is only applicable to 'streamable-http' transport.")
 
     if auth_token and args.transport in ("sse", "streamable-http"):
         logger.info("Enforcing bearer token authentication on network transport")
 
-    if args.transport == "streamable-http":
-        mcp.run(transport="streamable-http", host=host, port=port)  # pragma: no cover
-    elif args.transport == "sse":
+    if args.transport == "sse":
+        logger.warning(
+            "Deprecation Warning: HTTP+SSE transport is deprecated per MCP 2026-07-28 spec "
+            "(SEP-2577). Please migrate to Streamable HTTP (--transport streamable-http)."
+        )
         mcp.run(transport="sse", host=host, port=port)  # pragma: no cover
+    elif args.transport == "streamable-http":
+        mcp.run(
+            transport="streamable-http",
+            host=host,
+            port=port,
+            stateless_http=stateless,
+            json_response=json_response,
+        )  # pragma: no cover
     else:
         mcp.run(transport="stdio")  # pragma: no cover
 
