@@ -38,7 +38,7 @@ def test_stdio_initialize_handshake() -> None:
         "id": 1,
         "method": "initialize",
         "params": {
-            "protocolVersion": "2026-07-28",
+            "protocolVersion": "2024-11-05",
             "capabilities": {},
             "clientInfo": {"name": "pytest-protocol-client", "version": "1.0.0"},
         },
@@ -298,3 +298,212 @@ def test_main_cli_argparse_boolean_optional_flags(monkeypatch: pytest.MonkeyPatc
     assert len(captured) == 1
     assert captured[0]["stateless_http"] is True
     assert captured[0]["json_response"] is True
+
+
+def _mock_sigma_backend(request: httpx.Request) -> httpx.Response:
+    p = request.url.path
+    if "/v2/whoami" in p:
+        return httpx.Response(200, json={"memberId": "m-1", "email": "admin@example.com", "name": "Admin"})
+    if "/v2/workbooks" in p:
+        if request.method == "POST":
+            return httpx.Response(200, json={"workbookId": "wb-new-123", "name": "New Workbook"})
+        return httpx.Response(200, json={"entries": [{"workbookId": "wb-1", "name": "Executive Dashboard"}]})
+    if "/v2/connections" in p:
+        return httpx.Response(200, json={"entries": [{"connectionId": "c-1", "name": "Snowflake DW"}]})
+    if "/v2/dataModels" in p:
+        return httpx.Response(200, json={"entries": [{"dataModelId": "dm-1", "name": "Revenue Model"}]})
+    if "/v2/templates" in p:
+        return httpx.Response(200, json={"entries": [{"templateId": "tmpl-1", "name": "KPI Template"}]})
+    if "/v2/members" in p:
+        return httpx.Response(200, json={"entries": [{"memberId": "m-1", "email": "admin@example.com"}]})
+    if "/v2/teams" in p:
+        return httpx.Response(200, json={"entries": [{"teamId": "t-1", "name": "Data Analytics"}]})
+    if "/v2/files" in p:
+        return httpx.Response(200, json={"entries": [{"inodeId": "in-1", "name": "Shared Files"}]})
+    if "/v2/tags" in p:
+        return httpx.Response(200, json={"entries": [{"tagId": "tag-1", "name": "Production"}]})
+    if "/v2/user-attributes" in p:
+        return httpx.Response(200, json={"entries": [{"userAttributeId": "ua-1", "name": "Department"}]})
+    if "/v2/workspaces" in p:
+        return httpx.Response(200, json={"entries": [{"workspaceId": "ws-1", "name": "Finance"}]})
+    if "/v2/accountTypes" in p:
+        return httpx.Response(200, json={"entries": [{"accountTypeId": "act-1", "name": "Creator"}]})
+    if "/v2/reports" in p:
+        return httpx.Response(200, json={"entries": [{"reportId": "rep-1", "name": "Weekly Report"}]})
+    if "/v2/api-connectors" in p:
+        return httpx.Response(200, json={"entries": [{"connectorId": "apic-1", "name": "Salesforce Connector"}]})
+    return httpx.Response(200, json={"entries": [], "status": 200})
+
+
+def _setup_mock_sigma_client(monkeypatch: pytest.MonkeyPatch) -> Any:
+    import time
+
+    from sigma_mcp import server as srv
+    from sigma_mcp.client import SigmaClient
+
+    mock_client = SigmaClient(
+        "test-client-id",
+        "test-secret-32-chars-long-key-12345",
+        "https://api.example.com",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(_mock_sigma_backend)),
+    )
+    mock_client._token = "fake-valid-token"
+    mock_client._token_expiry = time.time() + 3600
+    monkeypatch.setattr(srv, "_client", mock_client)
+    return mock_client
+
+
+@pytest.mark.asyncio
+async def test_stateless_streamable_http_core_tools_suite(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify end-to-end execution of core read tools over Streamable HTTP without a live Sigma org."""
+    _setup_mock_sigma_client(monkeypatch)
+
+    tools_to_test = [
+        ("sigma_get_current_user", {}),
+        ("sigma_list_connections", {}),
+        ("sigma_list_workbooks", {"limit": 5}),
+        ("sigma_list_data_models", {"limit": 5}),
+        ("sigma_list_templates", {"limit": 5}),
+        ("sigma_list_members", {"limit": 5}),
+        ("sigma_list_teams", {"limit": 5}),
+        ("sigma_list_files", {}),
+        ("sigma_list_tags", {}),
+        ("sigma_list_user_attributes", {}),
+        ("sigma_list_workspaces", {}),
+        ("sigma_list_account_types", {}),
+        ("sigma_list_reports", {"limit": 5}),
+        ("sigma_list_api_connectors", {}),
+        ("sigma_api_capabilities", {}),
+    ]
+
+    app = mcp.streamable_http_app(stateless_http=True, json_response=True)
+    meta = {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
+    }
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8000"
+        ) as client:
+            for tool_name, args in tools_to_test:
+                res = await client.post(
+                    "/mcp",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {"name": tool_name, "arguments": args, "_meta": meta},
+                    },
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "MCP-Protocol-Version": "2026-07-28",
+                        "Mcp-Method": "tools/call",
+                        "Mcp-Name": tool_name,
+                    },
+                )
+                assert res.status_code == 200, f"{tool_name} returned status {res.status_code}"
+                data = res.json()
+                assert "result" in data, f"{tool_name} missing result: {data}"
+                assert "content" in data["result"], f"{tool_name} missing content: {data}"
+                payload = json.loads(data["result"]["content"][0]["text"])
+                assert isinstance(payload, dict), f"{tool_name} output must be JSON dict"
+
+
+@pytest.mark.asyncio
+async def test_stateless_streamable_http_mutations_and_safety_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify mutating tools and safety confirmation gates over Streamable HTTP."""
+    from unittest.mock import AsyncMock
+
+    mock_client = _setup_mock_sigma_client(monkeypatch)
+    mock_delete = AsyncMock(return_value=204)
+    monkeypatch.setattr(mock_client, "delete_file", mock_delete)
+
+    app = mcp.streamable_http_app(stateless_http=True, json_response=True)
+    meta = {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
+    }
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8000"
+        ) as client:
+            # 1. Create workbook confirmed
+            res_create = await client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 11,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "sigma_create_workbook",
+                        "arguments": {"name": "Q3 Board Deck", "folder_id": "fld-1"},
+                        "_meta": meta,
+                    },
+                },
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "MCP-Protocol-Version": "2026-07-28",
+                    "Mcp-Method": "tools/call",
+                    "Mcp-Name": "sigma_create_workbook",
+                },
+            )
+            assert res_create.status_code == 200
+            create_data = json.loads(res_create.json()["result"]["content"][0]["text"])
+            assert create_data.get("workbookId") == "wb-new-123"
+
+            # 2. Delete file unconfirmed (confirm=False safety gate)
+            res_del_preview = await client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 12,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "sigma_delete_file",
+                        "arguments": {"inode_id": "in-old", "confirm": False},
+                        "_meta": meta,
+                    },
+                },
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "MCP-Protocol-Version": "2026-07-28",
+                    "Mcp-Method": "tools/call",
+                    "Mcp-Name": "sigma_delete_file",
+                },
+            )
+            assert res_del_preview.status_code == 200
+            del_preview_data = json.loads(res_del_preview.json()["result"]["content"][0]["text"])
+            assert del_preview_data["error"]["type"] == "invalid_request"
+            assert "confirm=True" in del_preview_data["error"]["message"]
+            mock_delete.assert_not_called()
+
+            # 3. Delete file confirmed (confirm=True)
+            res_del = await client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 13,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "sigma_delete_file",
+                        "arguments": {"inode_id": "in-old", "confirm": True},
+                        "_meta": meta,
+                    },
+                },
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "MCP-Protocol-Version": "2026-07-28",
+                    "Mcp-Method": "tools/call",
+                    "Mcp-Name": "sigma_delete_file",
+                },
+            )
+            assert res_del.status_code == 200
+            del_data = json.loads(res_del.json()["result"]["content"][0]["text"])
+            assert del_data.get("status") == 204
+            mock_delete.assert_awaited_once_with("in-old")
