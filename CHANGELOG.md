@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.5 (2026-09-12)
+
+### Added
+- **Streamable HTTP Transport (MCP Spec 2026-07-28)**: Added full support for `--transport streamable-http` with paired boolean flags `--stateless` / `--no-stateless` and `--json-response` / `--no-json-response`.
+- **Testing Architecture Standardization**: Added `tests/test_protocol.py` and `tests/test_e2e_live.py` (`@pytest.mark.e2e`) establishing the standardized testing pyramid with 100% statement and branch coverage.
+- **Deprecation Warning**: Emits deprecation warning for legacy HTTP+SSE transport per MCP Spec 2026-07-28.
+
+### Removed
+- **Ad-Hoc Scripts**: Retired legacy `scripts/smoke_test.py` in favor of standard pytest test suites.
+
 ## 1.1.4 (2026-09-03)
 
 ### Changed
