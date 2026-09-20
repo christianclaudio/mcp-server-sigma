@@ -26,10 +26,15 @@ import os
 import re
 import signal
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
-from mcp.server import MCPServer
+from fastmcp import FastMCP
+from fastmcp.exceptions import NotFoundError
+from fastmcp.tools import FunctionTool
+from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult
 
 from .client import SigmaClient
 from .errors import SigmaAPIError
@@ -67,20 +72,176 @@ def configure_logging() -> None:
         logging.root.setLevel(logging.INFO)
 
 
-mcp = MCPServer(
+_client: SigmaClient | None = None
+_HEADER_CLIENT_CACHE: dict[tuple[str, str], SigmaClient] = {}
+
+
+@asynccontextmanager
+async def server_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
+    """Manage server lifecycle and persistent client resources."""
+    global _client
+    logger.info("Starting up Sigma MCP server")
+    try:
+        yield {"client": _client}
+    finally:
+        logger.info("Shutting down Sigma MCP resources")
+        if _client is not None:
+            await _client.aclose()
+            _client = None
+        for c in _HEADER_CLIENT_CACHE.values():
+            await c.aclose()
+        _HEADER_CLIENT_CACHE.clear()
+
+
+mcp = FastMCP(
     "mcp-server-sigma",
-    description="Full-surface MCP server for Sigma Computing. Create data models, provision dashboards, swap sources, manage your org programmatically.",
+    lifespan=server_lifespan,
+    cache_ttl=3600,
+    cache_scope="private",
 )
 
-_client: SigmaClient | None = None
+
+def _streamable_http_app(
+    self: FastMCP,
+    path: str | None = None,
+    stateless_http: bool | None = None,
+    json_response: bool | None = None,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    **kwargs: Any,
+) -> Any:
+    """Compatibility bridge for streamable HTTP ASGI application."""
+    allowed_hosts = kwargs.pop("allowed_hosts", None)
+    if allowed_hosts is None:
+        if host in ("0.0.0.0", "::"):
+            raise ValueError(
+                f"Explicit allowed_hosts required when binding to wildcard host '{host}'. "
+                "Specify allowed_hosts=['your-host'] to enable DNS rebinding and host origin protection."
+            )
+        allowed_hosts = [host, "localhost", f"{host}:{port}", f"localhost:{port}"]
+    return self.http_app(
+        path=path,
+        transport="streamable-http",
+        stateless_http=stateless_http,
+        json_response=json_response,
+        host_origin_protection=True,
+        allowed_hosts=allowed_hosts,
+        **kwargs,
+    )
+
+
+mcp.streamable_http_app = _streamable_http_app.__get__(mcp, FastMCP)  # type: ignore[attr-defined]
+
+if not hasattr(FunctionTool, "input_schema"):
+    FunctionTool.input_schema = property(lambda self: self.parameters)  # type: ignore[attr-defined]
+
+
+class _ToolManagerCompat:
+    """Compatibility bridge for internal _tool_manager access."""
+
+    def __init__(self, server: FastMCP) -> None:
+        self._server = server
+
+    @property
+    def _tools(self) -> dict[str, Any]:
+        return {
+            c.name: c
+            for c in self._server._local_provider._components.values()
+            if hasattr(c, "name") and (getattr(c, "type", None) == "tool" or hasattr(c, "parameters"))
+        }
+
+    def remove_tool(self, name: str) -> None:
+        self._server._local_provider.remove_tool(name)
+
+
+_tool_mgr = _ToolManagerCompat(mcp)
+mcp._tool_manager = _tool_mgr  # type: ignore[attr-defined]
+
+_orig_call_tool = mcp.call_tool
+
+
+async def _call_tool_compat(name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+    try:
+        raw_res = await _orig_call_tool(name, arguments or {}, **kwargs)
+    except NotFoundError as exc:
+        raise ToolError(f"Unknown tool: '{name}'") from exc
+    if isinstance(raw_res, CallToolResult):
+        return raw_res
+    return CallToolResult(
+        content=getattr(raw_res, "content", []),
+        structured_content=getattr(raw_res, "structured_content", None),
+        is_error=getattr(raw_res, "is_error", False),
+        _meta=getattr(raw_res, "meta", None),
+    )
+
+
+mcp.call_tool = _call_tool_compat  # type: ignore[method-assign]
+
+_orig_get_prompt = mcp.get_prompt
+
+
+async def _get_prompt_compat(name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+    if isinstance(arguments, dict):
+        return await mcp.render_prompt(name, arguments)
+    return await _orig_get_prompt(name, **kwargs)
+
+
+mcp.get_prompt = _get_prompt_compat  # type: ignore[assignment]
+
+_orig_read_resource = mcp.read_resource
+
+
+class _ResourceList(list[Any]):
+    """Compatibility list wrapper for read_resource return type."""
+
+    def __init__(self, result: Any) -> None:
+        super().__init__(getattr(result, "contents", []))
+        self._result = result
+
+    @property
+    def contents(self) -> list[Any]:
+        return getattr(self._result, "contents", [])
+
+    @property
+    def meta(self) -> Any:
+        return getattr(self._result, "meta", None)
+
+
+async def _read_resource_compat(uri: Any, **kwargs: Any) -> Any:
+    raw_res = await _orig_read_resource(uri, **kwargs)
+    return _ResourceList(raw_res)
+
+
+mcp.read_resource = _read_resource_compat  # type: ignore[method-assign]
+
+
+class _UriCompat(str):
+    """String subclass that compares equal to AnyUrl and str."""
+
+    def __eq__(self, other: Any) -> bool:
+        return str(self) == str(other)
+
+    def __hash__(self) -> int:
+        return hash(str(self))
+
+
+_orig_list_resources = mcp.list_resources
+
+
+async def _list_resources_compat(**kwargs: Any) -> Any:
+    resources = await _orig_list_resources(**kwargs)
+    for r in resources:
+        if hasattr(r, "uri"):
+            object.__setattr__(r, "uri", _UriCompat(str(r.uri)))
+    return resources
+
+
+mcp.list_resources = _list_resources_compat  # type: ignore[method-assign]
 
 
 def _invalid_request(message: str) -> str:
     """Return a uniform nested error response for validation failures."""
     return json.dumps({"error": {"type": "invalid_request", "message": message}})
-
-
-_HEADER_CLIENT_CACHE: dict[tuple[str, str], SigmaClient] = {}
 
 
 async def get_client(ctx: Any | None = None) -> SigmaClient:
@@ -2603,6 +2764,20 @@ def main() -> None:
         default=os.environ.get("SIGMA_MCP_JSON_RESPONSE", "").lower() in ("1", "true", "yes"),
         help="Return direct JSON responses instead of SSE text/event-stream over Streamable HTTP.",
     )
+    parser.add_argument(
+        "--allowed-host",
+        action="append",
+        dest="allowed_hosts",
+        default=None,
+        help="Allowed host for HTTP transports (can be specified multiple times).",
+    )
+    parser.add_argument(
+        "--allowed-origin",
+        action="append",
+        dest="allowed_origins",
+        default=None,
+        help="Allowed origin for HTTP transports (can be specified multiple times).",
+    )
     args = parser.parse_args()
 
     configure_logging()
@@ -2622,19 +2797,35 @@ def main() -> None:
     if auth_token and args.transport in ("sse", "streamable-http"):
         logger.info("Enforcing bearer token authentication on network transport")
 
+    hosts = (
+        args.allowed_hosts
+        if getattr(args, "allowed_hosts", None) is not None
+        else [host, "localhost", f"{host}:{port}", f"localhost:{port}"]
+    )
+    run_kwargs: dict[str, Any] = {
+        "host": host,
+        "port": port,
+        "host_origin_protection": True,
+        "allowed_hosts": hosts,
+    }
+    if getattr(args, "allowed_origins", None) is not None:
+        run_kwargs["allowed_origins"] = args.allowed_origins
+
     if args.transport == "sse":
         logger.warning(
             "Deprecation Warning: HTTP+SSE transport is deprecated per MCP 2026-07-28 spec "
             "(SEP-2577). Please migrate to Streamable HTTP (--transport streamable-http)."
         )
-        mcp.run(transport="sse", host=host, port=port)  # pragma: no cover
+        mcp.run(
+            transport="sse",
+            **run_kwargs,
+        )  # pragma: no cover
     elif args.transport == "streamable-http":
         mcp.run(
             transport="streamable-http",
-            host=host,
-            port=port,
             stateless_http=stateless,
             json_response=json_response,
+            **run_kwargs,
         )  # pragma: no cover
     else:
         mcp.run(transport="stdio")  # pragma: no cover
@@ -2702,7 +2893,7 @@ _IDEMPOTENT_NAMES = {
 # NOTE: Accessing mcp._tool_manager._tools is a private API of the MCP SDK.
 # There is no public API to set annotations post-registration as of mcp 1.2.x.
 # Pin the SDK version and re-verify on upgrades.
-for tool_name, tool_obj in mcp._tool_manager._tools.items():
+for tool_name, tool_obj in _tool_mgr._tools.items():
     if tool_name in _DESTRUCTIVE_NAMES:
         tool_obj.annotations = _DESTRUCTIVE
     elif tool_name in _IDEMPOTENT_NAMES:
@@ -2812,9 +3003,9 @@ if _profile != "full":
     if _profile not in _PROFILES:
         raise ValueError(f"Unknown SIGMA_MCP_PROFILE {_profile!r}. Valid: core, admin, embed, full.")
     _allowed = _PROFILES[_profile]
-    _to_remove = [name for name in mcp._tool_manager._tools if name not in _allowed]
+    _to_remove = [name for name in _tool_mgr._tools if name not in _allowed]
     for name in _to_remove:
-        mcp._tool_manager.remove_tool(name)
+        _tool_mgr.remove_tool(name)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2824,11 +3015,11 @@ if _profile != "full":
 if os.environ.get("SIGMA_MCP_READONLY", "").strip() == "1":
     _ro_remove = [
         name
-        for name, tool_obj in mcp._tool_manager._tools.items()
+        for name, tool_obj in _tool_mgr._tools.items()
         if not (tool_obj.annotations and tool_obj.annotations.read_only_hint)
     ]
     for name in _ro_remove:
-        mcp._tool_manager.remove_tool(name)
+        _tool_mgr.remove_tool(name)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -2839,8 +3030,8 @@ _BULK_DESTRUCTIVE_TOOLS = {"sigma_bulk_deactivate_members", "sigma_bulk_remove_t
 
 if os.environ.get("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "").strip() != "1":
     for name in _BULK_DESTRUCTIVE_TOOLS:
-        if name in mcp._tool_manager._tools:
-            mcp._tool_manager.remove_tool(name)
+        if name in _tool_mgr._tools:
+            _tool_mgr.remove_tool(name)
 
 
 if __name__ == "__main__":  # pragma: no cover

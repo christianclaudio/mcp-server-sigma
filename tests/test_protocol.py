@@ -225,12 +225,20 @@ def test_main_streamable_http_and_warning_branches(
         port=8000,
         stateless=False,
         json_response=False,
+        allowed_hosts=None,
+        allowed_origins=None,
     )
     with patch("argparse.ArgumentParser.parse_args", return_value=ns_sse):
         with patch("sigma_mcp.server.mcp.run") as mock_run:
             with caplog.at_level(logging.WARNING):
                 main()
-                mock_run.assert_called_once_with(transport="sse", host="127.0.0.1", port=8000)
+                mock_run.assert_called_once_with(
+                    transport="sse",
+                    host="127.0.0.1",
+                    port=8000,
+                    host_origin_protection=True,
+                    allowed_hosts=["127.0.0.1", "localhost", "127.0.0.1:8000", "localhost:8000"],
+                )
                 assert "HTTP+SSE transport is deprecated" in caplog.text
 
     # 3. Streamable HTTP execution with options
@@ -240,6 +248,8 @@ def test_main_streamable_http_and_warning_branches(
         port=9000,
         stateless=True,
         json_response=True,
+        allowed_hosts=None,
+        allowed_origins=None,
     )
     with patch("argparse.ArgumentParser.parse_args", return_value=ns_streamable):
         with patch("sigma_mcp.server.mcp.run") as mock_run:
@@ -250,6 +260,32 @@ def test_main_streamable_http_and_warning_branches(
                 port=9000,
                 stateless_http=True,
                 json_response=True,
+                host_origin_protection=True,
+                allowed_hosts=["0.0.0.0", "localhost", "0.0.0.0:9000", "localhost:9000"],
+            )
+
+    # 4. Streamable HTTP with custom allowed hosts and origins
+    ns_custom = argparse.Namespace(
+        transport="streamable-http",
+        host="127.0.0.1",
+        port=8000,
+        stateless=False,
+        json_response=False,
+        allowed_hosts=["example.com"],
+        allowed_origins=["https://example.com"],
+    )
+    with patch("argparse.ArgumentParser.parse_args", return_value=ns_custom):
+        with patch("sigma_mcp.server.mcp.run") as mock_run:
+            main()
+            mock_run.assert_called_once_with(
+                transport="streamable-http",
+                host="127.0.0.1",
+                port=8000,
+                stateless_http=False,
+                json_response=False,
+                host_origin_protection=True,
+                allowed_hosts=["example.com"],
+                allowed_origins=["https://example.com"],
             )
 
 
