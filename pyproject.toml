@@ -68,7 +68,7 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src", "."]
 markers = [
     "e2e: end-to-end live network tests against upstream services (run with -m e2e)",
 ]
