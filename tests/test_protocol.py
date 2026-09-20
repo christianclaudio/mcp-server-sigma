@@ -244,7 +244,7 @@ def test_main_streamable_http_and_warning_branches(
     # 3. Streamable HTTP execution with options
     ns_streamable = argparse.Namespace(
         transport="streamable-http",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=9000,
         stateless=True,
         json_response=True,
@@ -256,23 +256,23 @@ def test_main_streamable_http_and_warning_branches(
             main()
             mock_run.assert_called_once_with(
                 transport="streamable-http",
-                host="0.0.0.0",
+                host="127.0.0.1",
                 port=9000,
                 stateless_http=True,
                 json_response=True,
                 host_origin_protection=True,
-                allowed_hosts=["0.0.0.0", "localhost", "0.0.0.0:9000", "localhost:9000"],
+                allowed_hosts=["127.0.0.1", "localhost", "127.0.0.1:9000", "localhost:9000"],
             )
 
     # 4. Streamable HTTP with custom allowed hosts and origins
     ns_custom = argparse.Namespace(
         transport="streamable-http",
         host="127.0.0.1",
-        port=8000,
+        port=9000,
         stateless=False,
         json_response=False,
-        allowed_hosts=["example.com"],
-        allowed_origins=["https://example.com"],
+        allowed_hosts=["custom.host"],
+        allowed_origins=["https://custom.origin"],
     )
     with patch("argparse.ArgumentParser.parse_args", return_value=ns_custom):
         with patch("sigma_mcp.server.mcp.run") as mock_run:
@@ -280,13 +280,27 @@ def test_main_streamable_http_and_warning_branches(
             mock_run.assert_called_once_with(
                 transport="streamable-http",
                 host="127.0.0.1",
-                port=8000,
+                port=9000,
                 stateless_http=False,
                 json_response=False,
                 host_origin_protection=True,
-                allowed_hosts=["example.com"],
-                allowed_origins=["https://example.com"],
+                allowed_hosts=["custom.host"],
+                allowed_origins=["https://custom.origin"],
             )
+
+    # 5. Wildcard bind requires --allowed-host
+    ns_wildcard = argparse.Namespace(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=9000,
+        stateless=True,
+        json_response=True,
+        allowed_hosts=None,
+        allowed_origins=None,
+    )
+    with patch("argparse.ArgumentParser.parse_args", return_value=ns_wildcard):
+        with pytest.raises(SystemExit):
+            main()
 
 
 def test_main_cli_argparse_boolean_optional_flags(monkeypatch: pytest.MonkeyPatch) -> None:

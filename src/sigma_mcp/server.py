@@ -2797,11 +2797,11 @@ def main() -> None:
     if auth_token and args.transport in ("sse", "streamable-http"):
         logger.info("Enforcing bearer token authentication on network transport")
 
-    hosts = (
-        args.allowed_hosts
-        if getattr(args, "allowed_hosts", None) is not None
-        else [host, "localhost", f"{host}:{port}", f"localhost:{port}"]
-    )
+    hosts = getattr(args, "allowed_hosts", None)
+    if hosts is None:
+        if args.transport == "streamable-http" and host in ("0.0.0.0", "::"):
+            parser.error("--allowed-host is required when binding to a wildcard host")
+        hosts = [host, "localhost", f"{host}:{port}", f"localhost:{port}"]
     run_kwargs: dict[str, Any] = {
         "host": host,
         "port": port,
