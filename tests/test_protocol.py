@@ -302,6 +302,20 @@ def test_main_streamable_http_and_warning_branches(
         with pytest.raises(SystemExit):
             main()
 
+    # 6. Wildcard '*' in --allowed-host fails closed with parser.error
+    ns_wildcard_star = argparse.Namespace(
+        transport="streamable-http",
+        host="127.0.0.1",
+        port=9000,
+        stateless=True,
+        json_response=True,
+        allowed_hosts=["*"],
+        allowed_origins=None,
+    )
+    with patch("argparse.ArgumentParser.parse_args", return_value=ns_wildcard_star):
+        with pytest.raises(SystemExit):
+            main()
+
 
 def test_main_cli_argparse_boolean_optional_flags(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify paired boolean flags (--stateless/--no-stateless, --json-response/--no-json-response)."""
