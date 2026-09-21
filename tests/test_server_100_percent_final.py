@@ -185,6 +185,6 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_handle_shutdown() -> None:
-    with patch("os._exit") as mock_exit:
+    with patch("sys.exit") as mock_exit:
         srv._handle_shutdown(15, None)
         mock_exit.assert_called_once_with(0)

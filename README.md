@@ -198,6 +198,27 @@ mcpServers:
 </details>
 
 <details>
+<summary><b>💻 Cursor & Windsurf</b></summary>
+
+Add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "sigma": {
+      "command": "sigma-mcp",
+      "env": {
+        "SIGMA_CLIENT_ID": "your-client-id",
+        "SIGMA_CLIENT_SECRET": "your-client-secret",
+        "SIGMA_API_BASE_URL": "https://api.us-a.aws.sigmacomputing.com"
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
 <summary><b>🐙 GitHub Copilot CLI & Workspace Agent</b></summary>
 
 Add `.github/mcp.json` to your repository:
