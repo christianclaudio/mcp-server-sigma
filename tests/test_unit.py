@@ -383,7 +383,13 @@ class TestTransportArg:
         ):
             with patch("sigma_mcp.server.mcp.run") as mock_run:
                 main()
-                mock_run.assert_called_once_with(transport="sse", host="127.0.0.1", port=8000)
+                mock_run.assert_called_once_with(
+                    transport="sse",
+                    host="127.0.0.1",
+                    port=8000,
+                    host_origin_protection=True,
+                    allowed_hosts=["127.0.0.1", "localhost", "127.0.0.1:8000", "localhost:8000"],
+                )
 
 
 # ─── Profile integrity (regression: 'embed' silently fell back to core) ───────

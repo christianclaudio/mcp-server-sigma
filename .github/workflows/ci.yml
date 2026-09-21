@@ -90,6 +90,17 @@ jobs:
       - name: Check client paths against Sigma spec
         run: python scripts/check_openapi_drift.py
 
+      - name: Verify tool contracts
+        run: python scripts/check_tool_contract.py
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a  # v4.2.0
+        with:
+          node-version: "22"
+
+      - name: Protocol conformance suite
+        run: ./scripts/check_conformance.sh
+
   build:
     name: Build and package check
     runs-on: ubuntu-latest
