@@ -88,3 +88,4 @@ select = ["E", "F", "I", "UP"]
 # server.py holds long tool descriptions and capability strings; splitting
 # these literals would hurt readability without improving the code.
 "src/sigma_mcp/server.py" = ["E501"]
+"src/sigma_mcp/tools/*" = ["E501"]

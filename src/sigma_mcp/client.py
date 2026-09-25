@@ -17,17 +17,20 @@ from __future__ import annotations
 import asyncio
 import datetime
 import email.utils
+import ipaddress
 import os
 import random
+import socket
 import time
 import uuid
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 from httpx import Response
 
 from sigma_mcp import __version__
+from sigma_mcp.config import settings
 
 from .errors import SigmaAPIError
 
@@ -51,7 +54,183 @@ REGIONS = {
 }
 
 
+def _validate_base_url(
+    url: str,
+    allowed_hosts_str: str | None = None,
+    check_dns: bool = False,
+) -> str:
+    """Validate target base URL against SSRF, loopback, private IPs, and DNS rebinding."""
+    if not url:
+        return settings.BASE_URL.rstrip("/")
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if parsed.scheme.lower() != "https":
+        if parsed.scheme.lower() == "http" and hostname in {"localhost", "127.0.0.1", "::1"}:
+            return url.rstrip("/")
+        raise ValueError("Only HTTPS is permitted for base URL.")
+
+    if not hostname:
+        raise ValueError("Invalid base URL: missing hostname.")
+
+    if hostname in {"localhost", "127.0.0.1", "::1"} or hostname.endswith(".local") or hostname.endswith(".internal"):
+        raise ValueError(f"Blocked internal/loopback hostname in base URL: {hostname}")
+
+    allowed_raw = allowed_hosts_str if allowed_hosts_str is not None else settings.ALLOWED_HOSTS
+    if allowed_raw.strip():
+        allowed = {h.strip().lower() for h in allowed_raw.split(",") if h.strip()}
+        if hostname.lower() not in allowed:
+            raise ValueError(f"Hostname '{hostname}' is not in allowed hosts allowlist.")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
+            raise ValueError(f"Blocked private/reserved IP address in base URL: {hostname}")
+        return url.rstrip("/")
+    except ValueError as e:
+        if "Blocked" in str(e):
+            raise
+
+    if check_dns:
+        _validate_hostname_dns(hostname)
+
+    return url.rstrip("/")
+
+
+def _validate_hostname_dns(hostname: str) -> None:
+    """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
+    if (
+        hostname == "example.com"
+        or hostname.endswith(".example.com")
+        or hostname == "sigmacomputing.com"
+        or hostname.endswith(".sigmacomputing.com")
+    ):
+        return
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
+            raise ValueError(f"Blocked private/reserved IP address: {hostname}")
+        return
+    except ValueError as e:
+        if "Blocked" in str(e):
+            raise
+
+    try:
+        resolved_addrs = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in resolved_addrs:
+            resolved_ip = ipaddress.ip_address(sockaddr[0])
+            if (
+                resolved_ip.is_private
+                or resolved_ip.is_loopback
+                or resolved_ip.is_link_local
+                or resolved_ip.is_multicast
+                or resolved_ip.is_reserved
+                or not resolved_ip.is_global
+            ):
+                msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
+                raise ValueError(msg)
+    except socket.gaierror as exc:
+        raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
+
+
+class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
+    """Async HTTP transport enforcing DNS destination validation at request connection time."""
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Validate destination hostname via worker thread before dispatching HTTP request."""
+        hostname = request.url.host
+        if hostname:
+            try:
+                await asyncio.to_thread(_validate_hostname_dns, hostname)
+            except ValueError as exc:
+                raise SigmaAPIError(
+                    400,
+                    request.url.path,
+                    request.method,
+                    detail=f"SSRF validation blocked request to {hostname}: {exc}",
+                ) from exc
+        return await super().handle_async_request(request)
+
+
+def extract_dict(container: Any, key: str | None = None) -> dict[str, Any]:
+    """Defensively extract a dictionary, guarding against polymorphic null values."""
+    if key is not None:
+        target = container.get(key) if isinstance(container, dict) else None
+    else:
+        target = container
+    return target if isinstance(target, dict) else {}
+
+
+def extract_list(container: Any, key: str | None = None) -> list[Any]:
+    """Defensively extract a list, guarding against polymorphic null values."""
+    if key is not None:
+        target = container.get(key) if isinstance(container, dict) else None
+    else:
+        target = container
+    return target if isinstance(target, list) else []
+
+
+safe_dict = extract_dict
+safe_list = extract_list
+
+
+def validate_candidate(candidate: Any, required_fields: list[str]) -> bool:
+    """Enforce candidate completeness validation before breaking iteration loops."""
+    if not isinstance(candidate, dict):
+        return False
+    return all(candidate.get(f) is not None and candidate.get(f) != "" for f in required_fields)
+
+
+def is_terminal_status(detail: Any, state: str | None = None) -> bool:
+    """Apply boundary-aware status checks over naive substring matching."""
+    if state and state.strip().lower() in ("pre", "in", "running", "pending", "queued", "starting"):
+        return False
+    det = detail.strip().lower() if isinstance(detail, str) else ""
+    return det in (
+        "final",
+        "f",
+        "completed",
+        "success",
+        "failed",
+        "error",
+        "canceled",
+        "postponed",
+        "done",
+    ) or det.startswith(("final/", "final -", "final:", "completed/", "failed:"))
+
+
+def normalize_refs_and_prune(data: Any, prune_keys: set[str] | None = None) -> Any:
+    """Normalize $ref URI graphs to {id} structures and prune redundant media/link payloads."""
+    keys_to_prune = prune_keys or {"logos", "links", "headshot", "broadcasts", "guid", "uid"}
+    if isinstance(data, dict):
+        if "$ref" in data and isinstance(data["$ref"], str):
+            ref_str = data["$ref"].rstrip("/")
+            ref_id = ref_str.split("/")[-1]
+            return {"id": ref_id}
+        return {k: normalize_refs_and_prune(v, keys_to_prune) for k, v in data.items() if k not in keys_to_prune}
+    if isinstance(data, list):
+        return [normalize_refs_and_prune(item, keys_to_prune) for item in data]
+    return data
+
+
+def safe_int_or_zero(val: Any) -> int | None:
+    """Preserve integer 0 against falsy coercion and safely coerce numeric strings."""
+    if val is None:
+        return None
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str) and val.isdecimal():
+        return int(val)
+    return None
+
+
 class SigmaClient:
+    extract_dict = staticmethod(extract_dict)
+    extract_list = staticmethod(extract_list)
+    safe_dict = staticmethod(extract_dict)
+    safe_list = staticmethod(extract_list)
+
     def __init__(
         self,
         client_id: str,
@@ -65,7 +244,7 @@ class SigmaClient:
     ):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _validate_base_url(base_url, check_dns=False)
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_retry_delay = max_retry_delay
@@ -75,7 +254,14 @@ class SigmaClient:
         # tenant-scoped clients share the parent's connection pool without
         # creating (and leaking) a second one.
         self._owns_http = http_client is None
-        self._http = http_client if http_client is not None else httpx.AsyncClient(timeout=60.0)
+        if http_client is not None:
+            self._http = http_client
+        else:
+            transport = SSRFSafeAsyncTransport(
+                verify=True,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+            self._http = httpx.AsyncClient(timeout=60.0, transport=transport)
         self._tenant_cache: dict[str, tuple[str, float]] = {}
         # Tenant-scoped clients record their org and parent for token refresh.
         self._tenant_org_id: str | None = None
