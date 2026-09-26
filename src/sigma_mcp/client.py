@@ -101,14 +101,6 @@ def _validate_base_url(
 
 def _validate_hostname_dns(hostname: str) -> None:
     """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
-    if (
-        hostname == "example.com"
-        or hostname.endswith(".example.com")
-        or hostname == "sigmacomputing.com"
-        or hostname.endswith(".sigmacomputing.com")
-    ):
-        return
-
     try:
         ip = ipaddress.ip_address(hostname)
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:

@@ -289,11 +289,10 @@ def test_validate_base_url_branches() -> None:
 
 
 def test_validate_hostname_dns_branches() -> None:
-    # Whitelisted domain prefixes / names
-    _validate_hostname_dns("example.com")
-    _validate_hostname_dns("sub.example.com")
-    _validate_hostname_dns("sigmacomputing.com")
-    _validate_hostname_dns("api.sigmacomputing.com")
+    # Public hostname resolving to public IP
+    with patch("socket.getaddrinfo", return_value=[(None, None, None, None, ("93.184.215.14", 443))]):
+        _validate_hostname_dns("example.com")
+        _validate_hostname_dns("api.sigmacomputing.com")
 
     # IP literal branches
     _validate_hostname_dns("8.8.8.8")
@@ -317,19 +316,43 @@ def test_validate_hostname_dns_branches() -> None:
 async def test_ssrf_safe_async_transport() -> None:
     transport = SSRFSafeAsyncTransport()
 
-    # Success case
+    # Success case (DNS mock returns public IP)
     req_ok = httpx.Request("GET", "https://example.com/api/test")
-    with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
-        mock_super.return_value = httpx.Response(200, request=req_ok)
-        resp = await transport.handle_async_request(req_ok)
-        assert resp.status_code == 200
-        mock_super.assert_called_once_with(req_ok)
+    with patch("socket.getaddrinfo", return_value=[(None, None, None, None, ("93.184.215.14", 443))]):
+        with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
+            mock_super.return_value = httpx.Response(200, request=req_ok)
+            resp = await transport.handle_async_request(req_ok)
+            assert resp.status_code == 200
+            mock_super.assert_called_once_with(req_ok)
 
     # Blocked case (private IP)
     req_bad = httpx.Request("GET", "https://10.0.0.5/api/test")
     with pytest.raises(SigmaAPIError) as exc_info:
         await transport.handle_async_request(req_bad)
     assert "SSRF validation blocked request" in (exc_info.value.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_ssrf_transport_dns_runs_off_event_loop() -> None:
+    """Assert that the DNS resolution lookup thread is not the asyncio event-loop thread."""
+    import threading
+
+    transport = SSRFSafeAsyncTransport()
+    loop_thread_id = threading.get_ident()
+    lookup_thread_id: int | None = None
+
+    def _spy_dns(hostname: str) -> None:
+        nonlocal lookup_thread_id
+        lookup_thread_id = threading.get_ident()
+
+    req = httpx.Request("GET", "https://api.sigmacomputing.com/v2/workbooks")
+    with patch("sigma_mcp.client._validate_hostname_dns", side_effect=_spy_dns):
+        with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
+            mock_super.return_value = httpx.Response(200, request=req)
+            await transport.handle_async_request(req)
+
+    assert lookup_thread_id is not None
+    assert lookup_thread_id != loop_thread_id
 
 
 def test_recipe10_defensive_extractors() -> None:

@@ -39,6 +39,12 @@ _RO_NAMES = {
     "search_docs",
     "sigma_get_doc_page",
     "get_doc_page",
+    "sigma_verify_workbook_spec",
+    "verify_workbook_spec",
+    "sigma_verify_report_spec",
+    "verify_report_spec",
+    "sigma_download_query_export",
+    "download_query_export",
 }
 
 

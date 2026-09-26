@@ -140,6 +140,7 @@ def main() -> int:
     print("\nSIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1:")
     bulk = probe(SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE="1")
     check("total tools", bulk["total"], EXPECTED_WITH_BULK)
+    check("bulk destructive annotations", bulk["destructive"], 20)
     check(
         "bulk_deactivate present with opt-in",
         ("sigma_bulk_deactivate_members" in bulk["names"] or "admin_bulk_deactivate_members" in bulk["names"]),

@@ -183,6 +183,36 @@ class TestReadonlyMode:
         assert result["all_read_only"] is True
         assert result["total"] > 0
 
+    def test_readonly_middleware_allows_verify_and_download(self) -> None:
+        from sigma_mcp.middleware import is_read_only_tool
+
+        assert is_read_only_tool("sigma_verify_workbook_spec")
+        assert is_read_only_tool("verify_workbook_spec")
+        assert is_read_only_tool("sigma_verify_report_spec")
+        assert is_read_only_tool("verify_report_spec")
+        assert is_read_only_tool("sigma_download_query_export")
+        assert is_read_only_tool("download_query_export")
+
+    @pytest.mark.asyncio
+    async def test_readonly_gate_middleware_permits_read_only_tools(self) -> None:
+        from sigma_mcp.middleware import ReadOnlyGateMiddleware
+
+        gate = ReadOnlyGateMiddleware()
+        next_mock = AsyncMock(return_value="ok")
+
+        for tool_name in (
+            "sigma_verify_workbook_spec",
+            "sigma_verify_report_spec",
+            "sigma_download_query_export",
+        ):
+            ctx = MagicMock()
+            ctx.method = "tools/call"
+            ctx.message = MagicMock()
+            ctx.message.name = tool_name
+            with patch.dict(os.environ, {"SIGMA_MCP_READONLY": "1"}):
+                res = await gate.on_message(ctx, next_mock)
+                assert res == "ok"
+
 
 # ─── Bulk destructive gating ──────────────────────────────────────────────────
 

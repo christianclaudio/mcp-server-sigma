@@ -766,7 +766,9 @@ async def sigma_change_member_email(member_id: str, new_email: str) -> str:
 change_member_email = sigma_change_member_email
 
 
-@admin_server.tool(name="sigma_bulk_remove_team_members", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(
+    name="sigma_bulk_remove_team_members", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+)
 @sigma_tool
 async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str], confirm: bool = False) -> str:
     """Remove multiple members from a team by their email addresses.
