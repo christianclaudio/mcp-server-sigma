@@ -402,3 +402,44 @@ def test_recipe10_safe_int_or_zero() -> None:
     assert safe_int_or_zero("123") == 123
     assert safe_int_or_zero("invalid") is None
     assert safe_int_or_zero(3.14) is None
+
+
+@pytest.mark.asyncio
+async def test_workspace_pagination_coverage() -> None:
+    from sigma_mcp.client import SigmaClient
+    from sigma_mcp.tools.workspace import (
+        sigma_list_all_files,
+        sigma_list_tags,
+        sigma_list_workspace_grants,
+        sigma_list_workspaces,
+    )
+
+    client = SigmaClient("cid", "csec", "https://api.example.com", max_retries=0, base_delay=0.001)
+    mock_resp = httpx.Response(200, json={"entries": [{"grantId": "g1"}]})
+    with patch.object(client, "_request", new_callable=AsyncMock) as mock_req:
+        mock_req.return_value = mock_resp
+        res = await client.list_workspace_grants("ws1", page="p1", limit=10)
+        assert res == {"entries": [{"grantId": "g1"}]}
+        mock_req.assert_called_once_with("GET", "/v2/workspaces/ws1/grants", params={"limit": 10, "page": "p1"})
+
+    # Test tools execution with pagination arguments
+    with patch("sigma_mcp.tools.workspace.get_client", AsyncMock(return_value=client)):
+        with patch.object(client, "list_tags", new_callable=AsyncMock) as mock_tags:
+            mock_tags.return_value = {"entries": []}
+            await sigma_list_tags(page="p_tag", limit=50)
+            mock_tags.assert_called_once_with(page="p_tag", limit=50)
+
+        with patch.object(client, "list_workspaces", new_callable=AsyncMock) as mock_ws:
+            mock_ws.return_value = {"entries": []}
+            await sigma_list_workspaces(limit=25, page="p_ws")
+            mock_ws.assert_called_once_with(limit=25, page="p_ws")
+
+        with patch.object(client, "list_workspace_grants", new_callable=AsyncMock) as mock_wg:
+            mock_wg.return_value = {"entries": []}
+            await sigma_list_workspace_grants("ws_x", page="p_g", limit=15)
+            mock_wg.assert_called_once_with("ws_x", page="p_g", limit=15)
+
+        with patch.object(client, "list_all_files", new_callable=AsyncMock) as mock_laf:
+            mock_laf.return_value = []
+            await sigma_list_all_files(parent_id="folder1", type_filter="symlink")
+            mock_laf.assert_called_once_with({"parentId": "folder1", "typeFilters": "symlink"})

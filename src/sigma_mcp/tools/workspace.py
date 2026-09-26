@@ -74,9 +74,9 @@ update_file = sigma_update_file
 
 @workspace_server.tool(name="sigma_list_tags", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
-async def sigma_list_tags() -> str:
-    """List all tags in the organization."""
-    return json.dumps(await (await get_client()).list_tags(), indent=2)
+async def sigma_list_tags(page: str | None = None, limit: int = 200) -> str:
+    """List all tags in the organization. Supports pagination via page token."""
+    return json.dumps(await (await get_client()).list_tags(page=page, limit=limit), indent=2)
 
 
 list_tags = sigma_list_tags
@@ -112,9 +112,9 @@ delete_tag = sigma_delete_tag
 
 @workspace_server.tool(name="sigma_list_workspaces", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
-async def sigma_list_workspaces(limit: int = 200) -> str:
-    """List all workspaces."""
-    return json.dumps(await (await get_client()).list_workspaces(limit), indent=2)
+async def sigma_list_workspaces(limit: int = 200, page: str | None = None) -> str:
+    """List all workspaces. Supports pagination via page token."""
+    return json.dumps(await (await get_client()).list_workspaces(limit=limit, page=page), indent=2)
 
 
 list_workspaces = sigma_list_workspaces
@@ -159,9 +159,9 @@ delete_workspace = sigma_delete_workspace
     name="sigma_list_workspace_grants", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"}
 )
 @sigma_tool
-async def sigma_list_workspace_grants(workspace_id: str) -> str:
-    """List permission grants on a workspace."""
-    return json.dumps(await (await get_client()).list_workspace_grants(workspace_id), indent=2)
+async def sigma_list_workspace_grants(workspace_id: str, page: str | None = None, limit: int = 200) -> str:
+    """List permission grants on a workspace. Supports pagination via page token."""
+    return json.dumps(await (await get_client()).list_workspace_grants(workspace_id, page=page, limit=limit), indent=2)
 
 
 list_workspace_grants = sigma_list_workspace_grants
@@ -206,7 +206,12 @@ delete_workspace_grant = sigma_delete_workspace_grant
 @workspace_server.tool(name="sigma_list_all_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_all_files(parent_id: str | None = None, type_filter: str | None = None) -> str:
-    """List ALL files/folders in the organization, automatically following pagination."""
+    """List files/folders in the organization, automatically following pagination.
+
+    parent_id: Optional parent folder ID to list files within.
+    type_filter: Optional file type filter ('workbook', 'folder', 'data-model', 'template', 'symlink').
+                 Note: Shortcuts/symlinks are excluded by default unless type_filter='symlink'.
+    """
     params: dict[str, Any] = {}
     if parent_id:
         params["parentId"] = parent_id

@@ -882,8 +882,14 @@ class SigmaClient:
         return await self.patch(f"/v2/files/{inode_id}", body)
 
     # ─── Tags ──────────────────────────────────────────────────────────────
-    async def list_tags(self) -> JSONValue:
-        return await self.get("/v2/tags")
+    async def list_tags(self, page: str | None = None, limit: int | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if page:
+            params["page"] = page
+        r = await self._request("GET", "/v2/tags", params=params if params else None)
+        return self._parse_json_body(r)
 
     async def create_tag(self, body: dict[str, Any]) -> JSONValue:
         return await self.post("/v2/tags", body)
@@ -960,8 +966,12 @@ class SigmaClient:
         return await self.delete(f"/v2/accountTypes/{account_type_id}")
 
     # ─── Workspaces ────────────────────────────────────────────────────────
-    async def list_workspaces(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/workspaces", {"limit": limit})
+    async def list_workspaces(self, limit: int = 200, page: str | None = None) -> JSONValue:
+        params: dict[str, Any] = {"limit": limit}
+        if page:
+            params["page"] = page
+        r = await self._request("GET", "/v2/workspaces", params=params)
+        return self._parse_json_body(r)
 
     async def get_workspace(self, workspace_id: str) -> JSONValue:
         return await self.get(f"/v2/workspaces/{workspace_id}")
@@ -975,8 +985,16 @@ class SigmaClient:
     async def delete_workspace(self, workspace_id: str) -> int:
         return await self.delete(f"/v2/workspaces/{workspace_id}")
 
-    async def list_workspace_grants(self, workspace_id: str) -> JSONValue:
-        return await self.get(f"/v2/workspaces/{workspace_id}/grants")
+    async def list_workspace_grants(
+        self, workspace_id: str, page: str | None = None, limit: int | None = None
+    ) -> JSONValue:
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if page:
+            params["page"] = page
+        r = await self._request("GET", f"/v2/workspaces/{workspace_id}/grants", params=params if params else None)
+        return self._parse_json_body(r)
 
     async def grant_workspace_access(self, workspace_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workspaces/{workspace_id}/grants", body)
