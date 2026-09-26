@@ -15,19 +15,24 @@ Gotchas discovered through production use:
 from __future__ import annotations
 
 import asyncio
+import base64
 import datetime
 import email.utils
+import ipaddress
+import json
 import os
 import random
+import socket
 import time
 import uuid
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 from httpx import Response
 
 from sigma_mcp import __version__
+from sigma_mcp.config import settings
 
 from .errors import SigmaAPIError
 
@@ -51,7 +56,214 @@ REGIONS = {
 }
 
 
+def _validate_base_url(
+    url: str,
+    allowed_hosts_str: str | None = None,
+    check_dns: bool = False,
+) -> str:
+    """Validate target base URL against SSRF, loopback, private IPs, and DNS rebinding."""
+    if not url:
+        return settings.BASE_URL.rstrip("/")
+
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if parsed.scheme.lower() != "https":
+        if parsed.scheme.lower() == "http" and hostname in {"localhost", "127.0.0.1", "::1"}:
+            return url.rstrip("/")
+        raise ValueError("Only HTTPS is permitted for base URL.")
+
+    if not hostname:
+        raise ValueError("Invalid base URL: missing hostname.")
+
+    if hostname in {"localhost", "127.0.0.1", "::1"} or hostname.endswith(".local") or hostname.endswith(".internal"):
+        raise ValueError(f"Blocked internal/loopback hostname in base URL: {hostname}")
+
+    allowed_raw = allowed_hosts_str if allowed_hosts_str is not None else settings.ALLOWED_HOSTS
+    if allowed_raw.strip():
+        allowed = {h.strip().lower() for h in allowed_raw.split(",") if h.strip()}
+        if hostname.lower() not in allowed:
+            raise ValueError(f"Hostname '{hostname}' is not in allowed hosts allowlist.")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
+            raise ValueError(f"Blocked private/reserved IP address in base URL: {hostname}")
+        return url.rstrip("/")
+    except ValueError as e:
+        if "Blocked" in str(e):
+            raise
+
+    if check_dns:
+        _validate_hostname_dns(hostname)
+
+    return url.rstrip("/")
+
+
+def _validate_hostname_dns(hostname: str) -> str:
+    """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
+            raise ValueError(f"Blocked private/reserved IP address: {hostname}")
+        return str(ip)
+    except ValueError as e:
+        if "Blocked" in str(e):
+            raise
+
+    try:
+        resolved_addrs = socket.getaddrinfo(hostname, None)
+        validated_ip: str | None = None
+        for _, _, _, _, sockaddr in resolved_addrs:
+            resolved_ip = ipaddress.ip_address(sockaddr[0])
+            if (
+                resolved_ip.is_private
+                or resolved_ip.is_loopback
+                or resolved_ip.is_link_local
+                or resolved_ip.is_multicast
+                or resolved_ip.is_reserved
+                or not resolved_ip.is_global
+            ):
+                msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
+                raise ValueError(msg)
+            if validated_ip is None:
+                validated_ip = str(resolved_ip)
+        if not validated_ip:
+            raise ValueError(f"No IP addresses resolved for hostname: {hostname}")
+        return validated_ip
+    except socket.gaierror as exc:
+        raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
+
+
+_DNS_SEMAPHORE = asyncio.Semaphore(10)
+_DEFAULT_DNS_TIMEOUT_SECONDS = 5.0
+
+
+class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
+    """Async HTTP transport enforcing DNS destination validation at request connection time."""
+
+    def __init__(self, *args: Any, dns_timeout: float = _DEFAULT_DNS_TIMEOUT_SECONDS, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.dns_timeout = dns_timeout
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        """Validate destination hostname via worker thread before dispatching HTTP request."""
+        hostname = request.url.host
+        if hostname:
+            # Honor the narrowly scoped loopback exception permitted by _validate_base_url
+            # (HTTP scheme to localhost, 127.0.0.1, or ::1)
+            is_http_loopback = request.url.scheme.lower() == "http" and hostname.lower() in {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+            }
+            if not is_http_loopback:
+                loop = asyncio.get_running_loop()
+                await _DNS_SEMAPHORE.acquire()
+                fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
+                fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
+                try:
+                    validated_ip = await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
+                except (asyncio.TimeoutError, TimeoutError) as exc:
+                    raise SigmaAPIError(
+                        400,
+                        request.url.path,
+                        request.method,
+                        detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
+                    ) from exc
+                except ValueError as exc:
+                    raise SigmaAPIError(
+                        400,
+                        request.url.path,
+                        request.method,
+                        detail=f"SSRF validation blocked request to {hostname}: {exc}",
+                    ) from exc
+
+                # Bind connection to validated IP to defend against DNS rebinding (TOCTOU)
+                # Preserve original hostname for Host header and TLS SNI
+                request.headers.setdefault("Host", hostname)
+                request.extensions["sni_hostname"] = hostname
+                request.url = request.url.copy_with(host=validated_ip)
+        return await super().handle_async_request(request)
+
+
+def extract_dict(container: Any, key: str | None = None) -> dict[str, Any]:
+    """Defensively extract a dictionary, guarding against polymorphic null values."""
+    if key is not None:
+        target = container.get(key) if isinstance(container, dict) else None
+    else:
+        target = container
+    return target if isinstance(target, dict) else {}
+
+
+def extract_list(container: Any, key: str | None = None) -> list[Any]:
+    """Defensively extract a list, guarding against polymorphic null values."""
+    if key is not None:
+        target = container.get(key) if isinstance(container, dict) else None
+    else:
+        target = container
+    return target if isinstance(target, list) else []
+
+
+safe_dict = extract_dict
+safe_list = extract_list
+
+
+def validate_candidate(candidate: Any, required_fields: list[str]) -> bool:
+    """Enforce candidate completeness validation before breaking iteration loops."""
+    if not isinstance(candidate, dict):
+        return False
+    return all(candidate.get(f) is not None and candidate.get(f) != "" for f in required_fields)
+
+
+def is_terminal_status(detail: Any, state: str | None = None) -> bool:
+    """Apply boundary-aware status checks over naive substring matching."""
+    if state and state.strip().lower() in ("pre", "in", "running", "pending", "queued", "starting"):
+        return False
+    det = detail.strip().lower() if isinstance(detail, str) else ""
+    return det in (
+        "final",
+        "f",
+        "completed",
+        "success",
+        "failed",
+        "error",
+        "canceled",
+        "postponed",
+        "done",
+    ) or det.startswith(("final/", "final -", "final:", "completed/", "failed:"))
+
+
+def normalize_refs_and_prune(data: Any, prune_keys: set[str] | None = None) -> Any:
+    """Normalize $ref URI graphs to {id} structures and prune redundant media/link payloads."""
+    keys_to_prune = prune_keys or {"logos", "links", "headshot", "broadcasts", "guid", "uid"}
+    if isinstance(data, dict):
+        if "$ref" in data and isinstance(data["$ref"], str):
+            ref_str = data["$ref"].rstrip("/")
+            ref_id = ref_str.split("/")[-1]
+            return {"id": ref_id}
+        return {k: normalize_refs_and_prune(v, keys_to_prune) for k, v in data.items() if k not in keys_to_prune}
+    if isinstance(data, list):
+        return [normalize_refs_and_prune(item, keys_to_prune) for item in data]
+    return data
+
+
+def safe_int_or_zero(val: Any) -> int | None:
+    """Preserve integer 0 against falsy coercion and safely coerce numeric strings."""
+    if val is None:
+        return None
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str) and val.isdecimal():
+        return int(val)
+    return None
+
+
 class SigmaClient:
+    extract_dict = staticmethod(extract_dict)
+    extract_list = staticmethod(extract_list)
+    safe_dict = staticmethod(extract_dict)
+    safe_list = staticmethod(extract_list)
+
     def __init__(
         self,
         client_id: str,
@@ -65,7 +277,7 @@ class SigmaClient:
     ):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.base_url = base_url.rstrip("/")
+        self.base_url = _validate_base_url(base_url, check_dns=False)
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_retry_delay = max_retry_delay
@@ -75,7 +287,14 @@ class SigmaClient:
         # tenant-scoped clients share the parent's connection pool without
         # creating (and leaking) a second one.
         self._owns_http = http_client is None
-        self._http = http_client if http_client is not None else httpx.AsyncClient(timeout=60.0)
+        if http_client is not None:
+            self._http = http_client
+        else:
+            transport = SSRFSafeAsyncTransport(
+                verify=True,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+            self._http = httpx.AsyncClient(timeout=60.0, transport=transport)
         self._tenant_cache: dict[str, tuple[str, float]] = {}
         # Tenant-scoped clients record their org and parent for token refresh.
         self._tenant_org_id: str | None = None
@@ -254,16 +473,20 @@ class SigmaClient:
         params: dict[str, Any] | None = None,
         json_data: JSONValue = None,
         allow_statuses: frozenset[int] | None = None,
+        max_bytes: int | None = None,
     ) -> Response:
         """Execute an HTTP request with exponential backoff on 429 responses.
 
         *allow_statuses* — additional non-error status codes (beyond 2xx) that
         should be returned without raising.  For example ``frozenset({204})``
         lets callers treat 204 as success.
+        *max_bytes* — when provided, stream the response in chunks and abort early
+        once the cumulative payload exceeds ``max_bytes``, guarding against memory
+        exhaustion from oversized responses.
         """
 
         def _encode_segment(seg: str) -> str:
-            if seg in ("", "v2", "v2.1"):
+            if seg in ("", "v2", "v2.1", "v3alpha"):
                 return seg
             resource, sep, custom_method = seg.partition(":")
             encoded = quote(resource, safe="").replace("..", "%2E%2E")
@@ -273,16 +496,40 @@ class SigmaClient:
         safe_path = "/".join(safe_segments)
         url = f"{self.base_url}{safe_path}"
         for attempt in range(self.max_retries + 1):
-            r = await self._http.request(
-                method, url, headers=await self._headers(), params=params, json=json_data, timeout=60.0
-            )
+            req: httpx.Request | None = None
+            if max_bytes is not None:
+                req = httpx.Request(method, url, headers=await self._headers(), params=params, json=json_data)
+                r = await self._http.send(req, stream=True)
+            else:
+                r = await self._http.request(
+                    method, url, headers=await self._headers(), params=params, json=json_data, timeout=60.0
+                )
             if r.status_code != 429:
                 if r.status_code >= 400 and not (allow_statuses and r.status_code in allow_statuses):
                     detail = None
                     try:
-                        detail = r.json()
+                        if max_bytes is not None:
+                            err_chunks: list[bytes] = []
+                            err_total = 0
+                            err_cap = min(max_bytes, 65_536)
+                            async for chunk in r.aiter_bytes():
+                                err_chunks.append(chunk)
+                                err_total += len(chunk)
+                                if err_total >= err_cap:
+                                    break
+                            err_content = b"".join(err_chunks)[:err_cap]
+                            try:
+                                detail = json.loads(err_content.decode("utf-8"))
+                            except Exception:
+                                detail = err_content.decode("utf-8", errors="replace")[:500] if err_content else None
+                        else:
+                            detail = r.json()
                     except Exception:
-                        detail = r.text[:500] if r.text else None
+                        if max_bytes is None:
+                            detail = r.text[:500] if r.text else None
+                    finally:
+                        if max_bytes is not None:
+                            await r.aclose()
                     request_id = r.headers.get("x-request-id")
                     raise SigmaAPIError(
                         status_code=r.status_code,
@@ -291,7 +538,26 @@ class SigmaClient:
                         detail=detail,
                         request_id=request_id,
                     )
+                if max_bytes is not None:
+                    chunks: list[bytes] = []
+                    total = 0
+                    try:
+                        async for chunk in r.aiter_bytes():
+                            chunks.append(chunk)
+                            total += len(chunk)
+                            if total > max_bytes:
+                                break
+                    finally:
+                        await r.aclose()
+                    return Response(
+                        status_code=r.status_code,
+                        headers=r.headers,
+                        content=b"".join(chunks),
+                        request=req,
+                    )
                 return r
+            if max_bytes is not None:
+                await r.aclose()
             if attempt == self.max_retries:
                 raise SigmaAPIError(
                     status_code=429,
@@ -447,6 +713,12 @@ class SigmaClient:
 
     async def duplicate_workbook(self, workbook_id: str, body: dict[str, Any] | None = None) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/copy", body or {})
+
+    async def update_workbook_contents(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.put(f"/v2/workbooks/{workbook_id}/contents", body)
+
+    async def verify_workbook_spec(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/workbooks/spec/verify", body)
 
     async def delete_file(self, inode_id: str) -> int:
         return await self.delete(f"/v2/files/{inode_id}")
@@ -696,8 +968,14 @@ class SigmaClient:
         return await self.patch(f"/v2/files/{inode_id}", body)
 
     # ─── Tags ──────────────────────────────────────────────────────────────
-    async def list_tags(self) -> JSONValue:
-        return await self.get("/v2/tags")
+    async def list_tags(self, page: str | None = None, limit: int | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if page:
+            params["page"] = page
+        r = await self._request("GET", "/v2/tags", params=params if params else None)
+        return self._parse_json_body(r)
 
     async def create_tag(self, body: dict[str, Any]) -> JSONValue:
         return await self.post("/v2/tags", body)
@@ -774,8 +1052,12 @@ class SigmaClient:
         return await self.delete(f"/v2/accountTypes/{account_type_id}")
 
     # ─── Workspaces ────────────────────────────────────────────────────────
-    async def list_workspaces(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/workspaces", {"limit": limit})
+    async def list_workspaces(self, limit: int = 200, page: str | None = None) -> JSONValue:
+        params: dict[str, Any] = {"limit": limit}
+        if page:
+            params["page"] = page
+        r = await self._request("GET", "/v2/workspaces", params=params)
+        return self._parse_json_body(r)
 
     async def get_workspace(self, workspace_id: str) -> JSONValue:
         return await self.get(f"/v2/workspaces/{workspace_id}")
@@ -789,8 +1071,16 @@ class SigmaClient:
     async def delete_workspace(self, workspace_id: str) -> int:
         return await self.delete(f"/v2/workspaces/{workspace_id}")
 
-    async def list_workspace_grants(self, workspace_id: str) -> JSONValue:
-        return await self.get(f"/v2/workspaces/{workspace_id}/grants")
+    async def list_workspace_grants(
+        self, workspace_id: str, page: str | None = None, limit: int | None = None
+    ) -> JSONValue:
+        params: dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if page:
+            params["page"] = page
+        r = await self._request("GET", f"/v2/workspaces/{workspace_id}/grants", params=params if params else None)
+        return self._parse_json_body(r)
 
     async def grant_workspace_access(self, workspace_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workspaces/{workspace_id}/grants", body)
@@ -836,6 +1126,12 @@ class SigmaClient:
 
     async def duplicate_report(self, report_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/reports/{report_id}/copy", body)
+
+    async def update_report_contents(self, report_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.put(f"/v2/reports/{report_id}/contents", body)
+
+    async def verify_report_spec(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/reports/spec/verify", body)
 
     async def duplicate_tagged_report(
         self, report_id: str, tag_name: str, body: dict[str, Any] | None = None
@@ -1124,9 +1420,103 @@ class SigmaClient:
         return await self.auto_paginate("/v2/dataModels")
 
     # ─── Query/Download (raw response for polling) ────────────────────────
-    async def download_query_raw(self, query_id: str) -> Response:
+    async def download_query_raw(self, query_id: str, *, max_bytes: int | None = None) -> Response:
         """GET /v2/query/{queryId}/download returning the raw Response (for 204 vs 200 checking)."""
-        return await self._request("GET", f"/v2/query/{query_id}/download", allow_statuses=frozenset({204}))
+        return await self._request(
+            "GET", f"/v2/query/{query_id}/download", allow_statuses=frozenset({204}), max_bytes=max_bytes
+        )
+
+    async def download_query_export(self, query_id: str, max_bytes: int = 10_000_000) -> dict[str, Any]:
+        """Download an exported query file or report export status with payload size bounding."""
+        r = await self.download_query_raw(query_id, max_bytes=max_bytes)
+        if r.status_code == 204:
+            return {
+                "status": "processing",
+                "queryId": query_id,
+                "message": "The export is still processing. Retry the request once it completes.",
+            }
+
+        content_type = r.headers.get("content-type", "")
+        content = r.content
+        total_size = len(content)
+        content_len_hdr = r.headers.get("content-length")
+        if content_len_hdr and content_len_hdr.isdigit():
+            reported_len = int(content_len_hdr)
+            if reported_len > total_size:
+                total_size = reported_len
+
+        if total_size > max_bytes:
+            return {
+                "status": "ready",
+                "contentType": content_type,
+                "sizeBytes": total_size,
+                "error": f"Export size exceeds maximum allowed bytes ({total_size} > {max_bytes}).",
+            }
+
+        if "application/json" in content_type:
+            try:
+                data = json.loads(content.decode("utf-8"))
+                return {"status": "ready", "contentType": content_type, "data": data}
+            except Exception:
+                pass
+        if "text/" in content_type or "csv" in content_type:
+            return {
+                "status": "ready",
+                "contentType": content_type,
+                "content": content.decode("utf-8", errors="replace"),
+            }
+        return {
+            "status": "ready",
+            "contentType": content_type,
+            "sizeBytes": total_size,
+            "dataBase64": base64.b64encode(content).decode("ascii"),
+        }
+
+    # ─── Workbook Agents ──────────────────────────────────────────────────
+    async def list_workbook_agents(self, workbook_id: str, version_tag_name: str | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if version_tag_name:
+            params["versionTagName"] = version_tag_name
+        return await self.get(f"/v2/workbooks/{workbook_id}/agents", params=params or None)
+
+    async def run_workbook_agent(self, workbook_id: str, agent_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v2/workbooks/{workbook_id}/agents/{agent_id}", body)
+
+    async def list_org_workbook_agents(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if page_token:
+            params["pageToken"] = page_token
+        if page_size is not None:
+            params["pageSize"] = page_size
+        return await self.get("/v2/workbookAgents", params=params or None)
+
+    # ─── Organization Settings & AI Configuration ──────────────────────────
+    async def configure_org_ai(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/organizations/settings/aiConfigs", body)
+
+    async def get_org_setting(self, setting_name: str) -> JSONValue:
+        return await self.get(f"/v2/organizations/settings/{setting_name}")
+
+    async def update_org_setting(self, setting_name: str, body: dict[str, Any]) -> JSONValue:
+        return await self.patch(f"/v2/organizations/settings/{setting_name}", body)
+
+    async def reset_org_email_branding(self) -> int:
+        return await self.delete("/v2/organizations/settings/emailBranding")
+
+    # ─── IP Allowlist (v3alpha) ────────────────────────────────────────────
+    async def list_allowed_ips(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if page_token:
+            params["pageToken"] = page_token
+        if page_size is not None:
+            params["pageSize"] = page_size
+        return await self.get("/v3alpha/allowedIps", params=params or None)
+
+    async def batch_create_allowed_ips(self, entries: list[dict[str, Any]]) -> JSONValue:
+        return await self.post("/v3alpha/allowedIps:batchCreate", {"entries": entries})
+
+    async def batch_delete_allowed_ips(self, entry_ids: list[str]) -> JSONValue:
+        return await self.post("/v3alpha/allowedIps:batchDelete", {"ipAllowlistEntryIds": entry_ids})
 
     # ─── Member search ────────────────────────────────────────────────────
     async def search_members(self, search: str, limit: int = 120) -> JSONValue:

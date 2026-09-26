@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=2.2.0",
-    "fastmcp>=4.0.5",
+    "fastmcp>=4.0.10",
     "httpx>=0.28.1",
     "pyjwt>=2.8.0",
     "pydantic>=2.13.5",
@@ -88,3 +88,4 @@ select = ["E", "F", "I", "UP"]
 # server.py holds long tool descriptions and capability strings; splitting
 # these literals would hurt readability without improving the code.
 "src/sigma_mcp/server.py" = ["E501"]
+"src/sigma_mcp/tools/*" = ["E501"]

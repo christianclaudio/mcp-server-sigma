@@ -19,13 +19,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 
 # Expected registered-tool counts per configuration.
-EXPECTED_DEFAULT = 155
-EXPECTED_WITH_BULK = 157
-EXPECTED_READONLY = 83
+EXPECTED_DEFAULT = 170
+EXPECTED_WITH_BULK = 172
+EXPECTED_READONLY = 90
 
 # Expected annotation split at default registration.
-EXPECTED_READ_ONLY = 83
-EXPECTED_DESTRUCTIVE = 16
+EXPECTED_READ_ONLY = 90
+EXPECTED_DESTRUCTIVE = 18
 EXPECTED_IDEMPOTENT = 8
 
 PROBE = """
@@ -128,26 +128,27 @@ def main() -> int:
     check("unannotated tools", base["unannotated"], 0)
     check(
         "bulk_deactivate absent by default",
-        "sigma_bulk_deactivate_members" in base["names"],
+        ("sigma_bulk_deactivate_members" in base["names"] or "admin_bulk_deactivate_members" in base["names"]),
         False,
     )
     check(
         "bulk_remove_team absent by default",
-        "sigma_bulk_remove_team_members" in base["names"],
+        ("sigma_bulk_remove_team_members" in base["names"] or "admin_bulk_remove_team_members" in base["names"]),
         False,
     )
 
     print("\nSIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1:")
     bulk = probe(SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE="1")
     check("total tools", bulk["total"], EXPECTED_WITH_BULK)
+    check("bulk destructive annotations", bulk["destructive"], 20)
     check(
         "bulk_deactivate present with opt-in",
-        "sigma_bulk_deactivate_members" in bulk["names"],
+        ("sigma_bulk_deactivate_members" in bulk["names"] or "admin_bulk_deactivate_members" in bulk["names"]),
         True,
     )
     check(
         "bulk_remove_team present with opt-in",
-        "sigma_bulk_remove_team_members" in bulk["names"],
+        ("sigma_bulk_remove_team_members" in bulk["names"] or "admin_bulk_remove_team_members" in bulk["names"]),
         True,
     )
 
@@ -157,7 +158,7 @@ def main() -> int:
     check("every tool is read-only", ro["all_read_only"], True)
     check(
         "bulk_remove_team absent from readonly",
-        "sigma_bulk_remove_team_members" in ro["names"],
+        ("sigma_bulk_remove_team_members" in ro["names"] or "admin_bulk_remove_team_members" in ro["names"]),
         False,
     )
 
@@ -166,12 +167,15 @@ def main() -> int:
     check("combined: every tool is read-only", combined["all_read_only"], True)
     check(
         "combined: bulk_deactivate absent",
-        "sigma_bulk_deactivate_members" in combined["names"],
+        ("sigma_bulk_deactivate_members" in combined["names"] or "admin_bulk_deactivate_members" in combined["names"]),
         False,
     )
     check(
         "combined: bulk_remove_team absent",
-        "sigma_bulk_remove_team_members" in combined["names"],
+        (
+            "sigma_bulk_remove_team_members" in combined["names"]
+            or "admin_bulk_remove_team_members" in combined["names"]
+        ),
         False,
     )
 

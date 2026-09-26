@@ -460,11 +460,11 @@ def test_annotation_counts_match_readme():
     open_world = sum(1 for t in tools if t.annotations.open_world_hint)
 
     # Default: 2 bulk-destructive tools are gated out
-    assert len(tools) == 155, f"tool count changed: {len(tools)} (expected 155 without bulk-destructive)"
-    assert ro == 83, f"read-only count changed: {ro}"
-    assert destructive == 16, f"destructive count changed: {destructive}"
+    assert len(tools) == 170, f"tool count changed: {len(tools)} (expected 170 without bulk-destructive)"
+    assert ro == 90, f"read-only count changed: {ro}"
+    assert destructive == 18, f"destructive count changed: {destructive}"
     assert idempotent == 8, f"idempotent count changed: {idempotent}"
-    assert open_world == 155, f"open_world count changed: {open_world}"
+    assert open_world == 170, f"open_world count changed: {open_world}"
 
 
 def test_destructive_tools_are_not_marked_read_only():
@@ -476,3 +476,37 @@ def test_destructive_tools_are_not_marked_read_only():
     for t in asyncio.run(mcp.list_tools()):
         if t.annotations.destructive_hint:
             assert not t.annotations.read_only_hint, f"{t.name} is both destructive and read-only"
+
+
+def test_new_parity_operations_unit():
+    """Unit test for new parity operations covering confirmation failures and validation."""
+    import asyncio
+
+    from sigma_mcp.tools import (
+        sigma_add_allowed_ips,
+        sigma_configure_org_ai,
+        sigma_download_query_export,
+        sigma_remove_allowed_ips,
+        sigma_reset_org_email_branding,
+        sigma_run_workbook_agent,
+        sigma_update_org_setting,
+        sigma_update_report_contents,
+        sigma_update_workbook_contents,
+        sigma_verify_report_spec,
+        sigma_verify_workbook_spec,
+    )
+
+    async def _run():
+        assert "confirm=True" in await sigma_update_workbook_contents("wb-1", {}, document_version=1, confirm=False)
+        assert "confirm=True" in await sigma_update_report_contents("rep-1", {}, document_version=1, confirm=False)
+        assert "name is required" in await sigma_verify_workbook_spec("", "f-1", {})
+        assert "name is required" in await sigma_verify_report_spec("", "f-1", {})
+        assert "confirm=True" in await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=False)
+        assert "query_id is required" in await sigma_download_query_export("")
+        assert "confirm=True" in await sigma_update_org_setting("timezone", {}, confirm=False)
+        assert "confirm=True" in await sigma_configure_org_ai({}, confirm=False)
+        assert "confirm=True" in await sigma_reset_org_email_branding(confirm=False)
+        assert "confirm=True" in await sigma_add_allowed_ips([], confirm=False)
+        assert "confirm=True" in await sigma_remove_allowed_ips([], confirm=False)
+
+    asyncio.run(_run())
