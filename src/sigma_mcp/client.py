@@ -128,22 +128,49 @@ def _validate_hostname_dns(hostname: str) -> None:
         raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
 
 
+_DNS_SEMAPHORE = asyncio.Semaphore(10)
+_DEFAULT_DNS_TIMEOUT_SECONDS = 5.0
+
+
 class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
     """Async HTTP transport enforcing DNS destination validation at request connection time."""
+
+    def __init__(self, *args: Any, dns_timeout: float = _DEFAULT_DNS_TIMEOUT_SECONDS, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.dns_timeout = dns_timeout
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         """Validate destination hostname via worker thread before dispatching HTTP request."""
         hostname = request.url.host
         if hostname:
-            try:
-                await asyncio.to_thread(_validate_hostname_dns, hostname)
-            except ValueError as exc:
-                raise SigmaAPIError(
-                    400,
-                    request.url.path,
-                    request.method,
-                    detail=f"SSRF validation blocked request to {hostname}: {exc}",
-                ) from exc
+            # Honor the narrowly scoped loopback exception permitted by _validate_base_url
+            # (HTTP scheme to localhost, 127.0.0.1, or ::1)
+            is_http_loopback = request.url.scheme.lower() == "http" and hostname.lower() in {
+                "localhost",
+                "127.0.0.1",
+                "::1",
+            }
+            if not is_http_loopback:
+                loop = asyncio.get_running_loop()
+                await _DNS_SEMAPHORE.acquire()
+                fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
+                fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
+                try:
+                    await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
+                except TimeoutError as exc:
+                    raise SigmaAPIError(
+                        400,
+                        request.url.path,
+                        request.method,
+                        detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
+                    ) from exc
+                except ValueError as exc:
+                    raise SigmaAPIError(
+                        400,
+                        request.url.path,
+                        request.method,
+                        detail=f"SSRF validation blocked request to {hostname}: {exc}",
+                    ) from exc
         return await super().handle_async_request(request)
 
 

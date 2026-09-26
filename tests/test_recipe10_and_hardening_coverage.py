@@ -331,6 +331,34 @@ async def test_ssrf_safe_async_transport() -> None:
         await transport.handle_async_request(req_bad)
     assert "SSRF validation blocked request" in (exc_info.value.detail or "")
 
+    # Loopback case (http://localhost permitted)
+    req_loopback = httpx.Request("GET", "http://localhost:8000/api/test")
+    with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
+        mock_super.return_value = httpx.Response(200, request=req_loopback)
+        resp = await transport.handle_async_request(req_loopback)
+        assert resp.status_code == 200
+
+    # Loopback case (http://127.0.0.1 permitted)
+    req_loopback_ip = httpx.Request("GET", "http://127.0.0.1:8000/api/test")
+    with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
+        mock_super.return_value = httpx.Response(200, request=req_loopback_ip)
+        resp = await transport.handle_async_request(req_loopback_ip)
+        assert resp.status_code == 200
+
+    # DNS timeout case
+    req_timeout = httpx.Request("GET", "https://slow-dns.example.com/api/test")
+    fast_timeout_transport = SSRFSafeAsyncTransport(dns_timeout=0.001)
+
+    def _stalled_dns(h: str) -> None:
+        import time
+
+        time.sleep(0.05)
+
+    with patch("sigma_mcp.client._validate_hostname_dns", side_effect=_stalled_dns):
+        with pytest.raises(SigmaAPIError) as exc_timeout:
+            await fast_timeout_transport.handle_async_request(req_timeout)
+        assert "DNS resolution timed out" in (exc_timeout.value.detail or "")
+
 
 @pytest.mark.asyncio
 async def test_ssrf_transport_dns_runs_off_event_loop() -> None:
