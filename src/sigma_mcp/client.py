@@ -15,9 +15,11 @@ Gotchas discovered through production use:
 from __future__ import annotations
 
 import asyncio
+import base64
 import datetime
 import email.utils
 import ipaddress
+import json
 import os
 import random
 import socket
@@ -449,7 +451,7 @@ class SigmaClient:
         """
 
         def _encode_segment(seg: str) -> str:
-            if seg in ("", "v2", "v2.1"):
+            if seg in ("", "v2", "v2.1", "v3alpha"):
                 return seg
             resource, sep, custom_method = seg.partition(":")
             encoded = quote(resource, safe="").replace("..", "%2E%2E")
@@ -633,6 +635,12 @@ class SigmaClient:
 
     async def duplicate_workbook(self, workbook_id: str, body: dict[str, Any] | None = None) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/copy", body or {})
+
+    async def update_workbook_contents(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.put(f"/v2/workbooks/{workbook_id}/contents", body)
+
+    async def verify_workbook_spec(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/workbooks/spec/verify", body)
 
     async def delete_file(self, inode_id: str) -> int:
         return await self.delete(f"/v2/files/{inode_id}")
@@ -1041,6 +1049,12 @@ class SigmaClient:
     async def duplicate_report(self, report_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/reports/{report_id}/copy", body)
 
+    async def update_report_contents(self, report_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.put(f"/v2/reports/{report_id}/contents", body)
+
+    async def verify_report_spec(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/reports/spec/verify", body)
+
     async def duplicate_tagged_report(
         self, report_id: str, tag_name: str, body: dict[str, Any] | None = None
     ) -> JSONValue:
@@ -1331,6 +1345,92 @@ class SigmaClient:
     async def download_query_raw(self, query_id: str) -> Response:
         """GET /v2/query/{queryId}/download returning the raw Response (for 204 vs 200 checking)."""
         return await self._request("GET", f"/v2/query/{query_id}/download", allow_statuses=frozenset({204}))
+
+    async def download_query_export(self, query_id: str, max_bytes: int = 10_000_000) -> dict[str, Any]:
+        """Download an exported query file or report export status with payload size bounding."""
+        r = await self.download_query_raw(query_id)
+        if r.status_code == 204:
+            return {
+                "status": "processing",
+                "queryId": query_id,
+                "message": "The export is still processing. Retry the request once it completes.",
+            }
+
+        content_type = r.headers.get("content-type", "")
+        content = r.content
+        total_size = len(content)
+        if total_size > max_bytes:
+            return {
+                "status": "ready",
+                "contentType": content_type,
+                "sizeBytes": total_size,
+                "error": f"Export size exceeds maximum allowed bytes ({total_size} > {max_bytes}).",
+            }
+
+        if "application/json" in content_type:
+            try:
+                data = json.loads(content.decode("utf-8"))
+                return {"status": "ready", "contentType": content_type, "data": data}
+            except Exception:
+                pass
+        if "text/" in content_type or "csv" in content_type:
+            return {
+                "status": "ready",
+                "contentType": content_type,
+                "content": content.decode("utf-8", errors="replace"),
+            }
+        return {
+            "status": "ready",
+            "contentType": content_type,
+            "sizeBytes": total_size,
+            "dataBase64": base64.b64encode(content).decode("ascii"),
+        }
+
+    # ─── Workbook Agents ──────────────────────────────────────────────────
+    async def list_workbook_agents(self, workbook_id: str, version_tag_name: str | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if version_tag_name:
+            params["versionTagName"] = version_tag_name
+        return await self.get(f"/v2/workbooks/{workbook_id}/agents", params=params or None)
+
+    async def run_workbook_agent(self, workbook_id: str, agent_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v2/workbooks/{workbook_id}/agents/{agent_id}", body)
+
+    async def list_org_workbook_agents(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if page_token:
+            params["pageToken"] = page_token
+        if page_size is not None:
+            params["pageSize"] = page_size
+        return await self.get("/v2/workbookAgents", params=params or None)
+
+    # ─── Organization Settings & AI Configuration ──────────────────────────
+    async def configure_org_ai(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/organizations/settings/aiConfigs", body)
+
+    async def get_org_setting(self, setting_name: str) -> JSONValue:
+        return await self.get(f"/v2/organizations/settings/{setting_name}")
+
+    async def update_org_setting(self, setting_name: str, body: dict[str, Any]) -> JSONValue:
+        return await self.patch(f"/v2/organizations/settings/{setting_name}", body)
+
+    async def reset_org_email_branding(self) -> int:
+        return await self.delete("/v2/organizations/settings/emailBranding")
+
+    # ─── IP Allowlist (v3alpha) ────────────────────────────────────────────
+    async def list_allowed_ips(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        params: dict[str, Any] = {}
+        if page_token:
+            params["pageToken"] = page_token
+        if page_size is not None:
+            params["pageSize"] = page_size
+        return await self.get("/v3alpha/allowedIps", params=params or None)
+
+    async def batch_create_allowed_ips(self, entries: list[dict[str, Any]]) -> JSONValue:
+        return await self.post("/v3alpha/allowedIps:batchCreate", {"entries": entries})
+
+    async def batch_delete_allowed_ips(self, entry_ids: list[str]) -> JSONValue:
+        return await self.post("/v3alpha/allowedIps:batchDelete", {"ipAllowlistEntryIds": entry_ids})
 
     # ─── Member search ────────────────────────────────────────────────────
     async def search_members(self, search: str, limit: int = 120) -> JSONValue:

@@ -4,3 +4,5 @@
 # Format: METHOD /path/with/{}/placeholders  # justification
 
 PATCH /v2/user-attributes/{}  # Works in production for updating attribute name/defaultValue; spec only documents sub-resource PATCH endpoints but the parent resource PATCH is functional and needed for basic attribute updates
+GET /v2/organizations/settings/{}  # Parametrized endpoint for org settings (e.g. aiChatHistory, auditLogging, bulkCopy, comments, csvUpload, emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone); spec documents each sub-resource setting individually
+PATCH /v2/organizations/settings/{}  # Parametrized endpoint for updating org settings; spec documents each sub-resource setting individually

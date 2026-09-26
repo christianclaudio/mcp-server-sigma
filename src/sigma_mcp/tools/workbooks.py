@@ -894,3 +894,205 @@ async def sigma_list_all_reports() -> str:
 
 
 list_all_reports = sigma_list_all_reports
+
+
+@workbooks_server.tool(
+    name="sigma_update_workbook_contents", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_update_workbook_contents(
+    workbook_id: str,
+    contents: dict[str, Any],
+    document_version: int,
+    confirm: bool = False,
+) -> str:
+    """Update a workbook from a code representation (JSON document specification).
+
+    Mutating operation. Requires confirm=True and document_version integer to guard
+    against concurrent overwrites.
+    """
+    if not confirm:
+        return _invalid_request("Must specify confirm=True to update workbook contents")
+    if not workbook_id or not workbook_id.strip():
+        return _invalid_request("workbook_id is required")
+    if document_version is None or document_version <= 0:
+        return _invalid_request("document_version must be a positive integer to guard against concurrent overwrites")
+    c = await get_client()
+    body: dict[str, Any] = {"contents": contents, "documentVersion": document_version}
+    result = await c.update_workbook_contents(workbook_id, body)
+    return json.dumps(result, indent=2)
+
+
+update_workbook_contents = sigma_update_workbook_contents
+
+
+@workbooks_server.tool(
+    name="sigma_verify_workbook_spec", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_verify_workbook_spec(
+    name: str,
+    folder_id: str,
+    document: dict[str, Any],
+    description: str | None = None,
+) -> str:
+    """Verify a workbook code representation specification without saving.
+
+    Validates schema structure, syntax, and element layout.
+    """
+    if not name or not name.strip():
+        return _invalid_request("name is required")
+    if not folder_id or not folder_id.strip():
+        return _invalid_request("folder_id is required")
+    c = await get_client()
+    body: dict[str, Any] = {"name": name, "folderId": folder_id, "document": document}
+    if description is not None:
+        body["description"] = description
+    result = await c.verify_workbook_spec(body)
+    return json.dumps(result, indent=2)
+
+
+verify_workbook_spec = sigma_verify_workbook_spec
+
+
+@workbooks_server.tool(
+    name="sigma_update_report_contents", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_update_report_contents(
+    report_id: str,
+    contents: dict[str, Any],
+    document_version: int,
+    confirm: bool = False,
+) -> str:
+    """Update a report from a code representation (JSON document specification).
+
+    Mutating operation. Requires confirm=True and document_version integer to guard
+    against concurrent overwrites.
+    """
+    if not confirm:
+        return _invalid_request("Must specify confirm=True to update report contents")
+    if not report_id or not report_id.strip():
+        return _invalid_request("report_id is required")
+    if document_version is None or document_version <= 0:
+        return _invalid_request("document_version must be a positive integer to guard against concurrent overwrites")
+    c = await get_client()
+    body: dict[str, Any] = {"contents": contents, "documentVersion": document_version}
+    result = await c.update_report_contents(report_id, body)
+    return json.dumps(result, indent=2)
+
+
+update_report_contents = sigma_update_report_contents
+
+
+@workbooks_server.tool(
+    name="sigma_verify_report_spec", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_verify_report_spec(
+    name: str,
+    folder_id: str,
+    document: dict[str, Any],
+    description: str | None = None,
+) -> str:
+    """Verify a report code representation specification without saving."""
+    if not name or not name.strip():
+        return _invalid_request("name is required")
+    if not folder_id or not folder_id.strip():
+        return _invalid_request("folder_id is required")
+    c = await get_client()
+    body: dict[str, Any] = {"name": name, "folderId": folder_id, "document": document}
+    if description is not None:
+        body["description"] = description
+    result = await c.verify_report_spec(body)
+    return json.dumps(result, indent=2)
+
+
+verify_report_spec = sigma_verify_report_spec
+
+
+@workbooks_server.tool(
+    name="sigma_download_query_export", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_download_query_export(query_id: str, max_bytes: int = 10_000_000) -> str:
+    """Download an exported query result file by queryId.
+
+    Returns the file content (JSON or text/CSV) or base64 binary (PDF, XLSX, PNG),
+    or reports 'processing' if the query has not finished executing.
+    max_bytes: Maximum allowed payload size in bytes (default 10 MB).
+    """
+    if not query_id or not query_id.strip():
+        return _invalid_request("query_id is required")
+    if max_bytes <= 0:
+        return _invalid_request("max_bytes must be a positive integer")
+    c = await get_client()
+    result = await c.download_query_export(query_id, max_bytes=max_bytes)
+    return json.dumps(result, indent=2)
+
+
+download_query_export = sigma_download_query_export
+
+
+@workbooks_server.tool(
+    name="sigma_list_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_list_workbook_agents(workbook_id: str, version_tag_name: str | None = None) -> str:
+    """List AI agents defined in a specific workbook (optionally filtering by version tag)."""
+    if not workbook_id or not workbook_id.strip():
+        return _invalid_request("workbook_id is required")
+    c = await get_client()
+    result = await c.list_workbook_agents(workbook_id, version_tag_name)
+    return json.dumps(result, indent=2)
+
+
+list_workbook_agents = sigma_list_workbook_agents
+
+
+@workbooks_server.tool(
+    name="sigma_run_workbook_agent", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_run_workbook_agent(
+    workbook_id: str,
+    agent_id: str,
+    messages: list[dict[str, Any]],
+    version_tag_name: str | None = None,
+    max_turns: int | None = None,
+    max_output_tokens: int | None = None,
+    response_format: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+    confirm: bool = False,
+) -> str:
+    """Run an in-workbook AI agent with conversation messages.
+
+    Mutating / execution operation. Consumes LLM tokens. Requires confirm=True.
+    messages: List of conversation turns (role: 'user', 'assistant', 'system', 'tool' with content).
+    version_tag_name: Target published version tag (defaults to latest published version).
+    """
+    if not confirm:
+        return _invalid_request("Must specify confirm=True to run workbook agent")
+    if not workbook_id or not workbook_id.strip():
+        return _invalid_request("workbook_id is required")
+    if not agent_id or not agent_id.strip():
+        return _invalid_request("agent_id is required")
+    if not messages:
+        return _invalid_request("messages list is required and cannot be empty")
+    c = await get_client()
+    body: dict[str, Any] = {"messages": messages}
+    if version_tag_name:
+        body["sigma:versionTagName"] = version_tag_name
+    if max_turns is not None:
+        body["maxTurns"] = max_turns
+    if max_output_tokens is not None:
+        body["maxOutputTokens"] = max_output_tokens
+    if response_format:
+        body["responseFormat"] = response_format
+    if metadata:
+        body["metadata"] = metadata
+    result = await c.run_workbook_agent(workbook_id, agent_id, body)
+    return json.dumps(result, indent=2)
+
+
+run_workbook_agent = sigma_run_workbook_agent

@@ -952,3 +952,171 @@ async def sigma_list_recent_webhooks(limit: int = 20, event_type: str | None = N
 
 
 list_recent_webhooks = sigma_list_recent_webhooks
+
+
+VALID_ORG_SETTINGS = frozenset(
+    {
+        "aiChatHistory",
+        "auditLogging",
+        "bulkCopy",
+        "comments",
+        "csvUpload",
+        "emailBranding",
+        "licenseUpgradeRequests",
+        "publicEmbeds",
+        "sampleConnections",
+        "timezone",
+    }
+)
+
+
+@admin_server.tool(name="sigma_list_org_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_org_workbook_agents(page_token: str | None = None, page_size: int | None = None) -> str:
+    """List all workbook agents across the organization."""
+    c = await get_client()
+    result = await c.list_org_workbook_agents(page_token, page_size)
+    return json.dumps(result, indent=2)
+
+
+list_org_workbook_agents = sigma_list_org_workbook_agents
+
+
+@admin_server.tool(name="sigma_get_org_setting", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_org_setting(setting_name: str) -> str:
+    """Get organization setting value.
+
+    setting_name: One of aiChatHistory, auditLogging, bulkCopy, comments, csvUpload,
+                  emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone.
+    """
+    if not setting_name or not setting_name.strip():
+        return _invalid_request("setting_name is required")
+    if setting_name not in VALID_ORG_SETTINGS:
+        return _invalid_request(
+            f"Invalid setting_name '{setting_name}'. Must be one of: {', '.join(sorted(VALID_ORG_SETTINGS))}"
+        )
+    c = await get_client()
+    result = await c.get_org_setting(setting_name)
+    return json.dumps(result, indent=2)
+
+
+get_org_setting = sigma_get_org_setting
+
+
+@admin_server.tool(name="sigma_update_org_setting", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_org_setting(setting_name: str, setting_value: dict[str, Any], confirm: bool = False) -> str:
+    """Update organization setting value.
+
+    Mutating operation. Requires confirm=True.
+    setting_name: One of aiChatHistory, auditLogging, bulkCopy, comments, csvUpload,
+                  emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone.
+    setting_value: Dict containing setting fields to update.
+    """
+    if not confirm:
+        return _invalid_request("Must specify confirm=True to update organization setting")
+    if not setting_name or not setting_name.strip():
+        return _invalid_request("setting_name is required")
+    if setting_name not in VALID_ORG_SETTINGS:
+        return _invalid_request(
+            f"Invalid setting_name '{setting_name}'. Must be one of: {', '.join(sorted(VALID_ORG_SETTINGS))}"
+        )
+    c = await get_client()
+    result = await c.update_org_setting(setting_name, setting_value)
+    return json.dumps(result, indent=2)
+
+
+update_org_setting = sigma_update_org_setting
+
+
+@admin_server.tool(name="sigma_configure_org_ai", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_configure_org_ai(provider_config: dict[str, Any], confirm: bool = False) -> str:
+    """Configure the organization AI provider and models.
+
+    Mutating operation. Requires confirm=True.
+    provider_config: Provider specification dict (e.g. provider='openAI'/'anthropic'/'gemini'/'snowflake'/'databricks'/'bedrock'/'azureOpenAI').
+    """
+    if not confirm:
+        return _invalid_request("Must specify confirm=True to configure the organization AI provider")
+    if not provider_config:
+        return _invalid_request("provider_config is required")
+    c = await get_client()
+    result = await c.configure_org_ai(provider_config)
+    return json.dumps(result, indent=2)
+
+
+configure_org_ai = sigma_configure_org_ai
+
+
+@admin_server.tool(
+    name="sigma_reset_org_email_branding", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+)
+@sigma_tool
+async def sigma_reset_org_email_branding(confirm: bool = False) -> str:
+    """Reset the organization email branding settings back to defaults.
+
+    Destructive operation. Requires confirm=True.
+    """
+    if not confirm:
+        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+    c = await get_client()
+    status = await c.reset_org_email_branding()
+    return json.dumps({"status": "reset", "statusCode": status}, indent=2)
+
+
+reset_org_email_branding = sigma_reset_org_email_branding
+
+
+@admin_server.tool(name="sigma_list_allowed_ips", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_allowed_ips(page_token: str | None = None, page_size: int | None = None) -> str:
+    """List IP allowlist entries configured for the organization (v3alpha)."""
+    c = await get_client()
+    result = await c.list_allowed_ips(page_token, page_size)
+    return json.dumps(result, indent=2)
+
+
+list_allowed_ips = sigma_list_allowed_ips
+
+
+@admin_server.tool(name="sigma_add_allowed_ips", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_add_allowed_ips(entries: list[dict[str, Any]], confirm: bool = False) -> str:
+    """Create/add IP allowlist entries for the organization (v3alpha).
+
+    Mutating operation. Requires confirm=True.
+    entries: List of dicts, each with 'ip' (IPv4/IPv6 or CIDR), 'scope' ('public-api', 'ui', or 'both'),
+             and optional 'description'.
+    """
+    if not confirm:
+        return _invalid_request("Must specify confirm=True to add IP allowlist entries")
+    if not entries:
+        return _invalid_request("entries list is required and cannot be empty")
+    c = await get_client()
+    result = await c.batch_create_allowed_ips(entries)
+    return json.dumps(result, indent=2)
+
+
+add_allowed_ips = sigma_add_allowed_ips
+
+
+@admin_server.tool(name="sigma_remove_allowed_ips", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_remove_allowed_ips(entry_ids: list[str], confirm: bool = False) -> str:
+    """Delete IP allowlist entries by ID from the organization (v3alpha).
+
+    Destructive operation. Requires confirm=True.
+    entry_ids: List of IP allowlist entry ID strings to delete.
+    """
+    if not confirm:
+        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+    if not entry_ids:
+        return _invalid_request("entry_ids list is required and cannot be empty")
+    c = await get_client()
+    result = await c.batch_delete_allowed_ips(entry_ids)
+    return json.dumps(result, indent=2)
+
+
+remove_allowed_ips = sigma_remove_allowed_ips

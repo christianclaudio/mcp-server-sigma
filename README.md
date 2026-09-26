@@ -8,7 +8,7 @@
 [![CodeRabbit Reviews](https://img.shields.io/coderabbit/prs/github/christianclaudio/mcp-server-sigma?utm_source=oss&utm_medium=github&utm_campaign=christianclaudio%2Fmcp-server-sigma&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 > **Supercharge your AI Agents with native Sigma Computing superpowers!** ⚡  
-> An enterprise-grade Model Context Protocol (MCP) server with **155 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
+> An enterprise-grade Model Context Protocol (MCP) server with **170 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
 
 ---
 
@@ -21,7 +21,7 @@
 > [!WARNING]
 > **Credentials & Safety Notice**  
 > This server uses API credentials scoped to your Sigma organization. Tools can mutate workbooks, users, teams, and data models.  
-> - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` (grants 83 read-only tools).  
+> - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` (grants 90 read-only tools).  
 > - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
 > - Read [SECURITY.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/SECURITY.md) before deploying to production.
 
@@ -265,9 +265,9 @@ Configure behavior using environment variables:
 | `SIGMA_CLIENT_ID` | *Required* | Your Sigma API client ID. |
 | `SIGMA_CLIENT_SECRET` | *Required* | Your Sigma API client secret. |
 | `SIGMA_API_BASE_URL` | *Required* | Region-specific Sigma API host URL. |
-| `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (38 tools), `admin` (54), `embed` (57), `full` (155). |
-| `SIGMA_MCP_READONLY` | `0` | Set `1` to register **only** read-only tools (83 tools). Models cannot alter org state. |
-| `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) (157 total). |
+| `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (38 tools), `admin` (56), `embed` (57), `full` (170). |
+| `SIGMA_MCP_READONLY` | `0` | Set `1` to register **only** read-only tools (90 tools). Models cannot alter org state. |
+| `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) (172 total). |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
@@ -276,12 +276,13 @@ Configure behavior using environment variables:
 
 ## 📊 Feature & Tool Summary
 
-The server registers **155 tools by default** across the following domain modules:
+The server registers **170 tools by default** across the following domain modules:
 
 | Domain | Tools | Key Capabilities |
 |--------|-------|------------------|
-| **Workbooks** | 33 | CRUD, pages, elements, columns, queries, sources, swap, lineage, exports, materializations, bookmarks, tags, grants, embeds |
-| **Reports** | 13 | CRUD, elements, queries, lineage, exports, schedules, sources, duplication |
+| **Workbooks** | 38 | CRUD, code representation (contents/spec), in-workbook agents, pages, elements, queries, exports, materializations, tags, grants, embeds |
+| **Reports** | 15 | CRUD, code representation (contents/spec), elements, queries, lineage, exports, schedules, sources, duplication |
+| **Admin & Org Settings** | 18 | Members, teams, org settings (aiChatHistory, auditLogging, emailBranding, etc.), AI config, IP allowlists, org workbook agents |
 | **Data Models** | 10 | CRUD, JSON spec inspection & editing, elements, columns, sources, swap, lineage, tags |
 | **Members** | 10 | List, get, create, update, deactivate, teams, bulk deactivate, email change, onboarding |
 | **Teams** | 10 | List, get, create, delete, members, bulk assign/remove, user attributes |
@@ -298,7 +299,7 @@ The server registers **155 tools by default** across the following domain module
 | **Reference** | 4 | `sigma_api_capabilities`, `sigma_formula_pitfalls`, `sigma_search_docs`, `sigma_get_doc_page` |
 | **Composite Recipes** | 14 | High-level multi-step workflow recipes |
 
-*Note: Domain categories overlap slightly. The 2 bulk-destructive tools (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) are excluded by default and bring the total to 157 when enabled.*
+*Note: Domain categories overlap slightly. The 2 bulk-destructive tools (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) are excluded by default and bring the total to 172 when enabled.*
 
 ---
 
@@ -329,10 +330,10 @@ Every tool includes structured MCP hints to assist AI clients with user permissi
 
 | Annotation | Count | Meaning |
 |------------|-------|---------|
-| `readOnlyHint=true` | 83 | Indicates intended non-mutation; clients may still require explicit user approval |
-| `destructiveHint=true` | 16 | Deletes, deactivates, or revokes; clients should prompt |
+| `readOnlyHint=true` | 90 | Indicates intended non-mutation; clients may still require explicit user approval |
+| `destructiveHint=true` | 18 | Deletes, deactivates, or revokes; clients should prompt |
 | `idempotentHint=true` | 8 | Safe to retry; same input = same outcome |
-| `openWorldHint=true` | 155 | All tools hit an external API |
+| `openWorldHint=true` | 170 | All tools hit an external API |
 
 ---
 

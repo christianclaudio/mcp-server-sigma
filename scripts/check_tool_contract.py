@@ -19,13 +19,13 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 
 # Expected registered-tool counts per configuration.
-EXPECTED_DEFAULT = 155
-EXPECTED_WITH_BULK = 157
-EXPECTED_READONLY = 83
+EXPECTED_DEFAULT = 170
+EXPECTED_WITH_BULK = 172
+EXPECTED_READONLY = 90
 
 # Expected annotation split at default registration.
-EXPECTED_READ_ONLY = 83
-EXPECTED_DESTRUCTIVE = 16
+EXPECTED_READ_ONLY = 90
+EXPECTED_DESTRUCTIVE = 18
 EXPECTED_IDEMPOTENT = 8
 
 PROBE = """
