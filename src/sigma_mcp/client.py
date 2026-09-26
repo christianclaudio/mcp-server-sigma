@@ -157,7 +157,7 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
                 fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
                 try:
                     await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
-                except TimeoutError as exc:
+                except (asyncio.TimeoutError, TimeoutError) as exc:
                     raise SigmaAPIError(
                         400,
                         request.url.path,
