@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.0 (2026-09-26)
+
+### Added
+- **FastMCP 4 Server Composition & Domain Partitioning**: Decomposed the monolithic server into modular domain sub-servers in `src/sigma_mcp/tools/` (`workbooks.py`, `datasets.py`, `elements.py`, `workspace.py`, `admin.py`, and `common.py`).
+- **Gateway Server Factory**: Introduced `create_server(profile=..., enable_tool_search=...)` mounting domain sub-servers without prefixes, preserving universal flat `sigma_*` tool naming on the wire for client compatibility.
+- **Hierarchical Middleware Pipeline**: Integrated `ParentAuditMiddleware` (operation timing, structured JSON audit logs, secret scrubbing, JSON-RPC error preservation), `ReadOnlyGateMiddleware` (`SIGMA_MCP_READONLY=1`), and `AdminDomainGuardMiddleware` for bulk-destructive tool isolation (`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`).
+- **Defensive Formatters & Payload Bounding**: Applied template Recipe 10 formatters (`safe_dict`, `safe_list`, boundary-aware status checkers, candidate completeness validation, and integer preservation). Implemented bounded chunk streaming (`max_bytes`) directly within `SigmaClient._request()` for query and export downloads to prevent memory exhaustion.
+- **DNS Rebinding & SSRF Hardening**: Offloaded DNS hostname checks off the event loop via worker threads in `SSRFSafeAsyncTransport` and pinned outbound socket connections to the pre-validated IP address while preserving original `Host` headers and TLS SNI verification.
+- **Expanded API Surface**: Added support for workbook specifications, code representations, query exports, IP allowlists, organization settings, workbook agents, and content updates, bringing default tool catalog to 170 tools (172 with bulk).
+
+### Changed
+- **FastMCP Dependency Upgrade**: Upgraded FastMCP dependency to `fastmcp>=4.0.10`.
+- **Read-Only Gate Allowlist**: Explicitly allowlisted `sigma_verify_workbook_spec`, `sigma_verify_report_spec`, and `sigma_download_query_export` under read-only mode.
+- **Tool Annotations**: Corrected `sigma_bulk_remove_team_members` annotation to destructive.
+
 ## 1.1.5 (2026-09-12)
 
 ### Added
