@@ -509,7 +509,15 @@ class SigmaClient:
                     detail = None
                     try:
                         if max_bytes is not None:
-                            err_content = await r.aread()
+                            err_chunks: list[bytes] = []
+                            err_total = 0
+                            err_cap = min(max_bytes, 65_536)
+                            async for chunk in r.aiter_bytes():
+                                err_chunks.append(chunk)
+                                err_total += len(chunk)
+                                if err_total >= err_cap:
+                                    break
+                            err_content = b"".join(err_chunks)[:err_cap]
                             try:
                                 detail = json.loads(err_content.decode("utf-8"))
                             except Exception:

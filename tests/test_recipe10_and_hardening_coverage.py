@@ -599,3 +599,14 @@ async def test_request_bounded_streaming_paths() -> None:
         assert res["status"] == "ready"
         assert res["sizeBytes"] == 99999999
         assert "Export size exceeds maximum allowed bytes" in res["error"]
+
+    # 9. Stream error response exceeding err_cap
+    oversized_err = b"E" * 100_000
+    r_500_oversized = httpx.Response(500, content=oversized_err, headers={"content-type": "text/plain"})
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = r_500_oversized
+        with pytest.raises(SigmaAPIError) as exc_500_ov:
+            await client._request("GET", "/v2/stream/err_oversized", max_bytes=50)
+        assert exc_500_ov.value.status_code == 500
+        assert exc_500_ov.value.detail is not None
+        assert len(str(exc_500_ov.value.detail)) <= 500
