@@ -6,7 +6,7 @@ import base64
 import json
 import time
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -53,23 +53,17 @@ def _mock_res(
     content: bytes | None = None,
     headers: dict[str, str] | None = None,
 ) -> httpx.Response:
-    r = MagicMock(spec=httpx.Response)
-    r.status_code = status_code
-    r.headers = headers or {}
+    h = dict(headers or {})
     if json_data is not None:
-        raw_text = json.dumps(json_data)
-        r.json.return_value = json_data
-        r.text = raw_text
-        r.content = raw_text.encode()
+        raw_bytes = json.dumps(json_data).encode("utf-8")
+        h.setdefault("content-type", "application/json")
     elif content is not None:
-        r.content = content
-        r.text = text or content.decode("utf-8", errors="replace")
-        r.json.side_effect = json.JSONDecodeError("Invalid JSON", r.text, 0)
+        raw_bytes = content
+    elif text:
+        raw_bytes = text.encode("utf-8")
     else:
-        r.content = text.encode()
-        r.text = text
-        r.json.side_effect = json.JSONDecodeError("Invalid JSON", text, 0)
-    return r
+        raw_bytes = b""
+    return httpx.Response(status_code, content=raw_bytes, headers=h)
 
 
 @pytest.fixture
@@ -88,6 +82,7 @@ def mock_client():
 async def test_client_methods_direct(mock_client: SigmaClient):
     client = mock_client
     http_mock = AsyncMock()
+    http_mock.send = AsyncMock(side_effect=lambda req, **kw: http_mock.request.return_value)
     client._http = http_mock
 
     # update_workbook_contents
@@ -229,6 +224,7 @@ async def test_client_methods_direct(mock_client: SigmaClient):
 async def test_workbooks_tools(mock_client: SigmaClient):
     client = mock_client
     http_mock = AsyncMock()
+    http_mock.send = AsyncMock(side_effect=lambda req, **kw: http_mock.request.return_value)
     client._http = http_mock
 
     # sigma_update_workbook_contents

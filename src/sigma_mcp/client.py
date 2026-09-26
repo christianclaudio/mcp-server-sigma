@@ -99,19 +99,20 @@ def _validate_base_url(
     return url.rstrip("/")
 
 
-def _validate_hostname_dns(hostname: str) -> None:
+def _validate_hostname_dns(hostname: str) -> str:
     """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
     try:
         ip = ipaddress.ip_address(hostname)
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
             raise ValueError(f"Blocked private/reserved IP address: {hostname}")
-        return
+        return str(ip)
     except ValueError as e:
         if "Blocked" in str(e):
             raise
 
     try:
         resolved_addrs = socket.getaddrinfo(hostname, None)
+        validated_ip: str | None = None
         for _, _, _, _, sockaddr in resolved_addrs:
             resolved_ip = ipaddress.ip_address(sockaddr[0])
             if (
@@ -124,6 +125,11 @@ def _validate_hostname_dns(hostname: str) -> None:
             ):
                 msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
                 raise ValueError(msg)
+            if validated_ip is None:
+                validated_ip = str(resolved_ip)
+        if not validated_ip:
+            raise ValueError(f"No IP addresses resolved for hostname: {hostname}")
+        return validated_ip
     except socket.gaierror as exc:
         raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
 
@@ -156,7 +162,7 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
                 fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
                 fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
                 try:
-                    await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
+                    validated_ip = await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
                 except (asyncio.TimeoutError, TimeoutError) as exc:
                     raise SigmaAPIError(
                         400,
@@ -171,6 +177,12 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
                         request.method,
                         detail=f"SSRF validation blocked request to {hostname}: {exc}",
                     ) from exc
+
+                # Bind connection to validated IP to defend against DNS rebinding (TOCTOU)
+                # Preserve original hostname for Host header and TLS SNI
+                request.headers.setdefault("Host", hostname)
+                request.extensions["sni_hostname"] = hostname
+                request.url = request.url.copy_with(host=validated_ip)
         return await super().handle_async_request(request)
 
 
@@ -461,12 +473,16 @@ class SigmaClient:
         params: dict[str, Any] | None = None,
         json_data: JSONValue = None,
         allow_statuses: frozenset[int] | None = None,
+        max_bytes: int | None = None,
     ) -> Response:
         """Execute an HTTP request with exponential backoff on 429 responses.
 
         *allow_statuses* — additional non-error status codes (beyond 2xx) that
         should be returned without raising.  For example ``frozenset({204})``
         lets callers treat 204 as success.
+        *max_bytes* — when provided, stream the response in chunks and abort early
+        once the cumulative payload exceeds ``max_bytes``, guarding against memory
+        exhaustion from oversized responses.
         """
 
         def _encode_segment(seg: str) -> str:
@@ -480,16 +496,32 @@ class SigmaClient:
         safe_path = "/".join(safe_segments)
         url = f"{self.base_url}{safe_path}"
         for attempt in range(self.max_retries + 1):
-            r = await self._http.request(
-                method, url, headers=await self._headers(), params=params, json=json_data, timeout=60.0
-            )
+            req: httpx.Request | None = None
+            if max_bytes is not None:
+                req = httpx.Request(method, url, headers=await self._headers(), params=params, json=json_data)
+                r = await self._http.send(req, stream=True)
+            else:
+                r = await self._http.request(
+                    method, url, headers=await self._headers(), params=params, json=json_data, timeout=60.0
+                )
             if r.status_code != 429:
                 if r.status_code >= 400 and not (allow_statuses and r.status_code in allow_statuses):
                     detail = None
                     try:
-                        detail = r.json()
+                        if max_bytes is not None:
+                            err_content = await r.aread()
+                            try:
+                                detail = json.loads(err_content.decode("utf-8"))
+                            except Exception:
+                                detail = err_content.decode("utf-8", errors="replace")[:500] if err_content else None
+                        else:
+                            detail = r.json()
                     except Exception:
-                        detail = r.text[:500] if r.text else None
+                        if max_bytes is None:
+                            detail = r.text[:500] if r.text else None
+                    finally:
+                        if max_bytes is not None:
+                            await r.aclose()
                     request_id = r.headers.get("x-request-id")
                     raise SigmaAPIError(
                         status_code=r.status_code,
@@ -498,7 +530,26 @@ class SigmaClient:
                         detail=detail,
                         request_id=request_id,
                     )
+                if max_bytes is not None:
+                    chunks: list[bytes] = []
+                    total = 0
+                    try:
+                        async for chunk in r.aiter_bytes():
+                            chunks.append(chunk)
+                            total += len(chunk)
+                            if total > max_bytes:
+                                break
+                    finally:
+                        await r.aclose()
+                    return Response(
+                        status_code=r.status_code,
+                        headers=r.headers,
+                        content=b"".join(chunks),
+                        request=req,
+                    )
                 return r
+            if max_bytes is not None:
+                await r.aclose()
             if attempt == self.max_retries:
                 raise SigmaAPIError(
                     status_code=429,
@@ -1361,13 +1412,15 @@ class SigmaClient:
         return await self.auto_paginate("/v2/dataModels")
 
     # ─── Query/Download (raw response for polling) ────────────────────────
-    async def download_query_raw(self, query_id: str) -> Response:
+    async def download_query_raw(self, query_id: str, *, max_bytes: int | None = None) -> Response:
         """GET /v2/query/{queryId}/download returning the raw Response (for 204 vs 200 checking)."""
-        return await self._request("GET", f"/v2/query/{query_id}/download", allow_statuses=frozenset({204}))
+        return await self._request(
+            "GET", f"/v2/query/{query_id}/download", allow_statuses=frozenset({204}), max_bytes=max_bytes
+        )
 
     async def download_query_export(self, query_id: str, max_bytes: int = 10_000_000) -> dict[str, Any]:
         """Download an exported query file or report export status with payload size bounding."""
-        r = await self.download_query_raw(query_id)
+        r = await self.download_query_raw(query_id, max_bytes=max_bytes)
         if r.status_code == 204:
             return {
                 "status": "processing",
@@ -1378,6 +1431,12 @@ class SigmaClient:
         content_type = r.headers.get("content-type", "")
         content = r.content
         total_size = len(content)
+        content_len_hdr = r.headers.get("content-length")
+        if content_len_hdr and content_len_hdr.isdigit():
+            reported_len = int(content_len_hdr)
+            if reported_len > total_size:
+                total_size = reported_len
+
         if total_size > max_bytes:
             return {
                 "status": "ready",

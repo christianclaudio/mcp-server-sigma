@@ -494,3 +494,108 @@ async def test_workspace_pagination_coverage() -> None:
             mock_laf.return_value = []
             await sigma_list_all_files(parent_id="folder1", type_filter="symlink")
             mock_laf.assert_called_once_with({"parentId": "folder1", "typeFilters": "symlink"})
+
+
+@pytest.mark.asyncio
+async def test_ssrf_dns_pinning_and_empty_resolution() -> None:
+    transport = SSRFSafeAsyncTransport()
+    req = httpx.Request("GET", "https://api.sigmacomputing.com/v2/workbooks")
+
+    with patch("socket.getaddrinfo", return_value=[(None, None, None, None, ("104.17.122.119", 443))]):
+        with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
+            mock_super.return_value = httpx.Response(200, request=req)
+            resp = await transport.handle_async_request(req)
+            assert resp.status_code == 200
+            assert req.url.host == "104.17.122.119"
+            assert req.headers["host"] == "api.sigmacomputing.com"
+            assert req.extensions["sni_hostname"] == "api.sigmacomputing.com"
+
+    # Empty DNS resolution
+    with patch("socket.getaddrinfo", return_value=[]):
+        with pytest.raises(SigmaAPIError) as exc:
+            await transport.handle_async_request(httpx.Request("GET", "https://empty-dns.example.com"))
+        assert "No IP addresses resolved" in (exc.value.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_request_bounded_streaming_paths() -> None:
+    import time
+
+    from sigma_mcp.client import SigmaClient
+    from sigma_mcp.errors import SigmaAPIError
+
+    client = SigmaClient("cid", "csec", "https://api.sigmacomputing.com", max_retries=1, base_delay=0.001)
+    client._token = "valid-token"
+    client._token_expiry = time.time() + 3600
+
+    # 1. Successful stream with chunks under max_bytes
+    resp_ok = httpx.Response(200, content=b"chunk1_chunk2", headers={"content-type": "application/octet-stream"})
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = resp_ok
+        res = await client._request("GET", "/v2/stream/ok", max_bytes=100)
+        assert res.status_code == 200
+        assert res.content == b"chunk1_chunk2"
+
+    # 2. Stream exceeding max_bytes breaks early
+    resp_overflow = httpx.Response(
+        200, content=b"123456789012345", headers={"content-type": "application/octet-stream"}
+    )
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = resp_overflow
+        res = await client._request("GET", "/v2/stream/overflow", max_bytes=5)
+        assert res.status_code == 200
+        assert len(res.content) > 5
+
+    # 3. Stream 429 retry then 200
+    r_429 = httpx.Response(429, headers={"Retry-After": "0.001", "x-request-id": "req-429"})
+    r_200 = httpx.Response(200, content=b"after-429")
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.side_effect = [r_429, r_200]
+        res = await client._request("GET", "/v2/stream/retry", max_bytes=100)
+        assert res.status_code == 200
+        assert res.content == b"after-429"
+
+    # 4. Stream 429 max retries exhausted (without retry-after header)
+    r_429_1 = httpx.Response(429, headers={"x-request-id": "req-429-1"})
+    r_429_2 = httpx.Response(429, headers={"x-request-id": "req-429-2"})
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.side_effect = [r_429_1, r_429_2]
+        with pytest.raises(SigmaAPIError) as exc_429:
+            await client._request("GET", "/v2/stream/exhausted", max_bytes=100)
+        assert exc_429.value.status_code == 429
+
+    # 5. Stream error response with JSON detail
+    r_400_json = httpx.Response(400, json={"error": "bad_request"}, headers={"x-request-id": "req-400"})
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = r_400_json
+        with pytest.raises(SigmaAPIError) as exc_400:
+            await client._request("GET", "/v2/stream/bad", max_bytes=100)
+        assert exc_400.value.status_code == 400
+        assert exc_400.value.detail == {"error": "bad_request"}
+
+    # 6. Stream error response with plain text detail
+    r_500_text = httpx.Response(500, content=b"Server error message", headers={"content-type": "text/plain"})
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = r_500_text
+        with pytest.raises(SigmaAPIError) as exc_500:
+            await client._request("GET", "/v2/stream/err", max_bytes=100)
+        assert exc_500.value.status_code == 500
+        assert exc_500.value.detail == "Server error message"
+
+    # 7. Stream allow_statuses (e.g. 204)
+    r_204 = httpx.Response(204)
+    with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = r_204
+        res = await client._request("GET", "/v2/stream/204", allow_statuses=frozenset({204}), max_bytes=100)
+        assert res.status_code == 204
+
+    # 8. download_query_export with content-length header exceeding max_bytes
+    r_cl_exceeded = httpx.Response(
+        200, content=b"short", headers={"content-length": "99999999", "content-type": "text/csv"}
+    )
+    with patch.object(client, "download_query_raw", new_callable=AsyncMock) as mock_raw:
+        mock_raw.return_value = r_cl_exceeded
+        res = await client.download_query_export("q-cl", max_bytes=1000)
+        assert res["status"] == "ready"
+        assert res["sizeBytes"] == 99999999
+        assert "Export size exceeds maximum allowed bytes" in res["error"]
