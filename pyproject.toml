@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-sigma"
-version = "1.2.0"
+version = "1.2.1"
 description = "Enterprise Model Context Protocol (MCP) server for Sigma Computing — provision dashboards, construct data models, and automate cloud analytics."
 readme = "README.md"
 license = "Apache-2.0"
@@ -40,6 +40,7 @@ dev = [
     "pyyaml>=6.0",
     "build>=1.2.0",
     "twine>=5.0.0",
+    "pip-licenses>=5.0.0",
 ]
 
 [project.scripts]
