@@ -14,7 +14,6 @@ htmlcov/
 
 # Local code-review artifacts
 coderabbit-review*.txt
-uv.lock
 
 # Private runbooks & recipes
 COOKBOOK.md

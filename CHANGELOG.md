@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.1 (2026-09-28)
+
+### Changed
+- **Locked dependency resolution**: Added a tracked `uv.lock` (removed from `.gitignore`) generated from the current `pyproject.toml`. The `fastmcp` floor stays `>=4.0.10`; the lock pins FastMCP **4.0.10**.
+- **Locked CI installs**: Replaced unbound `pip install -e ".[dev]"`, `pip install -e .`, and `pip install build twine` steps in `.github/workflows/ci.yml` with `uv sync --locked` (`--extra dev` for lint, test, contract, OpenAPI drift, and package build). Commands run via `uv run`. The weekly drift monitor installs with `uv sync --locked` instead of an unbound `pip install httpx`.
+- **License check**: Moved `pip-licenses` into the `dev` extra so the existing GPL fail-closed check is covered by the lockfile.
+
+No host or credential changes.
+
 ## 1.2.0 (2026-09-26)
 
 ### Added

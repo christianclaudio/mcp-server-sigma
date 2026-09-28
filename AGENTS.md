@@ -106,7 +106,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 
 ```bash
 # Install editable with dev dependencies
-uv sync --extra dev   # or pip install -e ".[dev]"
+uv sync --locked --extra dev
 
 # Lint and formatting
 uv run ruff check . && uv run ruff format --check .
