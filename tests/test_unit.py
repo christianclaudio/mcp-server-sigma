@@ -23,7 +23,9 @@ class TestRetryLogic:
     def _make_client(self, max_retries=3, base_delay=0.01):
         from sigma_mcp.client import SigmaClient
 
-        c = SigmaClient("id", "secret", "https://api.example.com", max_retries=max_retries, base_delay=base_delay)
+        c = SigmaClient(
+            "id", "secret", "https://api.sigmacomputing.com", max_retries=max_retries, base_delay=base_delay
+        )
         c._token = "fake"
         c._token_expiry = time.time() + 3600
         return c
@@ -206,10 +208,11 @@ class TestDocsTools:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client) as ctor:
             data = self._call_tool("sigma_search_docs", {"query": "embed workbook"})
         assert data["format"] == "markdown"
         assert "embedding" in data["content"]
+        assert ctor.call_args.kwargs["follow_redirects"] is False
 
     def test_search_docs_error(self):
         mock_resp = MagicMock()
@@ -235,10 +238,12 @@ class TestDocsTools:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx.AsyncClient", return_value=mock_client) as ctor:
             data = self._call_tool("sigma_get_doc_page", {"page_slug": "create-a-workbook"})
         assert data["format"] == "markdown"
         assert "Create a Workbook" in data["content"]
+        assert ctor.call_args.kwargs["follow_redirects"] is False
+        assert "transport" in ctor.call_args.kwargs
 
     def test_get_doc_page_not_found(self):
         mock_resp = MagicMock()
@@ -306,6 +311,27 @@ class TestDocsTools:
         assert call_url.endswith("/docs/some-page.md")
         assert not call_url.endswith(".md.md")
 
+    def test_get_doc_page_rejects_ssrf_targets(self):
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            for slug in (
+                "",
+                "my page",
+                "docs\\secret",
+                "http://127.0.0.1/latest/meta-data",
+                "https://169.254.169.254/latest/meta-data",
+                "//169.254.169.254/latest/meta-data",
+                "docs/%2e%2e/%2e%2e/secret",
+                "https://evil.example/docs/page",
+            ):
+                data = self._call_tool("sigma_get_doc_page", {"page_slug": slug})
+                assert data["error"]["type"] == "invalid_request", slug
+        mock_client.get.assert_not_called()
+
     def test_docs_index_resource(self):
         from sigma_mcp.server import resource_sigma_docs_index
 
@@ -323,7 +349,7 @@ class TestAutoPaginate:
     def _make_client(self):
         from sigma_mcp.client import SigmaClient
 
-        c = SigmaClient("id", "secret", "https://api.example.com")
+        c = SigmaClient("id", "secret", "https://api.sigmacomputing.com")
         c._token = "fake"
         c._token_expiry = time.time() + 3600
         return c

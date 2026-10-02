@@ -23,7 +23,7 @@ def _mock_response(status_code: int = 200, json_data: dict | list | None = None)
 
 @pytest.mark.asyncio
 async def test_exercise_all_client_methods(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     c._http = MagicMock()
     c._http.request = AsyncMock(return_value=_mock_response(200, {"entries": [], "status": 200}))
     monkeypatch.setattr(srv, "_client", c)
@@ -63,7 +63,7 @@ async def test_exercise_all_client_methods(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.asyncio
 async def test_exercise_all_server_module_tools(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     c._http = MagicMock()
     c._http.request = AsyncMock(
         return_value=_mock_response(200, {"entries": [{"email": "a@b.com", "memberId": "m1"}], "status": 200})

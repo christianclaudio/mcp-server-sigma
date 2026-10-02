@@ -30,6 +30,7 @@ from sigma_mcp.client import (
     safe_int_or_zero,
     safe_list,
     validate_candidate,
+    validate_outbound_url,
 )
 from sigma_mcp.config import Settings
 from sigma_mcp.errors import SafetyViolationError, SigmaAPIError
@@ -247,45 +248,120 @@ def test_main_cli_profile_override() -> None:
 # ============================================================================
 
 
-def test_validate_base_url_branches() -> None:
-    # Empty url fallback
-    with patch("sigma_mcp.client.settings.BASE_URL", "https://default.sigmacomputing.com"):
-        assert _validate_base_url("") == "https://default.sigmacomputing.com"
+def test_validate_base_url_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SIGMA_ALLOWED_HOSTS", raising=False)
 
-    # Non-HTTPS external
+    # Empty url falls back to settings, then the regional allowlist.
+    with patch("sigma_mcp.client.settings.BASE_URL", "https://api.sigmacomputing.com"):
+        with patch("sigma_mcp.client.settings.ALLOWED_HOSTS", ""):
+            assert _validate_base_url("") == "https://api.sigmacomputing.com"
+
+    # Fallback host outside the regional allowlist is rejected.
+    with patch("sigma_mcp.client.settings.BASE_URL", "https://default.sigmacomputing.com"):
+        with patch("sigma_mcp.client.settings.ALLOWED_HOSTS", ""):
+            with pytest.raises(ValueError, match="not in allowed hosts"):
+                _validate_base_url("")
+
+    # Non-HTTPS, including the former loopback exception.
     with pytest.raises(ValueError, match="Only HTTPS is permitted"):
         _validate_base_url("http://external.sigmacomputing.com")
+    with pytest.raises(ValueError, match="Only HTTPS is permitted"):
+        _validate_base_url("http://localhost:9999")
+    with pytest.raises(ValueError, match="Only HTTPS is permitted"):
+        _validate_base_url("http://127.0.0.1:9999")
+    with pytest.raises(ValueError, match="Only HTTPS is permitted"):
+        _validate_base_url("http://[::1]/")
 
     # Missing hostname
     with pytest.raises(ValueError, match="missing hostname"):
         _validate_base_url("https://")
 
-    # Internal / loopback hostname
+    # Internal / loopback / metadata hostnames
     with pytest.raises(ValueError, match="Blocked internal/loopback"):
         _validate_base_url("https://localhost")
     with pytest.raises(ValueError, match="Blocked internal/loopback"):
         _validate_base_url("https://service.internal")
     with pytest.raises(ValueError, match="Blocked internal/loopback"):
         _validate_base_url("https://node.local")
+    with pytest.raises(ValueError, match="Blocked internal/loopback"):
+        _validate_base_url("https://metadata.goog")
 
     # Allowed hosts check
     with pytest.raises(ValueError, match="not in allowed hosts"):
         _validate_base_url("https://evil.com", allowed_hosts_str="api.sigmacomputing.com")
 
-    # Private IP
-    with pytest.raises(ValueError, match="Blocked private/reserved IP"):
-        _validate_base_url("https://10.0.0.1")
-    with pytest.raises(ValueError, match="Blocked private/reserved IP"):
-        _validate_base_url("https://192.168.1.1")
+    # Private, loopback, link-local metadata, and mapped addresses
+    for blocked in (
+        "https://10.0.0.1",
+        "https://192.168.1.1",
+        "https://127.0.0.1",
+        "https://[::1]",
+        "https://169.254.169.254",
+        "https://169.254.170.2",
+        "https://100.100.169.254",
+        "https://[fd00:ec2::254]",
+        "https://[::ffff:127.0.0.1]",
+        "https://[::ffff:169.254.169.254]",
+        "https://2130706433",
+        "https://0x7f000001",
+        "https://224.0.0.1",
+    ):
+        with pytest.raises(ValueError, match="Blocked private/reserved IP"):
+            _validate_base_url(blocked, allowed_hosts_str=urlparse_host(blocked))
 
-    # Public IP allowed when in allowlist
+    # Public IP allowed only when the explicit allowlist names it.
     valid_ip_url = _validate_base_url("https://8.8.8.8", allowed_hosts_str="8.8.8.8")
     assert valid_ip_url == "https://8.8.8.8"
+    with pytest.raises(ValueError, match="not in allowed hosts"):
+        _validate_base_url("https://8.8.8.8")
+
+    # Obfuscated literals that are not IPs still cannot skip the allowlist.
+    with pytest.raises(ValueError, match="not in allowed hosts"):
+        _validate_base_url("https://0xzz")
+    with pytest.raises(ValueError, match="not in allowed hosts"):
+        _validate_base_url("https://" + ("9" * 40))
 
     # check_dns=True flag
     with patch("sigma_mcp.client._validate_hostname_dns") as mock_dns:
         assert _validate_base_url("https://api.sigmacomputing.com", check_dns=True) == "https://api.sigmacomputing.com"
         mock_dns.assert_called_once_with("api.sigmacomputing.com")
+
+
+def urlparse_host(url: str) -> str:
+    """Return the allowlist token for a URL under test."""
+    from urllib.parse import urlparse
+
+    return (urlparse(url).hostname or "").lower()
+
+
+def test_allowed_hosts_env_override_and_direct_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIGMA_ALLOWED_HOSTS", "custom.example")
+    assert _validate_base_url("https://custom.example") == "https://custom.example"
+    with pytest.raises(ValueError, match="not in allowed hosts"):
+        _validate_base_url("https://api.sigmacomputing.com")
+    # Allowlist entries cannot re-enable loopback or metadata.
+    monkeypatch.setenv("SIGMA_ALLOWED_HOSTS", "127.0.0.1,169.254.169.254,localhost")
+    with pytest.raises(ValueError, match="Blocked private/reserved IP"):
+        _validate_base_url("https://127.0.0.1")
+    with pytest.raises(ValueError, match="Blocked private/reserved IP"):
+        _validate_base_url("https://169.254.169.254/latest/meta-data")
+    with pytest.raises(ValueError, match="Blocked internal/loopback"):
+        _validate_base_url("https://localhost")
+
+    monkeypatch.delenv("SIGMA_ALLOWED_HOSTS", raising=False)
+    with patch("sigma_mcp.client.settings.ALLOWED_HOSTS", "only.example"):
+        assert _validate_base_url("https://only.example") == "https://only.example"
+
+    with pytest.raises(ValueError, match="Invalid outbound URL"):
+        validate_outbound_url("")
+    with pytest.raises(ValueError, match="Invalid outbound URL"):
+        validate_outbound_url("https://evil.example/a b")
+    with pytest.raises(ValueError, match="Credentials in outbound URL"):
+        validate_outbound_url("https://user:pass@api.sigmacomputing.com/v2")
+    # No host allowlist: public https is accepted, metadata is not.
+    assert validate_outbound_url("https://example.com/spec.json") == "https://example.com/spec.json"
+    with pytest.raises(ValueError, match="Blocked private/reserved IP"):
+        validate_outbound_url("https://169.254.169.254/latest/meta-data")
 
 
 def test_validate_hostname_dns_branches() -> None:
@@ -331,19 +407,34 @@ async def test_ssrf_safe_async_transport() -> None:
         await transport.handle_async_request(req_bad)
     assert "SSRF validation blocked request" in (exc_info.value.detail or "")
 
-    # Loopback case (http://localhost permitted)
+    # HTTP loopback is rejected before any connection or DNS lookup.
     req_loopback = httpx.Request("GET", "http://localhost:8000/api/test")
     with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
-        mock_super.return_value = httpx.Response(200, request=req_loopback)
-        resp = await transport.handle_async_request(req_loopback)
-        assert resp.status_code == 200
+        with pytest.raises(SigmaAPIError) as exc_loop:
+            await transport.handle_async_request(req_loopback)
+        assert "Only HTTPS is permitted" in (exc_loop.value.detail or "")
+        mock_super.assert_not_called()
 
-    # Loopback case (http://127.0.0.1 permitted)
     req_loopback_ip = httpx.Request("GET", "http://127.0.0.1:8000/api/test")
-    with patch.object(httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock) as mock_super:
-        mock_super.return_value = httpx.Response(200, request=req_loopback_ip)
-        resp = await transport.handle_async_request(req_loopback_ip)
-        assert resp.status_code == 200
+    with pytest.raises(SigmaAPIError) as exc_loop_ip:
+        await transport.handle_async_request(req_loopback_ip)
+    assert "Only HTTPS is permitted" in (exc_loop_ip.value.detail or "")
+
+    req_loopback_v6 = httpx.Request("GET", "http://[::1]/api/test")
+    with pytest.raises(SigmaAPIError) as exc_loop_v6:
+        await transport.handle_async_request(req_loopback_v6)
+    assert "Only HTTPS is permitted" in (exc_loop_v6.value.detail or "")
+
+    # HTTPS loopback and metadata are blocked by the IP check, not skipped.
+    req_https_loopback = httpx.Request("GET", "https://127.0.0.1/api/test")
+    with pytest.raises(SigmaAPIError) as exc_https_loop:
+        await transport.handle_async_request(req_https_loopback)
+    assert "SSRF validation blocked request" in (exc_https_loop.value.detail or "")
+
+    req_metadata = httpx.Request("GET", "https://169.254.169.254/latest/meta-data")
+    with pytest.raises(SigmaAPIError) as exc_meta:
+        await transport.handle_async_request(req_metadata)
+    assert "SSRF validation blocked request" in (exc_meta.value.detail or "")
 
     # DNS timeout case
     req_timeout = httpx.Request("GET", "https://slow-dns.example.com/api/test")
@@ -465,7 +556,7 @@ async def test_workspace_pagination_coverage() -> None:
         sigma_list_workspaces,
     )
 
-    client = SigmaClient("cid", "csec", "https://api.example.com", max_retries=0, base_delay=0.001)
+    client = SigmaClient("cid", "csec", "https://api.sigmacomputing.com", max_retries=0, base_delay=0.001)
     mock_resp = httpx.Response(200, json={"entries": [{"grantId": "g1"}]})
     with patch.object(client, "_request", new_callable=AsyncMock) as mock_req:
         mock_req.return_value = mock_resp

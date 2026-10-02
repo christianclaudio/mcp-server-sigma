@@ -18,7 +18,7 @@ def _make_client(max_retries: int = 3, base_delay: float = 0.001) -> SigmaClient
     c = SigmaClient(
         "test-client-id",
         TEST_CLIENT_SECRET,
-        "https://api.example.com",
+        "https://api.sigmacomputing.com",
         max_retries=max_retries,
         base_delay=base_delay,
     )
@@ -250,7 +250,7 @@ class TestSecretRedaction:
 
 
 async def test_tenant_client_shares_parent_transport() -> None:
-    parent = SigmaClient("id", "secret", "https://api.example.com")
+    parent = SigmaClient("id", "secret", "https://api.sigmacomputing.com")
     tc = parent._build_tenant_client("tok", 3600, "org-1")
     assert tc._http is parent._http, "tenant client must reuse the parent pool"
     assert parent._owns_http is True
@@ -259,7 +259,7 @@ async def test_tenant_client_shares_parent_transport() -> None:
 
 
 async def test_closing_tenant_client_does_not_close_parent_pool() -> None:
-    parent = SigmaClient("id", "secret", "https://api.example.com")
+    parent = SigmaClient("id", "secret", "https://api.sigmacomputing.com")
     tc = parent._build_tenant_client("tok", 3600, "org-1")
     await tc.aclose()
     assert not parent._http.is_closed, "tenant aclose() must not close the parent pool"
@@ -269,7 +269,7 @@ async def test_closing_tenant_client_does_not_close_parent_pool() -> None:
 
 async def test_tenant_client_expiry_comes_from_exchange() -> None:
     """Expiry must derive from the exchange response, not a hardcoded value."""
-    parent = SigmaClient("id", "secret", "https://api.example.com")
+    parent = SigmaClient("id", "secret", "https://api.sigmacomputing.com")
     tc = parent._build_tenant_client("tok", 120, "org-1")
     # Refresh happens slightly before true expiry, so allow a small margin.
     assert 0 < tc._token_expiry - time.time() <= 120

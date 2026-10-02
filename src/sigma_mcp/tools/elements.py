@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from fastmcp import FastMCP
 
+from sigma_mcp.client import DOCS_ALLOWED_HOSTS, SSRFSafeAsyncTransport, validate_outbound_url
 from sigma_mcp.tools.common import (
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
@@ -364,9 +366,17 @@ async def sigma_search_docs(query: str) -> str:
         "method": "tools/call",
         "params": {"name": "searchDocs", "arguments": {"query": query}},
     }
-    async with httpx.AsyncClient(timeout=30.0) as http:
+    url = validate_outbound_url(
+        "https://help.sigmacomputing.com/_mcp/server",
+        allowed_hosts=DOCS_ALLOWED_HOSTS,
+    )
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=False,
+        transport=SSRFSafeAsyncTransport(),
+    ) as http:
         resp = await http.post(
-            "https://help.sigmacomputing.com/_mcp/server",
+            url,
             json=payload,
             headers={"Accept": "application/json, text/event-stream"},
         )
@@ -396,19 +406,45 @@ async def sigma_get_doc_page(page_slug: str) -> str:
     """
     import httpx
 
-    slug = page_slug.strip("/")
-    if slug.startswith("https://help.sigmacomputing.com/"):
-        slug = slug.replace("https://help.sigmacomputing.com/", "")
-    if not slug.startswith("docs/"):
-        slug = f"docs/{slug}"
-    if slug.endswith(".md"):
-        slug = slug[:-3]
-    url = f"https://help.sigmacomputing.com/{slug}.md"
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as http:
+    try:
+        url = _doc_page_url(page_slug)
+    except ValueError as exc:
+        return json.dumps({"error": {"type": "invalid_request", "message": str(exc)}})
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=False,
+        transport=SSRFSafeAsyncTransport(),
+    ) as http:
         resp = await http.get(url)
     if resp.status_code != 200:
         return json.dumps({"error": {"type": "page_not_found", "slug": page_slug, "status": resp.status_code}})
     return json.dumps({"format": "markdown", "content": resp.text}, indent=2)
+
+
+def _doc_page_url(page_slug: str) -> str:
+    """Build a docs Markdown URL pinned to help.sigmacomputing.com.
+
+    Absolute URLs are accepted only for that host. Redirects are not followed
+    by the caller; this function only returns a validated https URL.
+    """
+    raw = page_slug.strip()
+    if not raw or any(ch.isspace() for ch in raw) or "\\" in raw:
+        raise ValueError("Invalid documentation page slug.")
+    if "://" in raw or raw.startswith("//"):
+        parsed = urlparse(raw if "://" in raw else f"https:{raw}")
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if parsed.scheme.lower() != "https" or host != "help.sigmacomputing.com":
+            raise ValueError("Documentation fetches are limited to https://help.sigmacomputing.com.")
+        raw = parsed.path
+    slug = unquote(raw.strip("/"))
+    if slug.endswith(".md"):
+        slug = slug[:-3]
+    if not slug.startswith("docs/"):
+        slug = f"docs/{slug}"
+    if any(part == ".." for part in slug.split("/")):
+        raise ValueError("Invalid documentation page slug.")
+    url = "https://help.sigmacomputing.com/" + slug.strip("/") + ".md"
+    return validate_outbound_url(url, allowed_hosts=DOCS_ALLOWED_HOSTS)
 
 
 get_doc_page = sigma_get_doc_page

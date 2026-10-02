@@ -25,6 +25,7 @@ import random
 import socket
 import time
 import uuid
+from collections.abc import Iterable
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -56,82 +57,192 @@ REGIONS = {
 }
 
 
+# Hostnames that are never valid outbound targets, including cloud metadata names
+# that do not end in a blocked suffix.
+_BLOCKED_HOSTNAMES = frozenset(
+    {
+        "localhost",
+        "localhost.localdomain",
+        "metadata",
+        "metadata.google.internal",
+        "metadata.goog",
+        "instance-data",
+    }
+)
+_BLOCKED_HOST_SUFFIXES = (".local", ".internal", ".localhost")
+
+# Well-known cloud metadata addresses. Link-local and non-global checks cover
+# these too; the explicit set stays rejected if address-flag semantics change.
+_METADATA_IPS = frozenset(
+    {
+        ipaddress.ip_address("169.254.169.254"),
+        ipaddress.ip_address("169.254.170.2"),
+        ipaddress.ip_address("100.100.169.254"),
+        ipaddress.ip_address("fd00:ec2::254"),
+    }
+)
+
+# Documentation fetches are pinned to Sigma's public docs host.
+DOCS_ALLOWED_HOSTS = frozenset({"help.sigmacomputing.com"})
+
+
+def _region_api_hosts() -> set[str]:
+    """Hostnames of the official Sigma regional API base URLs."""
+    hosts: set[str] = set()
+    for region_url in REGIONS.values():
+        host = urlparse(region_url).hostname
+        if host:
+            hosts.add(host.lower())
+    return hosts
+
+
+def _resolve_allowed_hosts(allowed_hosts_str: str | None) -> set[str]:
+    """Resolve the API host allowlist.
+
+    An explicit string wins, then ``SIGMA_ALLOWED_HOSTS``, then settings.
+    Unset or empty values select the official regional API hosts so the
+    allowlist cannot be turned off by leaving the variable blank.
+    """
+    if allowed_hosts_str is not None:
+        raw = allowed_hosts_str
+    elif "SIGMA_ALLOWED_HOSTS" in os.environ:
+        raw = os.environ["SIGMA_ALLOWED_HOSTS"]
+    else:
+        raw = settings.ALLOWED_HOSTS
+    allowed = {part.strip().lower() for part in raw.split(",") if part.strip()}
+    if not allowed:
+        return _region_api_hosts()
+    return allowed
+
+
+def _normalize_host(hostname: str) -> str:
+    return hostname.strip().lower().rstrip(".")
+
+
+def _coerce_ip(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
+    """Unwrap IPv4-mapped IPv6 so mapped loopback and metadata are classified as IPv4."""
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if isinstance(mapped, ipaddress.IPv4Address):
+        return mapped
+    return ip
+
+
+def _is_disallowed_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Return True for private, loopback, link-local, metadata, or non-global addresses."""
+    ip = _coerce_ip(ip)
+    if ip in _METADATA_IPS:
+        return True
+    return bool(
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+        or not ip.is_global
+    )
+
+
+def _ip_from_hostname(hostname: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Parse an IP literal, including decimal and hex forms that bypass ``ip_address`` strings."""
+    text = hostname
+    base = 10
+    if text[:2].lower() == "0x":
+        text = text[2:]
+        base = 16
+    try:
+        return ipaddress.ip_address(text)
+    except ValueError:
+        pass
+    if base == 10 and not text.isdigit():
+        return None
+    try:
+        return ipaddress.ip_address(int(text, base))
+    except ValueError:
+        return None
+
+
+def validate_outbound_url(
+    url: str,
+    *,
+    allowed_hosts: Iterable[str] | None = None,
+    check_dns: bool = False,
+) -> str:
+    """Reject non-HTTPS and private, loopback, link-local, or metadata destinations.
+
+    When ``allowed_hosts`` is provided, the hostname must be in that set.
+    When it is omitted, only the destination safety checks apply (used for
+    maintainer spec fetches). API base URLs go through ``_validate_base_url``,
+    which always supplies the regional allowlist.
+    """
+    if not url or any(ch.isspace() for ch in url):
+        raise ValueError("Invalid outbound URL.")
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        raise ValueError("Credentials in outbound URL are not permitted.")
+    if parsed.scheme.lower() != "https":
+        raise ValueError("Only HTTPS is permitted for outbound URL.")
+    hostname = _normalize_host(parsed.hostname or "")
+    if not hostname:
+        raise ValueError("Invalid outbound URL: missing hostname.")
+    if hostname in _BLOCKED_HOSTNAMES or hostname.endswith(_BLOCKED_HOST_SUFFIXES):
+        raise ValueError(f"Blocked internal/loopback hostname in outbound URL: {hostname}")
+
+    ip = _ip_from_hostname(hostname)
+    if ip is not None and _is_disallowed_ip(ip):
+        raise ValueError(f"Blocked private/reserved IP address in outbound URL: {hostname}")
+
+    if allowed_hosts is not None:
+        allowed = {_normalize_host(host) for host in allowed_hosts if host.strip()}
+        if hostname not in allowed:
+            raise ValueError(f"Hostname '{hostname}' is not in allowed hosts allowlist.")
+
+    if check_dns and ip is None:
+        _validate_hostname_dns(hostname)
+    return url.rstrip("/")
+
+
 def _validate_base_url(
     url: str,
     allowed_hosts_str: str | None = None,
     check_dns: bool = False,
 ) -> str:
-    """Validate target base URL against SSRF, loopback, private IPs, and DNS rebinding."""
+    """Validate a Sigma API base URL against SSRF checks and the host allowlist."""
     if not url:
-        return settings.BASE_URL.rstrip("/")
-
-    parsed = urlparse(url)
-    hostname = parsed.hostname or ""
-    if parsed.scheme.lower() != "https":
-        if parsed.scheme.lower() == "http" and hostname in {"localhost", "127.0.0.1", "::1"}:
-            return url.rstrip("/")
-        raise ValueError("Only HTTPS is permitted for base URL.")
-
-    if not hostname:
-        raise ValueError("Invalid base URL: missing hostname.")
-
-    if hostname in {"localhost", "127.0.0.1", "::1"} or hostname.endswith(".local") or hostname.endswith(".internal"):
-        raise ValueError(f"Blocked internal/loopback hostname in base URL: {hostname}")
-
-    allowed_raw = allowed_hosts_str if allowed_hosts_str is not None else settings.ALLOWED_HOSTS
-    if allowed_raw.strip():
-        allowed = {h.strip().lower() for h in allowed_raw.split(",") if h.strip()}
-        if hostname.lower() not in allowed:
-            raise ValueError(f"Hostname '{hostname}' is not in allowed hosts allowlist.")
-
-    try:
-        ip = ipaddress.ip_address(hostname)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
-            raise ValueError(f"Blocked private/reserved IP address in base URL: {hostname}")
-        return url.rstrip("/")
-    except ValueError as e:
-        if "Blocked" in str(e):
-            raise
-
-    if check_dns:
-        _validate_hostname_dns(hostname)
-
-    return url.rstrip("/")
+        url = settings.BASE_URL
+    return validate_outbound_url(
+        url,
+        allowed_hosts=_resolve_allowed_hosts(allowed_hosts_str),
+        check_dns=check_dns,
+    )
 
 
 def _validate_hostname_dns(hostname: str) -> str:
     """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
-    try:
-        ip = ipaddress.ip_address(hostname)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or not ip.is_global:
+    parsed_ip = _ip_from_hostname(hostname)
+    if parsed_ip is not None:
+        if _is_disallowed_ip(parsed_ip):
             raise ValueError(f"Blocked private/reserved IP address: {hostname}")
-        return str(ip)
-    except ValueError as e:
-        if "Blocked" in str(e):
-            raise
+        return str(_coerce_ip(parsed_ip))
 
     try:
         resolved_addrs = socket.getaddrinfo(hostname, None)
-        validated_ip: str | None = None
-        for _, _, _, _, sockaddr in resolved_addrs:
-            resolved_ip = ipaddress.ip_address(sockaddr[0])
-            if (
-                resolved_ip.is_private
-                or resolved_ip.is_loopback
-                or resolved_ip.is_link_local
-                or resolved_ip.is_multicast
-                or resolved_ip.is_reserved
-                or not resolved_ip.is_global
-            ):
-                msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
-                raise ValueError(msg)
-            if validated_ip is None:
-                validated_ip = str(resolved_ip)
-        if not validated_ip:
-            raise ValueError(f"No IP addresses resolved for hostname: {hostname}")
-        return validated_ip
     except socket.gaierror as exc:
         raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
+
+    validated_ip: str | None = None
+    for _, _, _, _, sockaddr in resolved_addrs:
+        resolved_ip = ipaddress.ip_address(sockaddr[0])
+        if _is_disallowed_ip(resolved_ip):
+            msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
+            raise ValueError(msg)
+        if validated_ip is None:
+            validated_ip = str(_coerce_ip(resolved_ip))
+    if not validated_ip:
+        raise ValueError(f"No IP addresses resolved for hostname: {hostname}")
+    return validated_ip
 
 
 _DNS_SEMAPHORE = asyncio.Semaphore(10)
@@ -148,41 +259,40 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         """Validate destination hostname via worker thread before dispatching HTTP request."""
         hostname = request.url.host
+        if request.url.scheme.lower() != "https":
+            raise SigmaAPIError(
+                400,
+                request.url.path,
+                request.method,
+                detail=f"Only HTTPS is permitted for outbound requests to {hostname}.",
+            )
         if hostname:
-            # Honor the narrowly scoped loopback exception permitted by _validate_base_url
-            # (HTTP scheme to localhost, 127.0.0.1, or ::1)
-            is_http_loopback = request.url.scheme.lower() == "http" and hostname.lower() in {
-                "localhost",
-                "127.0.0.1",
-                "::1",
-            }
-            if not is_http_loopback:
-                loop = asyncio.get_running_loop()
-                await _DNS_SEMAPHORE.acquire()
-                fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
-                fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
-                try:
-                    validated_ip = await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
-                except (asyncio.TimeoutError, TimeoutError) as exc:
-                    raise SigmaAPIError(
-                        400,
-                        request.url.path,
-                        request.method,
-                        detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
-                    ) from exc
-                except ValueError as exc:
-                    raise SigmaAPIError(
-                        400,
-                        request.url.path,
-                        request.method,
-                        detail=f"SSRF validation blocked request to {hostname}: {exc}",
-                    ) from exc
+            loop = asyncio.get_running_loop()
+            await _DNS_SEMAPHORE.acquire()
+            fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
+            fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
+            try:
+                validated_ip = await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
+            except (asyncio.TimeoutError, TimeoutError) as exc:
+                raise SigmaAPIError(
+                    400,
+                    request.url.path,
+                    request.method,
+                    detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
+                ) from exc
+            except ValueError as exc:
+                raise SigmaAPIError(
+                    400,
+                    request.url.path,
+                    request.method,
+                    detail=f"SSRF validation blocked request to {hostname}: {exc}",
+                ) from exc
 
-                # Bind connection to validated IP to defend against DNS rebinding (TOCTOU)
-                # Preserve original hostname for Host header and TLS SNI
-                request.headers.setdefault("Host", hostname)
-                request.extensions["sni_hostname"] = hostname
-                request.url = request.url.copy_with(host=validated_ip)
+            # Bind connection to validated IP to defend against DNS rebinding (TOCTOU)
+            # Preserve original hostname for Host header and TLS SNI
+            request.headers.setdefault("Host", hostname)
+            request.extensions["sni_hostname"] = hostname
+            request.url = request.url.copy_with(host=validated_ip)
         return await super().handle_async_request(request)
 
 

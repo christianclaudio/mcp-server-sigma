@@ -67,7 +67,7 @@ async def test_search_members_email_and_name_branches() -> None:
 
     from sigma_mcp.client import SigmaClient
 
-    client = SigmaClient("cid", "secret-32-chars-long-client-secret!", "https://api.example.com")
+    client = SigmaClient("cid", "secret-32-chars-long-client-secret!", "https://api.sigmacomputing.com")
     client.get = AsyncMock(return_value={"entries": []})  # type: ignore[method-assign]
 
     # Test email branch (uses "email" parameter)
