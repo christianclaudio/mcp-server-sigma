@@ -20,6 +20,7 @@ import pytest
 
 from sigma_mcp.client import (
     SSRFSafeAsyncTransport,
+    SSRFSafeTransport,
     _validate_base_url,
     _validate_hostname_dns,
     extract_dict,
@@ -449,6 +450,38 @@ async def test_ssrf_safe_async_transport() -> None:
         with pytest.raises(SigmaAPIError) as exc_timeout:
             await fast_timeout_transport.handle_async_request(req_timeout)
         assert "DNS resolution timed out" in (exc_timeout.value.detail or "")
+
+
+def test_ssrf_safe_sync_transport_pins_validated_ip() -> None:
+    """Sync fetches must dial the IP from the check, not the hostname."""
+    transport = SSRFSafeTransport()
+    req = httpx.Request("GET", "https://example.com/spec.json")
+    with patch("socket.getaddrinfo", return_value=[(None, None, None, None, ("93.184.215.14", 443))]):
+        with patch.object(httpx.HTTPTransport, "handle_request") as mock_super:
+            mock_super.return_value = httpx.Response(200, request=req)
+            resp = transport.handle_request(req)
+    assert resp.status_code == 200
+    assert req.url.host == "93.184.215.14"
+    assert req.headers["host"] == "example.com"
+    assert req.extensions["sni_hostname"] == "example.com"
+    mock_super.assert_called_once_with(req)
+
+    req_http = httpx.Request("GET", "http://127.0.0.1/spec.json")
+    with patch.object(httpx.HTTPTransport, "handle_request") as mock_super:
+        with pytest.raises(SigmaAPIError) as exc_http:
+            transport.handle_request(req_http)
+        assert "Only HTTPS is permitted" in (exc_http.value.detail or "")
+        mock_super.assert_not_called()
+
+    req_private = httpx.Request("GET", "https://10.0.0.5/spec.json")
+    with pytest.raises(SigmaAPIError) as exc_private:
+        transport.handle_request(req_private)
+    assert "SSRF validation blocked request" in (exc_private.value.detail or "")
+
+    with patch("socket.getaddrinfo", return_value=[]):
+        with pytest.raises(SigmaAPIError) as exc_empty:
+            transport.handle_request(httpx.Request("GET", "https://empty-dns.example.com/spec.json"))
+        assert "No IP addresses resolved" in (exc_empty.value.detail or "")
 
 
 @pytest.mark.asyncio

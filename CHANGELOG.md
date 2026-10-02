@@ -5,8 +5,8 @@
 ### Security
 - **Outbound SSRF checks**: Removed the HTTP loopback exception from base-URL validation and `SSRFSafeAsyncTransport`. `http://localhost`, `http://127.0.0.1`, and `http://[::1]` are rejected. Private, loopback, link-local, and cloud-metadata destinations are blocked, including IPv4-mapped IPv6 addresses and decimal or hex IP literals.
 - **Default API host allowlist**: When `SIGMA_ALLOWED_HOSTS` is unset or empty, outbound API base URLs must use an official Sigma regional API host. Set the variable to replace that list. An empty value no longer disables the allowlist.
-- **Documentation fetches**: `sigma_get_doc_page` and `sigma_search_docs` validate the docs host and do not follow redirects.
-- **OpenAPI drift**: `scripts/check_openapi_drift.py --spec-url` validates each spec URL and refuses redirects.
+- **Documentation fetches**: `sigma_get_doc_page` and `sigma_search_docs` validate the docs host, do not follow redirects, and connect through `SSRFSafeAsyncTransport`, which pins the socket to the validated public IP. `Host` and TLS SNI stay on the original hostname.
+- **OpenAPI drift**: `scripts/check_openapi_drift.py --spec-url` uses the same pin via sync `SSRFSafeTransport`. The TCP connection targets the DNS address that passed the public-IP checks, and redirects are not followed.
 
 ## 1.2.1 (2026-09-28)
 

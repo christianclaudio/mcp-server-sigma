@@ -28,7 +28,7 @@ from typing import Any
 
 import httpx
 
-from sigma_mcp.client import validate_outbound_url
+from sigma_mcp.client import SSRFSafeTransport, validate_outbound_url
 
 # Sigma's canonical public spec is hosted as a single combined file on assets.sigmacomputing.com.
 # We fall back to the split help.sigmacomputing.com URLs if the main spec fails.
@@ -68,9 +68,15 @@ def load_allowlist(path: Path) -> set[tuple[str, str]]:
 
 
 def _fetch_url(url: str) -> httpx.Response:
-    """GET a spec URL after SSRF validation. Redirects are never followed."""
-    validated = validate_outbound_url(url, check_dns=True)
-    response = httpx.get(validated, timeout=60.0, follow_redirects=False)
+    """GET a spec URL on the IP that passed the public-address check.
+
+    DNS resolution happens inside ``SSRFSafeTransport`` and that same address is
+    what the TCP connection uses. ``Host`` and TLS SNI stay on the original
+    hostname. Redirects are never followed.
+    """
+    validated = validate_outbound_url(url)
+    with httpx.Client(transport=SSRFSafeTransport(), timeout=60.0, follow_redirects=False) as client:
+        response = client.get(validated)
     if response.is_redirect:
         raise RuntimeError(f"Refusing to follow redirect for spec URL: {url}")
     response.raise_for_status()

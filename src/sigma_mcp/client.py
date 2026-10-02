@@ -249,6 +249,54 @@ _DNS_SEMAPHORE = asyncio.Semaphore(10)
 _DEFAULT_DNS_TIMEOUT_SECONDS = 5.0
 
 
+def _pin_request_to_validated_ip(request: httpx.Request, validated_ip: str) -> None:
+    """Connect to ``validated_ip`` while Host and TLS SNI stay on the original hostname.
+
+    Rewriting the URL host makes httpcore dial that address. ``sni_hostname`` is
+    the extension httpcore uses for certificate verification and the TLS handshake,
+    so the certificate is still checked against the name the caller asked for.
+    """
+    hostname = request.url.host
+    request.headers.setdefault("Host", hostname)
+    request.extensions["sni_hostname"] = hostname
+    request.url = request.url.copy_with(host=validated_ip)
+
+
+def _ssrf_blocked_error(request: httpx.Request, hostname: str, exc: ValueError) -> SigmaAPIError:
+    return SigmaAPIError(
+        400,
+        request.url.path,
+        request.method,
+        detail=f"SSRF validation blocked request to {hostname}: {exc}",
+    )
+
+
+def _https_required_error(request: httpx.Request, hostname: str) -> SigmaAPIError:
+    return SigmaAPIError(
+        400,
+        request.url.path,
+        request.method,
+        detail=f"Only HTTPS is permitted for outbound requests to {hostname}.",
+    )
+
+
+class SSRFSafeTransport(httpx.HTTPTransport):
+    """Sync transport that dials the IP returned by the public-address DNS check."""
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        """Resolve, reject non-global targets, and connect to the validated IP."""
+        hostname = request.url.host
+        if request.url.scheme.lower() != "https":
+            raise _https_required_error(request, hostname)
+        if hostname:
+            try:
+                validated_ip = _validate_hostname_dns(hostname)
+            except ValueError as exc:
+                raise _ssrf_blocked_error(request, hostname, exc) from exc
+            _pin_request_to_validated_ip(request, validated_ip)
+        return super().handle_request(request)
+
+
 class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
     """Async HTTP transport enforcing DNS destination validation at request connection time."""
 
@@ -260,12 +308,7 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
         """Validate destination hostname via worker thread before dispatching HTTP request."""
         hostname = request.url.host
         if request.url.scheme.lower() != "https":
-            raise SigmaAPIError(
-                400,
-                request.url.path,
-                request.method,
-                detail=f"Only HTTPS is permitted for outbound requests to {hostname}.",
-            )
+            raise _https_required_error(request, hostname)
         if hostname:
             loop = asyncio.get_running_loop()
             await _DNS_SEMAPHORE.acquire()
@@ -281,18 +324,9 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
                     detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
                 ) from exc
             except ValueError as exc:
-                raise SigmaAPIError(
-                    400,
-                    request.url.path,
-                    request.method,
-                    detail=f"SSRF validation blocked request to {hostname}: {exc}",
-                ) from exc
+                raise _ssrf_blocked_error(request, hostname, exc) from exc
 
-            # Bind connection to validated IP to defend against DNS rebinding (TOCTOU)
-            # Preserve original hostname for Host header and TLS SNI
-            request.headers.setdefault("Host", hostname)
-            request.extensions["sni_hostname"] = hostname
-            request.url = request.url.copy_with(host=validated_ip)
+            _pin_request_to_validated_ip(request, validated_ip)
         return await super().handle_async_request(request)
 
 
