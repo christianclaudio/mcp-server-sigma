@@ -25,7 +25,7 @@ async def test_prompts_and_resources_coverage() -> None:
 
 @pytest.mark.asyncio
 async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_sync_all_tables_in_schema validation & success & exception
@@ -102,7 +102,7 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
 
 @pytest.mark.asyncio
 async def test_input_tables_pagination_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "Workbook 1"}])
@@ -125,7 +125,7 @@ async def test_input_tables_pagination_loop(monkeypatch: pytest.MonkeyPatch) -> 
 
 @pytest.mark.asyncio
 async def test_materialize_and_wait_timeout_and_no_job(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     # No job_id extracted
@@ -144,7 +144,7 @@ async def test_materialize_and_wait_timeout_and_no_job(monkeypatch: pytest.Monke
 
 @pytest.mark.asyncio
 async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_reassign_workbook_ownership repeating cursor loop break

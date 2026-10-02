@@ -22,7 +22,7 @@ def _mock_response(status_code: int = 200, json_data: dict | list | None = None)
 
 @pytest.mark.asyncio
 async def test_recipe_validation_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     c._http = MagicMock()
     c._http.request = AsyncMock(return_value=_mock_response(200, {"entries": []}))
     monkeypatch.setattr(srv, "_client", c)
@@ -57,7 +57,7 @@ async def test_recipe_validation_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
 @pytest.mark.asyncio
 async def test_composite_recipes_execution(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "Workbook 1"}])
@@ -101,7 +101,7 @@ async def test_composite_recipes_execution(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.asyncio
 async def test_bulk_deactivate_member_cap(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     c.auto_paginate = AsyncMock(
         return_value=[
             {"memberId": f"m{i}", "firstName": "Viewer", "lastName": f"User{i}", "isInactive": False, "isActive": True}

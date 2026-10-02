@@ -24,7 +24,7 @@ def _mock_response(status_code: int = 200, json_data: dict | list | None = None,
 
 @pytest.mark.asyncio
 async def test_client_missing_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     c._http = MagicMock()
     c._http.aclose = AsyncMock()
 
@@ -99,7 +99,7 @@ async def test_server_logging_and_deletes(monkeypatch: pytest.MonkeyPatch) -> No
     srv.configure_logging()
 
     # Client delete endpoints returning 200/204
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     c.delete_connection_path_grant = AsyncMock(return_value=200)
     c.delete_file = AsyncMock(return_value=204)
     c.delete_workspace = AsyncMock(return_value=200)
@@ -132,7 +132,7 @@ async def test_server_logging_and_deletes(monkeypatch: pytest.MonkeyPatch) -> No
 
 @pytest.mark.asyncio
 async def test_reassign_workbook_ownership(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
@@ -156,7 +156,7 @@ async def test_reassign_workbook_ownership(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.asyncio
 async def test_scan_input_tables_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb_err", "name": "Err Workbook"}])
@@ -172,7 +172,7 @@ async def test_scan_input_tables_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
 @pytest.mark.asyncio
 async def test_bulk_sync_tenant_connections_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "org_err", "name": "Err Tenant"}]})
@@ -210,6 +210,12 @@ async def test_extra_coverage_branches() -> None:
 
     # _HEADER_CLIENT_CACHE eviction logic
     for i in range(105):
-        h = {"headers": {"x-sigma-client-id": f"cid_{i}", "x-sigma-client-secret": f"sec_{i}"}}
+        h = {
+            "headers": {
+                "x-sigma-client-id": f"cid_{i}",
+                "x-sigma-client-secret": f"sec_{i}",
+                "x-sigma-base-url": "https://aws-api.sigmacomputing.com",
+            }
+        }
         await srv.get_client(h)
     assert len(srv._HEADER_CLIENT_CACHE) <= 100

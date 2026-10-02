@@ -408,7 +408,7 @@ def _setup_mock_sigma_client(monkeypatch: pytest.MonkeyPatch) -> Any:
     mock_client = SigmaClient(
         "test-client-id",
         "test-secret-32-chars-long-key-12345",
-        "https://api.example.com",
+        "https://api.sigmacomputing.com",
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(_mock_sigma_backend)),
     )
     mock_client._token = "fake-valid-token"

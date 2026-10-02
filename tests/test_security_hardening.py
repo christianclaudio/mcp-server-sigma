@@ -27,7 +27,7 @@ def test_redact_secrets_bearer_and_jwt() -> None:
 @pytest.mark.asyncio
 async def test_tenant_allowlist_enforcement(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SIGMA_ALLOWED_TENANTS", "org-allowed-1, org-allowed-2")
-    c = SigmaClient("id", "secret", "https://api.example.com")
+    c = SigmaClient("id", "secret", "https://api.sigmacomputing.com")
 
     # Forbidden tenant is rejected with 403 on allowlist check
     with pytest.raises(SigmaAPIError) as exc_info:
@@ -51,13 +51,33 @@ async def test_tenant_allowlist_enforcement(monkeypatch: pytest.MonkeyPatch) -> 
 async def test_strict_tenant_allowlist_enforcement(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIGMA_ALLOWED_TENANTS", raising=False)
     monkeypatch.setenv("SIGMA_STRICT_TENANT_ALLOWLIST", "1")
-    c = SigmaClient("id", "secret", "https://api.example.com")
+    c = SigmaClient("id", "secret", "https://api.sigmacomputing.com")
 
     with pytest.raises(SigmaAPIError) as exc_info:
         await c.for_tenant("any-tenant")
 
     assert exc_info.value.status_code == 403
     assert "SIGMA_STRICT_TENANT_ALLOWLIST is active" in (exc_info.value.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_get_client_rejects_untrusted_base_url() -> None:
+    from sigma_mcp import server as srv
+
+    async def _reject(base_url: str, match: str) -> None:
+        ctx = {
+            "headers": {
+                "x-sigma-client-id": "req-id",
+                "x-sigma-client-secret": "req-secret",
+                "x-sigma-base-url": base_url,
+            }
+        }
+        with pytest.raises(ValueError, match=match):
+            await srv.get_client(ctx)
+
+    await _reject("http://127.0.0.1:9", "Only HTTPS")
+    await _reject("https://169.254.169.254", "Blocked private/reserved IP")
+    await _reject("https://evil.example", "not in allowed hosts")
 
 
 @pytest.mark.asyncio

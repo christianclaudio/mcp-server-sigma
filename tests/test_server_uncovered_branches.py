@@ -21,7 +21,7 @@ def _mock_response(status_code: int = 200, content: bytes = b"pdf_data") -> Resp
 
 @pytest.mark.asyncio
 async def test_tenant_info_and_export_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_get_tenant_scoped_info empty check
@@ -69,7 +69,7 @@ async def test_tenant_info_and_export_branches(monkeypatch: pytest.MonkeyPatch) 
 
 @pytest.mark.asyncio
 async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     # bulk assign team members validation
@@ -122,7 +122,7 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
 
 @pytest.mark.asyncio
 async def test_bulk_sync_tenant_connections_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "t1", "name": "Tenant 1"}]})
@@ -170,7 +170,7 @@ def test_server_profile_and_readonly_filtering(monkeypatch: pytest.MonkeyPatch) 
 @pytest.mark.asyncio
 async def test_add_connection_grant_invalid_grant_type(monkeypatch: pytest.MonkeyPatch) -> None:
     """Covers the invalid grant_type validation branch."""
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
     res = await srv.sigma_add_connection_grant("conn1", "invalid_type", "grantee1", "usage")
     assert "grant_type must be" in res
@@ -179,7 +179,7 @@ async def test_add_connection_grant_invalid_grant_type(monkeypatch: pytest.Monke
 @pytest.mark.asyncio
 async def test_add_connection_grant_team_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """Covers the team grantee_key branch."""
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
     c.add_connection_grant = AsyncMock(return_value={})
     res = await srv.sigma_add_connection_grant("conn1", "team", "team123", "usage")
@@ -191,7 +191,7 @@ async def test_add_connection_grant_team_path(monkeypatch: pytest.MonkeyPatch) -
 @pytest.mark.asyncio
 async def test_create_workbook_embed_missing_source_id(monkeypatch: pytest.MonkeyPatch) -> None:
     """Covers the source_id validation for page/element embeds."""
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
     res = await srv.sigma_create_workbook_embed("wb1", source_type="page")
     assert "source_id is required" in res
@@ -200,7 +200,7 @@ async def test_create_workbook_embed_missing_source_id(monkeypatch: pytest.Monke
 @pytest.mark.asyncio
 async def test_export_workbook_auto_discover(monkeypatch: pytest.MonkeyPatch) -> None:
     """Covers sigma_export_workbook auto-discovery of element when element_id is empty."""
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_workbook_pages = AsyncMock(return_value={"entries": [{"pageId": "p1"}]})

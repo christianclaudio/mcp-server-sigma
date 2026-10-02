@@ -264,7 +264,8 @@ Configure behavior using environment variables:
 |----------|---------|-------------|
 | `SIGMA_CLIENT_ID` | *Required* | Your Sigma API client ID. |
 | `SIGMA_CLIENT_SECRET` | *Required* | Your Sigma API client secret. |
-| `SIGMA_API_BASE_URL` | *Required* | Region-specific Sigma API host URL. |
+| `SIGMA_API_BASE_URL` | *Required* | Region-specific Sigma API host URL. Must be HTTPS and a host in `SIGMA_ALLOWED_HOSTS`. |
+| `SIGMA_ALLOWED_HOSTS` | official regional API hosts | Comma-separated hostname allowlist for `SIGMA_API_BASE_URL` and `X-Sigma-Base-Url`. Unset or empty uses the official Sigma regional API hosts. Loopback, private, link-local, and cloud-metadata targets are always rejected. |
 | `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (38 tools), `admin` (56), `embed` (57), `full` (170). |
 | `SIGMA_MCP_READONLY` | `0` | Set `1` to register **only** read-only tools (90 tools). Models cannot alter org state. |
 | `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) (172 total). |

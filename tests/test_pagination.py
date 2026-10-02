@@ -10,7 +10,7 @@ from sigma_mcp.client import SigmaClient
 
 
 def _preauth_client() -> SigmaClient:
-    c = SigmaClient("id", "secret", "https://api.example.com", max_retries=0, base_delay=0.001)
+    c = SigmaClient("id", "secret", "https://api.sigmacomputing.com", max_retries=0, base_delay=0.001)
     c._token = "tok"
     c._token_expiry = time.time() + 3600
     return c

@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     )
     ALLOWED_HOSTS: str = Field(
         default="",
-        description="Comma-separated hostname allowlist for SSRF defense",
+        description=(
+            "Comma-separated hostname allowlist for outbound API base URLs. "
+            "Unset or empty selects the official Sigma regional API hosts."
+        ),
     )
     ALLOWED_TENANTS: str = Field(
         default="",

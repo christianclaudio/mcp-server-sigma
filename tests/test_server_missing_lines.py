@@ -12,7 +12,7 @@ from sigma_mcp.client import SigmaClient
 
 @pytest.mark.asyncio
 async def test_reassign_workbook_ownership_owned_matching(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.search_members = AsyncMock(
@@ -38,7 +38,7 @@ async def test_reassign_workbook_ownership_owned_matching(monkeypatch: pytest.Mo
 
 @pytest.mark.asyncio
 async def test_bulk_remove_team_members_execution(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.search_members = AsyncMock(
@@ -56,7 +56,7 @@ async def test_bulk_remove_team_members_execution(monkeypatch: pytest.MonkeyPatc
 
 @pytest.mark.asyncio
 async def test_onboard_member_team_addition_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.create_member = AsyncMock(return_value={"memberId": "m_new", "email": "new@ex.com"})
@@ -68,7 +68,7 @@ async def test_onboard_member_team_addition_success(monkeypatch: pytest.MonkeyPa
 
 @pytest.mark.asyncio
 async def test_list_all_input_tables_element_scanning(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "Workbook 1"}])
@@ -129,7 +129,7 @@ def test_streamable_http_app_wildcard_host_validation() -> None:
 
 @pytest.mark.asyncio
 async def test_server_lifespan_clears_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
     async with srv.server_lifespan(srv.mcp) as ctx:
         assert ctx["client"] is c

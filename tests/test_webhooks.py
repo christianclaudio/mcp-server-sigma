@@ -180,7 +180,7 @@ async def test_get_client_per_request_context_headers() -> None:
 
 @pytest.mark.asyncio
 async def test_summary_only_list_tools_and_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
-    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
     c.list_connections = AsyncMock(

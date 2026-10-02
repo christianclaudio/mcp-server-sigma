@@ -39,7 +39,7 @@ def _setup_client_mock():
     """Patch the global _client to return mock responses."""
     from sigma_mcp.client import SigmaClient
 
-    c = SigmaClient("test-id", "test-secret", "https://api.example.com")
+    c = SigmaClient("test-id", "test-secret", "https://api.sigmacomputing.com")
     c._token = "fake-token"
     c._token_expiry = time.time() + 3600
     return c

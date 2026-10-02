@@ -3,13 +3,8 @@
 import asyncio
 import inspect
 import json
-import os
 
-os.environ.setdefault("SIGMA_CLIENT_ID", "fake_id")
-os.environ.setdefault("SIGMA_CLIENT_SECRET", "fake_secret_value_1234")
-os.environ.setdefault("SIGMA_API_BASE_URL", "http://localhost:9999")
-
-from sigma_mcp.server import mcp  # noqa: E402
+from sigma_mcp.server import mcp
 
 
 async def _test_all_tools():
@@ -49,7 +44,12 @@ async def _test_all_tools():
     return failures
 
 
-def test_no_tool_raises_raw_exception():
+def test_no_tool_raises_raw_exception(monkeypatch):
+    # Loopback is not a valid API base URL. Tools must still return JSON.
+    monkeypatch.setenv("SIGMA_CLIENT_ID", "fake_id")
+    monkeypatch.setenv("SIGMA_CLIENT_SECRET", "fake_secret_value_1234")
+    monkeypatch.setenv("SIGMA_API_BASE_URL", "http://127.0.0.1:9999")
+    monkeypatch.setattr("sigma_mcp.server._client", None)
     failures = asyncio.run(_test_all_tools())
     if failures:
         msg = f"{len(failures)} tool(s) raised raw exceptions:\n"
@@ -58,6 +58,11 @@ def test_no_tool_raises_raw_exception():
 
 
 if __name__ == "__main__":
+    import os
+
+    os.environ.setdefault("SIGMA_CLIENT_ID", "fake_id")
+    os.environ.setdefault("SIGMA_CLIENT_SECRET", "fake_secret_value_1234")
+    os.environ.setdefault("SIGMA_API_BASE_URL", "http://127.0.0.1:9999")
     failures = asyncio.run(_test_all_tools())
     if failures:
         print(f"FAILURES ({len(failures)}):")
