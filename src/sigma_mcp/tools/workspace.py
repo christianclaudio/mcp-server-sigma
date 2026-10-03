@@ -22,7 +22,7 @@ from sigma_mcp.tools.common import (
 workspace_server = FastMCP("sigma-workspace", instructions="Workspaces, files, folders, and tags.")
 
 
-@workspace_server.tool(name="sigma_delete_file", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"})
+@workspace_server.tool(name="delete_file", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"})
 @sigma_tool
 async def sigma_delete_file(inode_id: str, confirm: bool = False) -> str:
     """Delete a file/workbook/data model by its inode ID. Requires confirm=True."""
@@ -35,7 +35,7 @@ async def sigma_delete_file(inode_id: str, confirm: bool = False) -> str:
 delete_file = sigma_delete_file
 
 
-@workspace_server.tool(name="sigma_list_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@workspace_server.tool(name="list_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_files(parent_id: str | None = None, type_filter: str | None = None) -> str:
     """List files/folders. Optionally filter by parentId or type ('workbook', 'folder', 'data-model', 'template')."""
@@ -50,7 +50,7 @@ async def sigma_list_files(parent_id: str | None = None, type_filter: str | None
 list_files = sigma_list_files
 
 
-@workspace_server.tool(name="sigma_create_folder", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@workspace_server.tool(name="create_folder", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
 @sigma_tool
 async def sigma_create_folder(name: str, parent_id: str) -> str:
     """Create a folder."""
@@ -62,7 +62,7 @@ async def sigma_create_folder(name: str, parent_id: str) -> str:
 create_folder = sigma_create_folder
 
 
-@workspace_server.tool(name="sigma_update_file", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@workspace_server.tool(name="update_file", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
 @sigma_tool
 async def sigma_update_file(inode_id: str, body: dict[str, Any]) -> str:
     """Update file properties (name, parentId for moving)."""
@@ -72,7 +72,7 @@ async def sigma_update_file(inode_id: str, body: dict[str, Any]) -> str:
 update_file = sigma_update_file
 
 
-@workspace_server.tool(name="sigma_list_tags", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@workspace_server.tool(name="list_tags", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_tags(page: str | None = None, limit: int = 200) -> str:
     """List all tags in the organization. Supports pagination via page token."""
@@ -82,7 +82,7 @@ async def sigma_list_tags(page: str | None = None, limit: int = 200) -> str:
 list_tags = sigma_list_tags
 
 
-@workspace_server.tool(name="sigma_create_tag", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@workspace_server.tool(name="create_tag", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
 @sigma_tool
 async def sigma_create_tag(name: str, color: str = "cyan") -> str:
     """Create a new tag (used for version promotion like 'Production', 'Staging').
@@ -97,7 +97,7 @@ async def sigma_create_tag(name: str, color: str = "cyan") -> str:
 create_tag = sigma_create_tag
 
 
-@workspace_server.tool(name="sigma_delete_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"})
+@workspace_server.tool(name="delete_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"})
 @sigma_tool
 async def sigma_delete_tag(tag_id: str, confirm: bool = False) -> str:
     """Delete a tag. Requires confirm=True."""
@@ -110,7 +110,7 @@ async def sigma_delete_tag(tag_id: str, confirm: bool = False) -> str:
 delete_tag = sigma_delete_tag
 
 
-@workspace_server.tool(name="sigma_list_workspaces", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@workspace_server.tool(name="list_workspaces", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workspaces(limit: int = 200, page: str | None = None) -> str:
     """List all workspaces. Supports pagination via page token."""
@@ -120,7 +120,7 @@ async def sigma_list_workspaces(limit: int = 200, page: str | None = None) -> st
 list_workspaces = sigma_list_workspaces
 
 
-@workspace_server.tool(name="sigma_get_workspace", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@workspace_server.tool(name="get_workspace", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_get_workspace(workspace_id: str) -> str:
     """Get workspace details."""
@@ -130,7 +130,7 @@ async def sigma_get_workspace(workspace_id: str) -> str:
 get_workspace = sigma_get_workspace
 
 
-@workspace_server.tool(name="sigma_create_workspace", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@workspace_server.tool(name="create_workspace", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
 @sigma_tool
 async def sigma_create_workspace(name: str) -> str:
     """Create a new workspace."""
@@ -140,9 +140,7 @@ async def sigma_create_workspace(name: str) -> str:
 create_workspace = sigma_create_workspace
 
 
-@workspace_server.tool(
-    name="sigma_delete_workspace", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"}
-)
+@workspace_server.tool(name="delete_workspace", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"})
 @sigma_tool
 async def sigma_delete_workspace(workspace_id: str, confirm: bool = False) -> str:
     """Delete a workspace. Requires confirm=True."""
@@ -155,9 +153,7 @@ async def sigma_delete_workspace(workspace_id: str, confirm: bool = False) -> st
 delete_workspace = sigma_delete_workspace
 
 
-@workspace_server.tool(
-    name="sigma_list_workspace_grants", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"}
-)
+@workspace_server.tool(name="list_workspace_grants", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workspace_grants(workspace_id: str, page: str | None = None, limit: int = 200) -> str:
     """List permission grants on a workspace. Supports pagination via page token."""
@@ -168,7 +164,7 @@ list_workspace_grants = sigma_list_workspace_grants
 
 
 @workspace_server.tool(
-    name="sigma_grant_workspace_access", annotations=ANNOTATION_IDEMPOTENT, tags={"workspace", "idempotent"}
+    name="grant_workspace_access", annotations=ANNOTATION_IDEMPOTENT, tags={"workspace", "idempotent"}
 )
 @sigma_tool
 async def sigma_grant_workspace_access(workspace_id: str, grant_type: str, grantee_id: str, permission: str) -> str:
@@ -189,7 +185,7 @@ grant_workspace_access = sigma_grant_workspace_access
 
 
 @workspace_server.tool(
-    name="sigma_delete_workspace_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"}
+    name="delete_workspace_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"}
 )
 @sigma_tool
 async def sigma_delete_workspace_grant(workspace_id: str, grant_id: str, confirm: bool = False) -> str:
@@ -203,7 +199,7 @@ async def sigma_delete_workspace_grant(workspace_id: str, grant_id: str, confirm
 delete_workspace_grant = sigma_delete_workspace_grant
 
 
-@workspace_server.tool(name="sigma_list_all_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@workspace_server.tool(name="list_all_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_all_files(parent_id: str | None = None, type_filter: str | None = None) -> str:
     """List files/folders in the organization, automatically following pagination.

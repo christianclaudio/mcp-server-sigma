@@ -186,11 +186,11 @@ class TestReadonlyMode:
     def test_readonly_middleware_allows_verify_and_download(self) -> None:
         from sigma_mcp.middleware import is_read_only_tool
 
-        assert is_read_only_tool("sigma_verify_workbook_spec")
+        assert is_read_only_tool("workbooks_verify_workbook_spec")
         assert is_read_only_tool("verify_workbook_spec")
-        assert is_read_only_tool("sigma_verify_report_spec")
+        assert is_read_only_tool("workbooks_verify_report_spec")
         assert is_read_only_tool("verify_report_spec")
-        assert is_read_only_tool("sigma_download_query_export")
+        assert is_read_only_tool("workbooks_download_query_export")
         assert is_read_only_tool("download_query_export")
 
     @pytest.mark.asyncio
@@ -201,9 +201,9 @@ class TestReadonlyMode:
         next_mock = AsyncMock(return_value="ok")
 
         for tool_name in (
-            "sigma_verify_workbook_spec",
-            "sigma_verify_report_spec",
-            "sigma_download_query_export",
+            "workbooks_verify_workbook_spec",
+            "workbooks_verify_report_spec",
+            "workbooks_download_query_export",
         ):
             ctx = MagicMock()
             ctx.method = "tools/call"
@@ -248,8 +248,8 @@ class TestBulkDestructiveGating:
             check=True,
         )
         result = json.loads(out.stdout.strip())
-        assert "sigma_bulk_deactivate_members" not in result["names"]
-        assert "sigma_bulk_remove_team_members" not in result["names"]
+        assert "admin_bulk_deactivate_members" not in result["names"]
+        assert "admin_bulk_remove_team_members" not in result["names"]
 
     def test_bulk_tools_present_with_env(self) -> None:
         env = dict(os.environ)
@@ -268,8 +268,8 @@ class TestBulkDestructiveGating:
             check=True,
         )
         result = json.loads(out.stdout.strip())
-        assert "sigma_bulk_deactivate_members" in result["names"]
-        assert "sigma_bulk_remove_team_members" in result["names"]
+        assert "admin_bulk_deactivate_members" in result["names"]
+        assert "admin_bulk_remove_team_members" in result["names"]
 
 
 # ─── Profile filtering ────────────────────────────────────────────────────────

@@ -44,8 +44,8 @@ SIGMA_MCP_READONLY=1 sigma-mcp
 This restricts registration exclusively to **83 read-only tools**, completely removing all mutation endpoints from the model's tool context.
 
 ### 4. Safety Gates for Single & Bulk Operations
-- **Single Delete Operations:** Require explicit `confirm=True` on all atomic delete/deactivate endpoints (`sigma_delete_workspace`, `sigma_delete_file`, etc.).
-- **Bulk Destructive Tools:** `sigma_bulk_deactivate_members` and `sigma_bulk_remove_team_members` are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
+- **Single Delete Operations:** Require explicit `confirm=True` on all atomic delete/deactivate endpoints (`workspace_delete_workspace`, `workspace_delete_file`, etc.).
+- **Bulk Destructive Tools:** `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
 - **Bulk Deactivation Protections:** Includes `dry_run=True` default, `confirm=False` gate, rejection of catch-all regexes (`.*`, `.+`), and a 10-member safety cap.
 
 ### 5. Network Transport Exposure

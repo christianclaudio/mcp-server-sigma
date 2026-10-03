@@ -19,14 +19,14 @@ from sigma_mcp.server import (
 async def test_mcp_resources_registered() -> None:
     resources = await mcp.list_resources()
     resource_uris = [r.uri for r in resources]
-    assert "sigma://reference/formulas" in resource_uris
-    assert "sigma://reference/capabilities" in resource_uris
+    assert "elements://reference/formulas" in resource_uris
+    assert "admin://reference/capabilities" in resource_uris
 
-    formula_res = await mcp.read_resource("sigma://reference/formulas")
+    formula_res = await mcp.read_resource("elements://reference/formulas")
     assert isinstance(formula_res, list) and len(formula_res) == 1
     assert hasattr(formula_res[0], "content") and "Sigma" in str(formula_res[0].content)
 
-    caps_res = await mcp.read_resource("sigma://reference/capabilities")
+    caps_res = await mcp.read_resource("admin://reference/capabilities")
     assert isinstance(caps_res, list) and len(caps_res) == 1
     caps_data = json.loads(str(caps_res[0].content))
     assert "connections" in caps_data["supported_domains"]
@@ -36,12 +36,12 @@ async def test_mcp_resources_registered() -> None:
 async def test_mcp_prompts_registered() -> None:
     prompts = await mcp.list_prompts()
     prompt_names = [p.name for p in prompts]
-    assert "provision_tenant_dashboard" in prompt_names
-    assert "audit_organization_permissions" in prompt_names
-    assert "prepare_data_model" in prompt_names
+    assert "workbooks_provision_tenant_dashboard" in prompt_names
+    assert "admin_audit_organization_permissions" in prompt_names
+    assert "datasets_prepare_data_model" in prompt_names
 
     p_result = await mcp.get_prompt(
-        "provision_tenant_dashboard",
+        "workbooks_provision_tenant_dashboard",
         {"template_id": "tmpl-123", "folder_id": "fld-456", "tenant_id": "org-789"},
     )
     assert hasattr(p_result, "messages")
@@ -61,13 +61,13 @@ def test_structured_json_formatter() -> None:
         args=(),
         exc_info=None,
     )
-    setattr(record, "tool_name", "sigma_get_workbook")
+    setattr(record, "tool_name", "workbooks_get_workbook")
     setattr(record, "duration_ms", 42.5)
 
     formatted = formatter.format(record)
     data = json.loads(formatted)
     assert data["message"] == "Test message"
-    assert data["mcp_tool"] == "sigma_get_workbook"
+    assert data["mcp_tool"] == "workbooks_get_workbook"
     assert data["duration_ms"] == 42.5
 
 

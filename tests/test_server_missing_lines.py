@@ -91,7 +91,7 @@ async def test_call_tool_compat_reraises_other_exceptions(monkeypatch: pytest.Mo
     mock_call = AsyncMock(side_effect=RuntimeError("database crashed"))
     monkeypatch.setattr(srv, "_orig_call_tool", mock_call)
     with pytest.raises(RuntimeError, match="database crashed"):
-        await srv.mcp.call_tool("sigma_api_capabilities", {})
+        await srv.mcp.call_tool("admin_api_capabilities", {})
 
 
 @pytest.mark.asyncio
@@ -106,14 +106,14 @@ async def test_call_tool_compat_translates_not_found_error(monkeypatch: pytest.M
 
 
 def test_uri_compat_hash_and_equality() -> None:
-    u1 = srv._UriCompat("sigma://reference/formulas")
-    u2 = srv._UriCompat("sigma://reference/formulas")
+    u1 = srv._UriCompat("elements://reference/formulas")
+    u2 = srv._UriCompat("elements://reference/formulas")
     assert u1 == u2
-    assert u1 == "sigma://reference/formulas"
-    assert hash(u1) == hash("sigma://reference/formulas")
-    assert len({u1, u2, "sigma://reference/formulas"}) == 1
+    assert u1 == "elements://reference/formulas"
+    assert hash(u1) == hash("elements://reference/formulas")
+    assert len({u1, u2, "elements://reference/formulas"}) == 1
     d = {u1: "found"}
-    assert d["sigma://reference/formulas"] == "found"
+    assert d["elements://reference/formulas"] == "found"
 
 
 def test_streamable_http_app_wildcard_host_validation() -> None:
@@ -138,12 +138,12 @@ async def test_server_lifespan_clears_client(monkeypatch: pytest.MonkeyPatch) ->
 
 @pytest.mark.asyncio
 async def test_resource_list_compat_properties() -> None:
-    res = await srv.mcp.read_resource("sigma://reference/formulas")
+    res = await srv.mcp.read_resource("elements://reference/formulas")
     assert res.contents is not None
     assert res.meta is None
 
 
 @pytest.mark.asyncio
 async def test_get_prompt_compat_no_args() -> None:
-    p = await srv.mcp.get_prompt("provision_tenant_dashboard")
+    p = await srv.mcp.get_prompt("workbooks_provision_tenant_dashboard")
     assert p is not None

@@ -107,7 +107,7 @@ async def test_read_only_gate_middleware_blocks_mutation() -> None:
     mw = ReadOnlyGateMiddleware()
     ctx = SimpleNamespace(
         method="tools/call",
-        message=SimpleNamespace(name="sigma_delete_file"),
+        message=SimpleNamespace(name="workspace_delete_file"),
     )
     next_called = False
 
@@ -124,7 +124,7 @@ async def test_read_only_gate_middleware_blocks_mutation() -> None:
     # When tool is read-only, it passes
     ctx_ro = SimpleNamespace(
         method="tools/call",
-        message=SimpleNamespace(name="sigma_list_workbooks"),
+        message=SimpleNamespace(name="workbooks_list_workbooks"),
     )
     with patch("sigma_mcp.middleware.settings.MCP_READONLY", True):
         res = await mw.on_message(ctx_ro, dummy_next)  # type: ignore[arg-type]
@@ -137,7 +137,7 @@ async def test_admin_domain_guard_middleware_blocks_bulk() -> None:
     mw = AdminDomainGuardMiddleware()
     ctx = SimpleNamespace(
         method="tools/call",
-        message=SimpleNamespace(name="sigma_bulk_deactivate_members"),
+        message=SimpleNamespace(name="admin_bulk_deactivate_members"),
     )
     next_called = False
 
@@ -203,12 +203,12 @@ def test_server_tool_manager_compat_uncovered_branches() -> None:
     compat = _ToolManagerCompat(mock_server)
     tools = compat._tools
     assert "custom_lookup" in tools
-    assert "sigma_custom_lookup" in tools
+    assert "sigma_custom_lookup" not in tools
 
     # Test remove_tool
     compat.remove_tool("custom_lookup")
-    mock_server.disable.assert_called_with(names={"custom_lookup", "sigma_custom_lookup"})
-    mock_provider.disable.assert_called_with(names={"custom_lookup", "sigma_custom_lookup"})
+    mock_server.disable.assert_called_with(names={"custom_lookup"})
+    mock_provider.disable.assert_called_with(names={"custom_lookup"})
 
 
 def test_create_server_invalid_profile() -> None:

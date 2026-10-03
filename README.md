@@ -22,7 +22,7 @@
 > **Credentials & Safety Notice**  
 > This server uses API credentials scoped to your Sigma organization. Tools can mutate workbooks, users, teams, and data models.  
 > - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` (grants 90 read-only tools).  
-> - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
+> - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
 > - Read [SECURITY.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/SECURITY.md) before deploying to production.
 
 ---
@@ -37,12 +37,12 @@ Sigma Computing has a unique architectural asymmetry that shapes how you automat
 The canonical path to automated BI dashboards is:  
 **Build the layout once in the Sigma UI, save it as a template, then instantiate and source-swap it programmatically forever after!** 🎨 ➡️ 🤖
 
-Our composite recipe tools (like `sigma_deploy_template_to_folder` and `sigma_swap_workbook_sources`) automate this exact pattern in a single MCP tool call (returning structured step progress or partial failure details if an intermediate step fails):
+Our composite recipe tools (like `workbooks_deploy_template_to_folder` and `elements_swap_workbook_sources`) automate this exact pattern in a single MCP tool call (returning structured step progress or partial failure details if an intermediate step fails):
 
 ```mermaid
 graph TD
     UI["Sigma UI"] -->|"1. Build Layout Once & Save"| TPL["Sigma Template"]
-    Agent["AI Agent / LLM"] -->|"2. Call sigma_deploy_template_to_folder"| MCP["mcp-server-sigma"]
+    Agent["AI Agent / LLM"] -->|"2. Call workbooks_deploy_template_to_folder"| MCP["mcp-server-sigma"]
     MCP -->|"POST /v2/templates/{id}/instantiate"| API1["Instantiate Workbook"]
     MCP -->|"POST /v2/workbooks/{id}/swap_sources"| API2["Swap Warehouse Sources"]
     API2 -->|"Delivered"| Dest["Target Customer Folder"]
@@ -235,7 +235,7 @@ Add `.github/mcp.json` to your repository:
         "SIGMA_API_BASE_URL": "https://api.us-a.aws.sigmacomputing.com",
         "SIGMA_MCP_READONLY": "1"
       },
-      "tools": ["sigma_get_workbook", "sigma_list_workbooks", "sigma_get_data_model"]
+      "tools": ["workbooks_get_workbook", "workbooks_list_workbooks", "datasets_get_data_model"]
     }
   }
 }
@@ -268,7 +268,7 @@ Configure behavior using environment variables:
 | `SIGMA_ALLOWED_HOSTS` | official regional API hosts | Comma-separated hostname allowlist for `SIGMA_API_BASE_URL` and `X-Sigma-Base-Url`. Unset or empty uses the official Sigma regional API hosts. Loopback, private, link-local, and cloud-metadata targets are always rejected. |
 | `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (38 tools), `admin` (56), `embed` (57), `full` (170). |
 | `SIGMA_MCP_READONLY` | `0` | Set `1` to register **only** read-only tools (90 tools). Models cannot alter org state. |
-| `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) (172 total). |
+| `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) (172 total). |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
@@ -297,10 +297,10 @@ The server registers **170 tools by default** across the following domain module
 | **Grants** | 5 | Access control lists, workbook/workspace/connection grants |
 | **Files & Folders** | 4 | Inode search, create folder, update, delete |
 | **Tags** | 4 | List, create, tag workbook, tag data model |
-| **Reference** | 4 | `sigma_api_capabilities`, `sigma_formula_pitfalls`, `sigma_search_docs`, `sigma_get_doc_page` |
+| **Reference** | 4 | `admin_api_capabilities`, `elements_formula_pitfalls`, `elements_search_docs`, `elements_get_doc_page` |
 | **Composite Recipes** | 14 | High-level multi-step workflow recipes |
 
-*Note: Domain categories overlap slightly. The 2 bulk-destructive tools (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`) are excluded by default and bring the total to 172 when enabled.*
+*Note: Domain categories overlap slightly. The 2 bulk-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are excluded by default and bring the total to 172 when enabled.*
 
 ---
 
@@ -310,18 +310,18 @@ These high-level tools bundle multi-step API sequences into a single atomic call
 
 | Recipe Tool | What It Does |
 |-------------|--------------|
-| `sigma_deploy_template_to_folder` | Instantiates a template & swaps warehouse sources in 1 call |
-| `sigma_materialize_and_wait` | Triggers a data materialization and polls until complete with timeout |
-| `sigma_onboard_member` | Atomically creates a member and assigns them to multiple teams |
-| `sigma_bulk_assign_team_members` | Batch-adds $N$ members to a team in a single request |
-| `sigma_bulk_remove_team_members` | Resolves member emails and batch-removes them from a team |
-| `sigma_bulk_deactivate_members` | Regex-matches members, generates dry-run report, and deactivates |
-| `sigma_bulk_sync_tenant_connections` | Performs RFC 8693 token exchange per tenant to sync all connections |
-| `sigma_copy_workbook_to_member` | Duplicates a workbook directly into a user's home folder |
-| `sigma_promote_workbook` | Tags a workbook for version promotion (creates tag if missing) |
-| `sigma_export_and_download` | Exports workbook/element, handles 204 polling, returns final content |
-| `sigma_sync_all_tables_in_schema` | Syncs an entire database.schema path across Sigma connections |
-| `sigma_reassign_workbook_ownership` | Bulk-transfers workbook ownership from one member email to another |
+| `workbooks_deploy_template_to_folder` | Instantiates a template & swaps warehouse sources in 1 call |
+| `elements_materialize_and_wait` | Triggers a data materialization and polls until complete with timeout |
+| `admin_onboard_member` | Atomically creates a member and assigns them to multiple teams |
+| `admin_bulk_assign_team_members` | Batch-adds $N$ members to a team in a single request |
+| `admin_bulk_remove_team_members` | Resolves member emails and batch-removes them from a team |
+| `admin_bulk_deactivate_members` | Regex-matches members, generates dry-run report, and deactivates |
+| `datasets_bulk_sync_tenant_connections` | Performs RFC 8693 token exchange per tenant to sync all connections |
+| `workbooks_copy_workbook_to_member` | Duplicates a workbook directly into a user's home folder |
+| `workbooks_promote_workbook` | Tags a workbook for version promotion (creates tag if missing) |
+| `workbooks_export_and_download` | Exports workbook/element, handles 204 polling, returns final content |
+| `datasets_sync_all_tables_in_schema` | Syncs an entire database.schema path across Sigma connections |
+| `workbooks_reassign_workbook_ownership` | Bulk-transfers workbook ownership from one member email to another |
 
 ---
 
@@ -345,7 +345,7 @@ Before writing any Sigma formula, call the built-in reference tool:
 
 ```bash
 # Model prompt helper
-Use tool `sigma_formula_pitfalls` to check formula syntax rules.
+Use tool `elements_formula_pitfalls` to check formula syntax rules.
 ```
 
 See [docs/formulas.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/docs/formulas.md) for full syntax details.

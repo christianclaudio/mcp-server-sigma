@@ -12,34 +12,34 @@ from mcp.types import CallToolResult, TextContent
 from sigma_mcp.server import _redact_secrets, mcp
 
 SAFE_TOOL_FIXTURES: dict[str, dict[str, Any]] = {
-    "sigma_delete_file": {"inode_id": "e2e-probe-file", "confirm": False},
-    "sigma_delete_team": {"team_id": "e2e-probe-team", "confirm": False},
-    "sigma_delete_tag": {"tag_id": "e2e-probe-tag", "confirm": False},
-    "sigma_delete_workspace": {"workspace_id": "e2e-probe-ws", "confirm": False},
-    "sigma_delete_workspace_grant": {
+    "workspace_delete_file": {"inode_id": "e2e-probe-file", "confirm": False},
+    "admin_delete_team": {"team_id": "e2e-probe-team", "confirm": False},
+    "workspace_delete_tag": {"tag_id": "e2e-probe-tag", "confirm": False},
+    "workspace_delete_workspace": {"workspace_id": "e2e-probe-ws", "confirm": False},
+    "workspace_delete_workspace_grant": {
         "workspace_id": "e2e-probe-ws",
         "grant_id": "e2e-probe-grant",
         "confirm": False,
     },
-    "sigma_delete_connection_path_grant": {
+    "datasets_delete_connection_path_grant": {
         "connection_path_id": "c-1",
         "grant_id": "g-1",
         "confirm": False,
     },
-    "sigma_delete_workbook_schedule": {
+    "workbooks_delete_workbook_schedule": {
         "workbook_id": "wb-1",
         "schedule_id": "s-1",
         "confirm": False,
     },
-    "sigma_remove_workbook_tag": {"workbook_id": "wb-1", "tag_id": "t-1", "confirm": False},
-    "sigma_archive_deployment": {"policy_id": "e2e-probe-pol", "confirm": False},
-    "sigma_deactivate_member": {"member_id": "e2e-probe-mem", "confirm": False},
-    "sigma_bulk_deactivate_members": {
+    "workbooks_remove_workbook_tag": {"workbook_id": "wb-1", "tag_id": "t-1", "confirm": False},
+    "admin_archive_deployment": {"policy_id": "e2e-probe-pol", "confirm": False},
+    "admin_deactivate_member": {"member_id": "e2e-probe-mem", "confirm": False},
+    "admin_bulk_deactivate_members": {
         "name_pattern": "e2e-probe",
         "dry_run": True,
         "confirm": False,
     },
-    "sigma_bulk_remove_team_members": {
+    "admin_bulk_remove_team_members": {
         "team_id": "e2e-probe-team",
         "member_emails": ["probe@example.com"],
         "confirm": False,
@@ -81,16 +81,16 @@ async def test_dispatch_tool_call_offline(monkeypatch: pytest.MonkeyPatch) -> No
     mock_call.assert_awaited_with("sigma_get_user", {})
 
     # 2. Destructive tool with safety confirmation gate from fixture map
-    status, is_err, err = await dispatch_tool_call("sigma_delete_file", is_destructive=True)
+    status, is_err, err = await dispatch_tool_call("workspace_delete_file", is_destructive=True)
     assert status == "PASS"
     assert not is_err
-    mock_call.assert_awaited_with("sigma_delete_file", {"inode_id": "e2e-probe-file", "confirm": False})
+    mock_call.assert_awaited_with("workspace_delete_file", {"inode_id": "e2e-probe-file", "confirm": False})
 
     # 3. List tool with limit pagination argument
-    status, is_err, err = await dispatch_tool_call("sigma_list_workbooks", is_destructive=False)
+    status, is_err, err = await dispatch_tool_call("workbooks_list_workbooks", is_destructive=False)
     assert status == "PASS"
     assert not is_err
-    mock_call.assert_awaited_with("sigma_list_workbooks", {"limit": 5})
+    mock_call.assert_awaited_with("workbooks_list_workbooks", {"limit": 5})
 
     # 4. Error response with is_error=True
     mock_call.return_value = CallToolResult(content=[TextContent(type="text", text="error")], is_error=True)

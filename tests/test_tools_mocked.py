@@ -72,7 +72,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(200, {"entries": [{"connectionId": "c1"}]}))
         srv._client = c
-        data = self._call("sigma_list_connections")
+        data = self._call("datasets_list_connections")
         assert "entries" in data
 
     def test_get_workbook_not_found(self):
@@ -82,7 +82,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(404, {"message": "Not found"}))
         srv._client = c
-        data = self._call("sigma_get_workbook", {"workbook_id": "nonexistent"})
+        data = self._call("workbooks_get_workbook", {"workbook_id": "nonexistent"})
         assert "error" in data
         assert data["error"]["status_code"] == 404
 
@@ -95,7 +95,7 @@ class TestToolsReturnJSON:
             return_value=_mock_response(200, {"entries": [{"workbookId": "w1", "name": "Test"}]})
         )
         srv._client = c
-        data = self._call("sigma_list_workbooks", {"limit": 5})
+        data = self._call("workbooks_list_workbooks", {"limit": 5})
         assert "entries" in data
 
     def test_create_workbook_success(self):
@@ -105,7 +105,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(200, {"workbookId": "new-wb"}))
         srv._client = c
-        data = self._call("sigma_create_workbook", {"name": "test", "folder_id": "f1"})
+        data = self._call("workbooks_create_workbook", {"name": "test", "folder_id": "f1"})
         assert data.get("workbookId") == "new-wb"
 
     def test_delete_file_success(self):
@@ -115,7 +115,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(204))
         srv._client = c
-        data = self._call("sigma_delete_file", {"inode_id": "inode1", "confirm": True})
+        data = self._call("workspace_delete_file", {"inode_id": "inode1", "confirm": True})
         assert data.get("status") == 204
 
     def test_list_members_success(self):
@@ -125,7 +125,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(200, {"entries": [{"memberId": "m1"}]}))
         srv._client = c
-        data = self._call("sigma_list_members", {"limit": 5})
+        data = self._call("admin_list_members", {"limit": 5})
         assert "entries" in data
 
     def test_list_teams_success(self):
@@ -135,11 +135,11 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(200, {"entries": []}))
         srv._client = c
-        data = self._call("sigma_list_teams", {"limit": 5})
+        data = self._call("admin_list_teams", {"limit": 5})
         assert "entries" in data
 
     def test_api_capabilities(self):
-        data = self._call("sigma_api_capabilities")
+        data = self._call("admin_api_capabilities")
         assert "supported" in data
         assert "not_supported" in data
         assert "gotchas" in data
@@ -151,7 +151,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(500, {"message": "Internal error"}))
         srv._client = c
-        data = self._call("sigma_list_tags")
+        data = self._call("workspace_list_tags")
         assert "error" in data
         assert data["error"]["status_code"] == 500
 
@@ -164,7 +164,7 @@ class TestToolsReturnJSON:
         c.max_retries = 0
         c.base_delay = 0.001
         srv._client = c
-        data = self._call("sigma_list_connections")
+        data = self._call("datasets_list_connections")
         assert "error" in data
         assert data["error"]["status_code"] == 429
 
@@ -187,17 +187,19 @@ class TestCompositeToolsValidation:
         return str(err)
 
     def test_export_and_download_empty_workbook_id(self):
-        data = self._call("sigma_export_and_download", {"workbook_id": ""})
+        data = self._call("workbooks_export_and_download", {"workbook_id": ""})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_reassign_ownership_empty_email(self):
-        data = self._call("sigma_reassign_workbook_ownership", {"old_owner_email": "", "new_owner_email": "b@b.com"})
+        data = self._call(
+            "workbooks_reassign_workbook_ownership", {"old_owner_email": "", "new_owner_email": "b@b.com"}
+        )
         assert "error" in data
         assert "old_owner_email" in self._error_text(data)
 
     def test_list_shared_workbooks_empty_member(self):
-        data = self._call("sigma_list_workbooks_shared_with_member", {"member_id": ""})
+        data = self._call("workbooks_list_workbooks_shared_with_member", {"member_id": ""})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
@@ -207,10 +209,10 @@ class TestCompositeToolsValidation:
         from mcp.server.mcpserver.exceptions import ToolError
 
         with pytest.raises(ToolError, match="Unknown tool"):
-            self._call("sigma_bulk_deactivate_members", {"name_pattern": ""})
+            self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
 
     def test_change_email_empty_member_id(self):
-        data = self._call("sigma_change_member_email", {"member_id": "", "new_email": "x@y.com"})
+        data = self._call("admin_change_member_email", {"member_id": "", "new_email": "x@y.com"})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
@@ -220,7 +222,7 @@ class TestCompositeToolsValidation:
         from mcp.server.mcpserver.exceptions import ToolError
 
         with pytest.raises(ToolError, match="Unknown tool"):
-            self._call("sigma_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"]})
+            self._call("admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"]})
 
 
 class TestErrorRedaction:

@@ -80,7 +80,7 @@ async def test_dynamic_tools_listing() -> None:
 @pytest.mark.asyncio
 async def test_dynamic_tool_call_dispatch() -> None:
     """Verify offline tool dispatch via MCPServer.call_tool."""
-    res = await mcp.call_tool("sigma_api_capabilities", {})
+    res = await mcp.call_tool("admin_api_capabilities", {})
     assert res is not None
     assert isinstance(res, CallToolResult)
     assert len(res.content) > 0
@@ -96,12 +96,12 @@ async def test_dynamic_tool_call_dispatch() -> None:
 async def test_dynamic_resources_and_prompts() -> None:
     """Verify native resources and prompts discovery on MCPServer."""
     resources = await mcp.list_resources()
-    assert any(str(r.uri) == "sigma://reference/formulas" for r in resources)
-    assert any(str(r.uri) == "sigma://reference/capabilities" for r in resources)
-    assert any(str(r.uri) == "sigma://reference/docs-index" for r in resources)
+    assert any(str(r.uri) == "elements://reference/formulas" for r in resources)
+    assert any(str(r.uri) == "admin://reference/capabilities" for r in resources)
+    assert any(str(r.uri) == "elements://reference/docs-index" for r in resources)
 
     prompts = await mcp.list_prompts()
-    assert any(p.name == "audit_tenant_connections" for p in prompts)
+    assert any(p.name == "datasets_audit_tenant_connections" for p in prompts)
 
 
 @pytest.mark.asyncio
@@ -170,7 +170,7 @@ async def test_stateless_streamable_http_standalone_post() -> None:
                 "id": 3,
                 "method": "tools/call",
                 "params": {
-                    "name": "sigma_api_capabilities",
+                    "name": "admin_api_capabilities",
                     "arguments": {},
                     "_meta": meta,
                 },
@@ -183,7 +183,7 @@ async def test_stateless_streamable_http_standalone_post() -> None:
                     "Content-Type": "application/json",
                     "MCP-Protocol-Version": "2026-07-28",
                     "Mcp-Method": "tools/call",
-                    "Mcp-Name": "sigma_api_capabilities",
+                    "Mcp-Name": "admin_api_capabilities",
                 },
             )
             assert res_tool.status_code == 200
@@ -423,21 +423,21 @@ async def test_stateless_streamable_http_core_tools_suite(monkeypatch: pytest.Mo
     _setup_mock_sigma_client(monkeypatch)
 
     tools_to_test = [
-        ("sigma_get_current_user", {}),
-        ("sigma_list_connections", {}),
-        ("sigma_list_workbooks", {"limit": 5}),
-        ("sigma_list_data_models", {"limit": 5}),
-        ("sigma_list_templates", {"limit": 5}),
-        ("sigma_list_members", {"limit": 5}),
-        ("sigma_list_teams", {"limit": 5}),
-        ("sigma_list_files", {}),
-        ("sigma_list_tags", {}),
-        ("sigma_list_user_attributes", {}),
-        ("sigma_list_workspaces", {}),
-        ("sigma_list_account_types", {}),
-        ("sigma_list_reports", {"limit": 5}),
-        ("sigma_list_api_connectors", {}),
-        ("sigma_api_capabilities", {}),
+        ("admin_get_current_user", {}),
+        ("datasets_list_connections", {}),
+        ("workbooks_list_workbooks", {"limit": 5}),
+        ("datasets_list_data_models", {"limit": 5}),
+        ("workbooks_list_templates", {"limit": 5}),
+        ("admin_list_members", {"limit": 5}),
+        ("admin_list_teams", {"limit": 5}),
+        ("workspace_list_files", {}),
+        ("workspace_list_tags", {}),
+        ("admin_list_user_attributes", {}),
+        ("workspace_list_workspaces", {}),
+        ("admin_list_account_types", {}),
+        ("workbooks_list_reports", {"limit": 5}),
+        ("admin_list_api_connectors", {}),
+        ("admin_api_capabilities", {}),
     ]
 
     app = mcp.streamable_http_app(stateless_http=True, json_response=True)
@@ -502,7 +502,7 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                     "id": 11,
                     "method": "tools/call",
                     "params": {
-                        "name": "sigma_create_workbook",
+                        "name": "workbooks_create_workbook",
                         "arguments": {"name": "Q3 Board Deck", "folder_id": "fld-1"},
                         "_meta": meta,
                     },
@@ -512,7 +512,7 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                     "Content-Type": "application/json",
                     "MCP-Protocol-Version": "2026-07-28",
                     "Mcp-Method": "tools/call",
-                    "Mcp-Name": "sigma_create_workbook",
+                    "Mcp-Name": "workbooks_create_workbook",
                 },
             )
             assert res_create.status_code == 200
@@ -527,7 +527,7 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                     "id": 12,
                     "method": "tools/call",
                     "params": {
-                        "name": "sigma_delete_file",
+                        "name": "workspace_delete_file",
                         "arguments": {"inode_id": "in-old", "confirm": False},
                         "_meta": meta,
                     },
@@ -537,7 +537,7 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                     "Content-Type": "application/json",
                     "MCP-Protocol-Version": "2026-07-28",
                     "Mcp-Method": "tools/call",
-                    "Mcp-Name": "sigma_delete_file",
+                    "Mcp-Name": "workspace_delete_file",
                 },
             )
             assert res_del_preview.status_code == 200
@@ -554,7 +554,7 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                     "id": 13,
                     "method": "tools/call",
                     "params": {
-                        "name": "sigma_delete_file",
+                        "name": "workspace_delete_file",
                         "arguments": {"inode_id": "in-old", "confirm": True},
                         "_meta": meta,
                     },
@@ -564,7 +564,7 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                     "Content-Type": "application/json",
                     "MCP-Protocol-Version": "2026-07-28",
                     "Mcp-Method": "tools/call",
-                    "Mcp-Name": "sigma_delete_file",
+                    "Mcp-Name": "workspace_delete_file",
                 },
             )
             assert res_del.status_code == 200
