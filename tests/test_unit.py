@@ -11,6 +11,8 @@ import sys
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 sys.path.insert(0, "src")
 
 
@@ -427,6 +429,13 @@ class TestTransportArg:
 
 
 # ─── Profile integrity (regression: 'embed' silently fell back to core) ───────
+
+
+def test_wire_name_rejects_unknown_tool():
+    from sigma_mcp.server import _wire_name
+
+    with pytest.raises(RuntimeError, match="No domain tool"):
+        _wire_name("not_a_real_tool")
 
 
 def test_profiles_reference_only_real_tools():
