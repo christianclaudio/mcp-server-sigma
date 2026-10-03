@@ -12,8 +12,8 @@ Safety guarantees:
 
 NOT tested live (deferred to mocked suite):
 - Tenant token exchange / for_tenant
-- sigma_bulk_deactivate_members, sigma_bulk_remove_team_members
-- sigma_reassign_workbook_ownership
+- admin_bulk_deactivate_members, admin_bulk_remove_team_members
+- workbooks_reassign_workbook_ownership
 - member create/deactivate
 - connection create/update/delete
 """

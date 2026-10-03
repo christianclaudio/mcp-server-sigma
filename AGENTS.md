@@ -69,7 +69,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
   - `openWorldHint`: `True` when interacting with external networks/APIs.
 - Gating:
   - Support `READONLY` mode (`SIGMA_MCP_READONLY=1` or `--readonly`) to filter out mutating tools.
-  - Support bulk protection (`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`) for mass-destructive tools (`sigma_bulk_deactivate_users`, `sigma_bulk_remove_team_members`).
+  - Support bulk protection (`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`) for mass-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`).
   - Support profile filtering (`SIGMA_PROFILE`: `core`, `admin`, `embed`, `full`).
 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)

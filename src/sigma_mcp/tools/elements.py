@@ -27,7 +27,7 @@ elements_server = FastMCP(
 
 
 @elements_server.tool(
-    name="sigma_list_workbook_page_elements", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
+    name="list_workbook_page_elements", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
 )
 @sigma_tool
 async def sigma_list_workbook_page_elements(workbook_id: str, page_id: str) -> str:
@@ -38,9 +38,7 @@ async def sigma_list_workbook_page_elements(workbook_id: str, page_id: str) -> s
 list_workbook_page_elements = sigma_list_workbook_page_elements
 
 
-@elements_server.tool(
-    name="sigma_list_workbook_elements", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="list_workbook_elements", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_elements(workbook_id: str) -> str:
     """List all elements (tables, charts, controls, etc.) in a workbook."""
@@ -50,9 +48,7 @@ async def sigma_list_workbook_elements(workbook_id: str) -> str:
 list_workbook_elements = sigma_list_workbook_elements
 
 
-@elements_server.tool(
-    name="sigma_list_workbook_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="list_workbook_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_columns(workbook_id: str) -> str:
     """List all columns across all elements in a workbook, including formulas and types."""
@@ -62,9 +58,7 @@ async def sigma_list_workbook_columns(workbook_id: str) -> str:
 list_workbook_columns = sigma_list_workbook_columns
 
 
-@elements_server.tool(
-    name="sigma_list_workbook_queries", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="list_workbook_queries", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_queries(workbook_id: str) -> str:
     """List generated SQL queries for all elements in a workbook."""
@@ -74,9 +68,7 @@ async def sigma_list_workbook_queries(workbook_id: str) -> str:
 list_workbook_queries = sigma_list_workbook_queries
 
 
-@elements_server.tool(
-    name="sigma_list_workbook_controls", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="list_workbook_controls", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_controls(workbook_id: str) -> str:
     """List control elements (filters, parameters) in a workbook."""
@@ -86,9 +78,7 @@ async def sigma_list_workbook_controls(workbook_id: str) -> str:
 list_workbook_controls = sigma_list_workbook_controls
 
 
-@elements_server.tool(
-    name="sigma_list_workbook_sources", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="list_workbook_sources", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_sources(workbook_id: str) -> str:
     """List data sources used by a workbook."""
@@ -98,9 +88,7 @@ async def sigma_list_workbook_sources(workbook_id: str) -> str:
 list_workbook_sources = sigma_list_workbook_sources
 
 
-@elements_server.tool(
-    name="sigma_swap_workbook_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
-)
+@elements_server.tool(name="swap_workbook_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"})
 @sigma_tool
 async def sigma_swap_workbook_sources(
     workbook_id: str,
@@ -119,7 +107,7 @@ async def sigma_swap_workbook_sources(
 swap_workbook_sources = sigma_swap_workbook_sources
 
 
-@elements_server.tool(name="sigma_get_element_query", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
+@elements_server.tool(name="get_element_query", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_element_query(workbook_id: str, element_id: str) -> str:
     """Get the generated SQL query for a specific element in a workbook."""
@@ -129,9 +117,7 @@ async def sigma_get_element_query(workbook_id: str, element_id: str) -> str:
 get_element_query = sigma_get_element_query
 
 
-@elements_server.tool(
-    name="sigma_get_element_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="get_element_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_element_columns(workbook_id: str, element_id: str) -> str:
     """List columns for a specific element in a workbook."""
@@ -141,9 +127,7 @@ async def sigma_get_element_columns(workbook_id: str, element_id: str) -> str:
 get_element_columns = sigma_get_element_columns
 
 
-@elements_server.tool(
-    name="sigma_materialize_element", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
-)
+@elements_server.tool(name="materialize_element", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"})
 @sigma_tool
 async def sigma_materialize_element(workbook_id: str, element_id: str) -> str:
     """Trigger materialization for a workbook. Pass elementId in body if needed."""
@@ -153,9 +137,7 @@ async def sigma_materialize_element(workbook_id: str, element_id: str) -> str:
 materialize_element = sigma_materialize_element
 
 
-@elements_server.tool(
-    name="sigma_get_materialization_job", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="get_materialization_job", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_materialization_job(workbook_id: str, job_id: str) -> str:
     """Check status of a materialization job."""
@@ -166,7 +148,7 @@ get_materialization_job = sigma_get_materialization_job
 
 
 @elements_server.tool(
-    name="sigma_list_materialization_schedules", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
+    name="list_materialization_schedules", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
 )
 @sigma_tool
 async def sigma_list_materialization_schedules(workbook_id: str) -> str:
@@ -177,9 +159,7 @@ async def sigma_list_materialization_schedules(workbook_id: str) -> str:
 list_materialization_schedules = sigma_list_materialization_schedules
 
 
-@elements_server.tool(
-    name="sigma_swap_template_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
-)
+@elements_server.tool(name="swap_template_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"})
 @sigma_tool
 async def sigma_swap_template_sources(
     template_id: str,
@@ -199,7 +179,7 @@ swap_template_sources = sigma_swap_template_sources
 
 
 @elements_server.tool(
-    name="sigma_list_source_swap_policies", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
+    name="list_source_swap_policies", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
 )
 @sigma_tool
 async def sigma_list_source_swap_policies() -> str:
@@ -210,9 +190,7 @@ async def sigma_list_source_swap_policies() -> str:
 list_source_swap_policies = sigma_list_source_swap_policies
 
 
-@elements_server.tool(
-    name="sigma_get_source_swap_policy", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="get_source_swap_policy", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_source_swap_policy(policy_id: str) -> str:
     """Get a source swap policy."""
@@ -223,7 +201,7 @@ get_source_swap_policy = sigma_get_source_swap_policy
 
 
 @elements_server.tool(
-    name="sigma_create_source_swap_policy", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+    name="create_source_swap_policy", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
 )
 @sigma_tool
 async def sigma_create_source_swap_policy(body: dict[str, Any]) -> str:
@@ -234,9 +212,7 @@ async def sigma_create_source_swap_policy(body: dict[str, Any]) -> str:
 create_source_swap_policy = sigma_create_source_swap_policy
 
 
-@elements_server.tool(
-    name="sigma_materialize_and_wait", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
-)
+@elements_server.tool(name="materialize_and_wait", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"})
 @sigma_tool
 async def sigma_materialize_and_wait(workbook_id: str, element_id: str, timeout_seconds: int = 300) -> str:
     """Trigger materialization and poll until complete or timeout."""
@@ -269,9 +245,7 @@ async def sigma_materialize_and_wait(workbook_id: str, element_id: str, timeout_
 materialize_and_wait = sigma_materialize_and_wait
 
 
-@elements_server.tool(
-    name="sigma_list_all_input_tables", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"}
-)
+@elements_server.tool(name="list_all_input_tables", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_all_input_tables() -> str:
     """Scan all workbooks to find input-table elements.
@@ -336,7 +310,7 @@ async def sigma_list_all_input_tables() -> str:
 list_all_input_tables = sigma_list_all_input_tables
 
 
-@elements_server.tool(name="sigma_formula_pitfalls", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
+@elements_server.tool(name="formula_pitfalls", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_formula_pitfalls() -> str:
     """Return a curated reference of common Sigma formula pitfalls — column reference syntax, type requirements, NULL handling, aggregate vs row-level context, date function argument order, and metrics vs calculated columns. Use this before writing any Sigma formula expression."""
@@ -351,7 +325,7 @@ async def sigma_formula_pitfalls() -> str:
 formula_pitfalls = sigma_formula_pitfalls
 
 
-@elements_server.tool(name="sigma_search_docs", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
+@elements_server.tool(name="search_docs", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_search_docs(query: str) -> str:
     """Search Sigma Computing documentation using AI-powered semantic search. Returns relevant doc passages with source URLs. Use this to answer questions about Sigma features, configuration, formulas, administration, embedding, and best practices.
@@ -397,7 +371,7 @@ async def sigma_search_docs(query: str) -> str:
 search_docs = sigma_search_docs
 
 
-@elements_server.tool(name="sigma_get_doc_page", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
+@elements_server.tool(name="get_doc_page", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_doc_page(page_slug: str) -> str:
     """Fetch a specific Sigma documentation page as clean Markdown. Pass the page slug (e.g. 'create-a-workbook') or a section path (e.g. 'docs/create-a-workbook'). Returns the full page content.

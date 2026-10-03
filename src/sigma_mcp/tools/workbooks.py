@@ -25,7 +25,7 @@ workbooks_server = FastMCP(
 )
 
 
-@workbooks_server.tool(name="sigma_list_workbooks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="list_workbooks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbooks(limit: int = 200, summary_only: bool = False) -> str:
     """List all workbooks in the organization. Pass summary_only=True for concise token-efficient response."""
@@ -38,7 +38,7 @@ async def sigma_list_workbooks(limit: int = 200, summary_only: bool = False) -> 
 list_workbooks = sigma_list_workbooks
 
 
-@workbooks_server.tool(name="sigma_get_workbook", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="get_workbook", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_get_workbook(workbook_id: str) -> str:
     """Get workbook metadata."""
@@ -48,7 +48,7 @@ async def sigma_get_workbook(workbook_id: str) -> str:
 get_workbook = sigma_get_workbook
 
 
-@workbooks_server.tool(name="sigma_create_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@workbooks_server.tool(name="create_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_create_workbook(name: str, folder_id: str, description: str = "") -> str:
     """Create an empty workbook in a folder."""
@@ -58,9 +58,7 @@ async def sigma_create_workbook(name: str, folder_id: str, description: str = ""
 create_workbook = sigma_create_workbook
 
 
-@workbooks_server.tool(
-    name="sigma_duplicate_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="duplicate_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_duplicate_workbook(
     workbook_id: str,
@@ -92,9 +90,7 @@ async def sigma_duplicate_workbook(
 duplicate_workbook = sigma_duplicate_workbook
 
 
-@workbooks_server.tool(
-    name="sigma_list_workbook_pages", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_workbook_pages", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_pages(workbook_id: str) -> str:
     """List pages in a workbook."""
@@ -104,9 +100,7 @@ async def sigma_list_workbook_pages(workbook_id: str) -> str:
 list_workbook_pages = sigma_list_workbook_pages
 
 
-@workbooks_server.tool(
-    name="sigma_list_workbook_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_workbook_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_lineage(workbook_id: str) -> str:
     """List data lineage for a workbook."""
@@ -117,7 +111,7 @@ list_workbook_lineage = sigma_list_workbook_lineage
 
 
 @workbooks_server.tool(
-    name="sigma_get_workbook_version_history", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+    name="get_workbook_version_history", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
 )
 @sigma_tool
 async def sigma_get_workbook_version_history(workbook_id: str) -> str:
@@ -129,7 +123,7 @@ get_workbook_version_history = sigma_get_workbook_version_history
 
 
 @workbooks_server.tool(
-    name="sigma_restore_workbook_version", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="restore_workbook_version", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_restore_workbook_version(workbook_id: str, version: int) -> str:
@@ -141,7 +135,7 @@ restore_workbook_version = sigma_restore_workbook_version
 
 
 @workbooks_server.tool(
-    name="sigma_convert_workbook_to_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="convert_workbook_to_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_convert_workbook_to_report(
@@ -166,9 +160,7 @@ async def sigma_convert_workbook_to_report(
 convert_workbook_to_report = sigma_convert_workbook_to_report
 
 
-@workbooks_server.tool(
-    name="sigma_list_workbook_grants", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_workbook_grants", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_grants(workbook_id: str) -> str:
     """List permission grants on a workbook."""
@@ -179,7 +171,7 @@ list_workbook_grants = sigma_list_workbook_grants
 
 
 @workbooks_server.tool(
-    name="sigma_grant_workbook_access", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"}
+    name="grant_workbook_access", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"}
 )
 @sigma_tool
 async def sigma_grant_workbook_access(workbook_id: str, grant_type: str, grantee_id: str, permission: str) -> str:
@@ -192,9 +184,7 @@ async def sigma_grant_workbook_access(workbook_id: str, grant_type: str, grantee
 grant_workbook_access = sigma_grant_workbook_access
 
 
-@workbooks_server.tool(
-    name="sigma_list_workbook_embeds", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_workbook_embeds", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_embeds(workbook_id: str) -> str:
     """List embed configurations for a workbook."""
@@ -204,9 +194,7 @@ async def sigma_list_workbook_embeds(workbook_id: str) -> str:
 list_workbook_embeds = sigma_list_workbook_embeds
 
 
-@workbooks_server.tool(
-    name="sigma_create_workbook_embed", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="create_workbook_embed", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_create_workbook_embed(
     workbook_id: str,
@@ -231,7 +219,7 @@ async def sigma_create_workbook_embed(
 create_workbook_embed = sigma_create_workbook_embed
 
 
-@workbooks_server.tool(name="sigma_export_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@workbooks_server.tool(name="export_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_export_workbook(
     workbook_id: str, element_id: str = "", format: str = "pdf", layout: str = "portrait"
@@ -273,7 +261,7 @@ export_workbook = sigma_export_workbook
 
 
 @workbooks_server.tool(
-    name="sigma_list_workbook_schedules", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+    name="list_workbook_schedules", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
 )
 @sigma_tool
 async def sigma_list_workbook_schedules(workbook_id: str) -> str:
@@ -284,9 +272,7 @@ async def sigma_list_workbook_schedules(workbook_id: str) -> str:
 list_workbook_schedules = sigma_list_workbook_schedules
 
 
-@workbooks_server.tool(
-    name="sigma_add_workbook_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="add_workbook_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_add_workbook_schedule(workbook_id: str, body: dict[str, Any]) -> str:
     """Create a scheduled export for a workbook. See Sigma docs for schedule body schema."""
@@ -297,7 +283,7 @@ add_workbook_schedule = sigma_add_workbook_schedule
 
 
 @workbooks_server.tool(
-    name="sigma_delete_workbook_schedule", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+    name="delete_workbook_schedule", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
 )
 @sigma_tool
 async def sigma_delete_workbook_schedule(workbook_id: str, schedule_id: str, confirm: bool = False) -> str:
@@ -312,7 +298,7 @@ delete_workbook_schedule = sigma_delete_workbook_schedule
 
 
 @workbooks_server.tool(
-    name="sigma_list_workbook_bookmarks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+    name="list_workbook_bookmarks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
 )
 @sigma_tool
 async def sigma_list_workbook_bookmarks(workbook_id: str) -> str:
@@ -323,9 +309,7 @@ async def sigma_list_workbook_bookmarks(workbook_id: str) -> str:
 list_workbook_bookmarks = sigma_list_workbook_bookmarks
 
 
-@workbooks_server.tool(
-    name="sigma_add_workbook_bookmark", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="add_workbook_bookmark", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_add_workbook_bookmark(workbook_id: str, body: dict[str, Any]) -> str:
     """Add a bookmark to a workbook."""
@@ -335,9 +319,7 @@ async def sigma_add_workbook_bookmark(workbook_id: str, body: dict[str, Any]) ->
 add_workbook_bookmark = sigma_add_workbook_bookmark
 
 
-@workbooks_server.tool(
-    name="sigma_get_workbook_tags", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="get_workbook_tags", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_get_workbook_tags(workbook_id: str) -> str:
     """List tags on a workbook."""
@@ -347,7 +329,7 @@ async def sigma_get_workbook_tags(workbook_id: str) -> str:
 get_workbook_tags = sigma_get_workbook_tags
 
 
-@workbooks_server.tool(name="sigma_tag_workbook", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"})
+@workbooks_server.tool(name="tag_workbook", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"})
 @sigma_tool
 async def sigma_tag_workbook(workbook_id: str, tag_name: str) -> str:
     """Apply a version tag to a workbook by tag NAME (e.g. 'Production'). The Sigma API takes the tag name here, not its ID."""
@@ -358,7 +340,7 @@ tag_workbook = sigma_tag_workbook
 
 
 @workbooks_server.tool(
-    name="sigma_remove_workbook_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+    name="remove_workbook_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
 )
 @sigma_tool
 async def sigma_remove_workbook_tag(workbook_id: str, tag_id: str, confirm: bool = False) -> str:
@@ -372,7 +354,7 @@ async def sigma_remove_workbook_tag(workbook_id: str, tag_id: str, confirm: bool
 remove_workbook_tag = sigma_remove_workbook_tag
 
 
-@workbooks_server.tool(name="sigma_list_templates", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="list_templates", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_templates(limit: int = 200) -> str:
     """List all templates in the organization."""
@@ -382,7 +364,7 @@ async def sigma_list_templates(limit: int = 200) -> str:
 list_templates = sigma_list_templates
 
 
-@workbooks_server.tool(name="sigma_get_template", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="get_template", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_get_template(template_id: str) -> str:
     """Get template details."""
@@ -393,7 +375,7 @@ get_template = sigma_get_template
 
 
 @workbooks_server.tool(
-    name="sigma_create_workbook_from_template", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="create_workbook_from_template", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_create_workbook_from_template(template_id: str, folder_id: str, name: str | None = None) -> str:
@@ -405,7 +387,7 @@ create_workbook_from_template = sigma_create_workbook_from_template
 
 
 @workbooks_server.tool(
-    name="sigma_save_template_from_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="save_template_from_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_save_template_from_workbook(workbook_id: str, folder_id: str, name: str | None = None) -> str:
@@ -419,7 +401,7 @@ async def sigma_save_template_from_workbook(workbook_id: str, folder_id: str, na
 save_template_from_workbook = sigma_save_template_from_workbook
 
 
-@workbooks_server.tool(name="sigma_list_reports", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="list_reports", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_reports(limit: int = 200) -> str:
     """List all reports in the organization."""
@@ -429,7 +411,7 @@ async def sigma_list_reports(limit: int = 200) -> str:
 list_reports = sigma_list_reports
 
 
-@workbooks_server.tool(name="sigma_get_report", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="get_report", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_get_report(report_id: str) -> str:
     """Get report metadata."""
@@ -439,7 +421,7 @@ async def sigma_get_report(report_id: str) -> str:
 get_report = sigma_get_report
 
 
-@workbooks_server.tool(name="sigma_create_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@workbooks_server.tool(name="create_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_create_report(body: dict[str, Any]) -> str:
     """Create a report."""
@@ -449,7 +431,7 @@ async def sigma_create_report(body: dict[str, Any]) -> str:
 create_report = sigma_create_report
 
 
-@workbooks_server.tool(name="sigma_duplicate_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@workbooks_server.tool(name="duplicate_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_duplicate_report(report_id: str, name: str, destination_folder_id: str) -> str:
     """Duplicate a report.
@@ -469,9 +451,7 @@ async def sigma_duplicate_report(report_id: str, name: str, destination_folder_i
 duplicate_report = sigma_duplicate_report
 
 
-@workbooks_server.tool(
-    name="sigma_list_report_sources", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_report_sources", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_sources(report_id: str) -> str:
     """List data sources used by a report."""
@@ -481,9 +461,7 @@ async def sigma_list_report_sources(report_id: str) -> str:
 list_report_sources = sigma_list_report_sources
 
 
-@workbooks_server.tool(
-    name="sigma_list_report_elements", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_report_elements", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_elements(report_id: str) -> str:
     """List elements in a report."""
@@ -493,9 +471,7 @@ async def sigma_list_report_elements(report_id: str) -> str:
 list_report_elements = sigma_list_report_elements
 
 
-@workbooks_server.tool(
-    name="sigma_list_report_queries", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_report_queries", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_queries(report_id: str) -> str:
     """List SQL queries in a report."""
@@ -505,9 +481,7 @@ async def sigma_list_report_queries(report_id: str) -> str:
 list_report_queries = sigma_list_report_queries
 
 
-@workbooks_server.tool(
-    name="sigma_list_report_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_report_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_lineage(report_id: str) -> str:
     """List lineage for a report."""
@@ -517,7 +491,7 @@ async def sigma_list_report_lineage(report_id: str) -> str:
 list_report_lineage = sigma_list_report_lineage
 
 
-@workbooks_server.tool(name="sigma_export_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@workbooks_server.tool(name="export_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_export_report(report_id: str, format: str = "pdf") -> str:
     """Export a report. format: 'pdf', 'png', 'csv', 'xlsx'."""
@@ -527,9 +501,7 @@ async def sigma_export_report(report_id: str, format: str = "pdf") -> str:
 export_report = sigma_export_report
 
 
-@workbooks_server.tool(
-    name="sigma_list_report_schedules", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_report_schedules", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_schedules(report_id: str) -> str:
     """List scheduled exports for a report."""
@@ -539,9 +511,7 @@ async def sigma_list_report_schedules(report_id: str) -> str:
 list_report_schedules = sigma_list_report_schedules
 
 
-@workbooks_server.tool(
-    name="sigma_create_report_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="create_report_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_create_report_schedule(report_id: str, body: dict[str, Any]) -> str:
     """Create a scheduled export for a report."""
@@ -551,9 +521,7 @@ async def sigma_create_report_schedule(report_id: str, body: dict[str, Any]) -> 
 create_report_schedule = sigma_create_report_schedule
 
 
-@workbooks_server.tool(
-    name="sigma_list_shared_templates", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_shared_templates", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_shared_templates() -> str:
     """List templates shared with your organization from other orgs."""
@@ -563,9 +531,7 @@ async def sigma_list_shared_templates() -> str:
 list_shared_templates = sigma_list_shared_templates
 
 
-@workbooks_server.tool(
-    name="sigma_accept_shared_template", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="accept_shared_template", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_accept_shared_template(share_id: str) -> str:
     """Accept a pending template share from another organization."""
@@ -576,7 +542,7 @@ accept_shared_template = sigma_accept_shared_template
 
 
 @workbooks_server.tool(
-    name="sigma_copy_workbook_to_member", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="copy_workbook_to_member", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_copy_workbook_to_member(workbook_id: str, member_id: str, name: str | None = None) -> str:
@@ -607,7 +573,7 @@ copy_workbook_to_member = sigma_copy_workbook_to_member
 
 
 @workbooks_server.tool(
-    name="sigma_deploy_template_to_folder", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="deploy_template_to_folder", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_deploy_template_to_folder(
@@ -632,7 +598,7 @@ async def sigma_deploy_template_to_folder(
 deploy_template_to_folder = sigma_deploy_template_to_folder
 
 
-@workbooks_server.tool(name="sigma_promote_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@workbooks_server.tool(name="promote_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_promote_workbook(workbook_id: str, tag_name: str, tag_color: str = "cyan") -> str:
     """Promote a workbook by tagging it (e.g., 'Production'). Creates tag if it doesn't exist.
@@ -668,9 +634,7 @@ async def sigma_promote_workbook(workbook_id: str, tag_name: str, tag_color: str
 promote_workbook = sigma_promote_workbook
 
 
-@workbooks_server.tool(
-    name="sigma_export_and_download", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="export_and_download", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_export_and_download(
     workbook_id: str,
@@ -746,7 +710,7 @@ export_and_download = sigma_export_and_download
 
 
 @workbooks_server.tool(
-    name="sigma_reassign_workbook_ownership", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="reassign_workbook_ownership", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_email: str, dry_run: bool = True) -> str:
@@ -838,7 +802,7 @@ reassign_workbook_ownership = sigma_reassign_workbook_ownership
 
 
 @workbooks_server.tool(
-    name="sigma_list_workbooks_shared_with_member", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+    name="list_workbooks_shared_with_member", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
 )
 @sigma_tool
 async def sigma_list_workbooks_shared_with_member(member_id: str) -> str:
@@ -874,9 +838,7 @@ async def sigma_list_workbooks_shared_with_member(member_id: str) -> str:
 list_workbooks_shared_with_member = sigma_list_workbooks_shared_with_member
 
 
-@workbooks_server.tool(
-    name="sigma_list_all_workbooks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_all_workbooks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_all_workbooks() -> str:
     """List ALL workbooks in the organization, automatically following pagination."""
@@ -886,7 +848,7 @@ async def sigma_list_all_workbooks() -> str:
 list_all_workbooks = sigma_list_all_workbooks
 
 
-@workbooks_server.tool(name="sigma_list_all_reports", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@workbooks_server.tool(name="list_all_reports", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_all_reports() -> str:
     """List ALL reports in the organization, automatically following pagination."""
@@ -897,7 +859,7 @@ list_all_reports = sigma_list_all_reports
 
 
 @workbooks_server.tool(
-    name="sigma_update_workbook_contents", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+    name="update_workbook_contents", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
 )
 @sigma_tool
 async def sigma_update_workbook_contents(
@@ -926,9 +888,7 @@ async def sigma_update_workbook_contents(
 update_workbook_contents = sigma_update_workbook_contents
 
 
-@workbooks_server.tool(
-    name="sigma_verify_workbook_spec", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="verify_workbook_spec", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_verify_workbook_spec(
     name: str,
@@ -955,9 +915,7 @@ async def sigma_verify_workbook_spec(
 verify_workbook_spec = sigma_verify_workbook_spec
 
 
-@workbooks_server.tool(
-    name="sigma_update_report_contents", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="update_report_contents", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_update_report_contents(
     report_id: str,
@@ -985,9 +943,7 @@ async def sigma_update_report_contents(
 update_report_contents = sigma_update_report_contents
 
 
-@workbooks_server.tool(
-    name="sigma_verify_report_spec", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="verify_report_spec", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_verify_report_spec(
     name: str,
@@ -1011,9 +967,7 @@ async def sigma_verify_report_spec(
 verify_report_spec = sigma_verify_report_spec
 
 
-@workbooks_server.tool(
-    name="sigma_download_query_export", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="download_query_export", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_download_query_export(query_id: str, max_bytes: int = 10_000_000) -> str:
     """Download an exported query result file by queryId.
@@ -1034,9 +988,7 @@ async def sigma_download_query_export(query_id: str, max_bytes: int = 10_000_000
 download_query_export = sigma_download_query_export
 
 
-@workbooks_server.tool(
-    name="sigma_list_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
-)
+@workbooks_server.tool(name="list_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_agents(workbook_id: str, version_tag_name: str | None = None) -> str:
     """List AI agents defined in a specific workbook (optionally filtering by version tag)."""
@@ -1050,9 +1002,7 @@ async def sigma_list_workbook_agents(workbook_id: str, version_tag_name: str | N
 list_workbook_agents = sigma_list_workbook_agents
 
 
-@workbooks_server.tool(
-    name="sigma_run_workbook_agent", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
-)
+@workbooks_server.tool(name="run_workbook_agent", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
 @sigma_tool
 async def sigma_run_workbook_agent(
     workbook_id: str,

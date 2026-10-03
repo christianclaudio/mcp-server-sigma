@@ -48,7 +48,6 @@ from sigma_mcp.middleware import (
     ReadOnlyGateMiddleware,
 )
 from sigma_mcp.tools import (
-    LEGACY_TOOL_ALIAS_MAP,
     admin_server,
     datasets_server,
     elements_server,
@@ -224,55 +223,79 @@ if not hasattr(Tool, "input_schema"):
     Tool.input_schema = property(lambda self: getattr(self, "parameters", {}))  # type: ignore[attr-defined]
 
 
+def _unwrap_provider(provider: Any) -> tuple[Any, str | None]:
+    """Return the inner provider and FastMCP mount namespace, if any."""
+    namespace: str | None = None
+    current: Any = provider
+    while type(current).__name__ == "_WrappedProvider":
+        for transform in current.transforms:
+            if type(transform).__name__ == "Namespace":
+                prefix = getattr(transform, "_prefix", None)
+                if isinstance(prefix, str):
+                    namespace = prefix
+        current = current._inner
+    return current, namespace
+
+
 class _ToolManagerCompat:
-    """Compatibility bridge for internal _tool_manager access."""
+    """Compatibility bridge for internal _tool_manager access.
+
+    Keys are the names clients see after domain mounts (``workbooks_list_workbooks``).
+    """
 
     def __init__(self, server: FastMCP) -> None:
         self._server = server
+
+    def _mounted(self) -> list[tuple[Any, str | None]]:
+        mounted: list[tuple[Any, str | None]] = [(self._server, None)]
+        for provider in self._server.providers:
+            inner, namespace = _unwrap_provider(provider)
+            server = getattr(inner, "server", None)
+            if isinstance(server, FastMCP):
+                mounted.append((server, namespace))
+        return mounted
 
     @property
     def _tools(self) -> dict[str, Any]:
         tools: dict[str, Any] = {}
         disabled_names: set[str] = set()
         disabled_tags: set[str] = set()
+        mounted = self._mounted()
 
-        servers_to_check = [self._server]
-        for p in self._server.providers:
-            if hasattr(p, "server") and isinstance(p.server, FastMCP):
-                servers_to_check.append(p.server)
-
-        for s in servers_to_check:
-            for t in s.transforms:
-                if getattr(t, "_enabled", True) is False:
-                    t_names = getattr(t, "names", None)
+        for server, _namespace in mounted:
+            for transform in server.transforms:
+                if getattr(transform, "_enabled", True) is False:
+                    t_names = getattr(transform, "names", None)
                     if isinstance(t_names, (set, list)):
                         disabled_names.update(t_names)
-                    t_tags = getattr(t, "tags", None)
+                    t_tags = getattr(transform, "tags", None)
                     if isinstance(t_tags, (set, list)):
                         disabled_tags.update(t_tags)
 
-        for s in servers_to_check:
-            for k, c in s._local_provider._components.items():
-                if not (k.startswith("tool:") or type(c).__name__.endswith("Tool")):
+        for server, namespace in mounted:
+            components = server._local_provider._components
+            for key, component in components.items():
+                if not (str(key).startswith("tool:") or type(component).__name__.endswith("Tool")):
                     continue
-                name = getattr(c, "name", None)
-                if not name:
+                name = getattr(component, "name", None)
+                if not isinstance(name, str) or not name:
                     continue
-                if name in disabled_names:
+                exposed = f"{namespace}_{name}" if namespace else name
+                # Child servers disable local names (list_workbooks). remove_tool()
+                # disables the mounted wire name (workbooks_list_workbooks).
+                if name in disabled_names or exposed in disabled_names:
                     continue
-                comp_tags = set(getattr(c, "tags", None) or [])
+                comp_tags = set(getattr(component, "tags", None) or [])
                 if disabled_tags and (comp_tags & disabled_tags):
                     continue
-                tools[name] = c
-                if not name.startswith("sigma_"):
-                    tools[f"sigma_{name}"] = c
+                tools[exposed] = component
         return tools
 
     def remove_tool(self, name: str) -> None:
-        self._server.disable(names={name, f"sigma_{name}"})
-        for p in self._server.providers:
-            if hasattr(p, "disable"):
-                p.disable(names={name, f"sigma_{name}"})
+        self._server.disable(names={name})
+        for provider in self._server.providers:
+            if hasattr(provider, "disable"):
+                provider.disable(names={name})
 
 
 class _ResourceList(list[Any]):
@@ -386,18 +409,36 @@ _EMBED_NAMES = _CORE_NAMES | {
     "grant_workspace_access",
 }
 
+_DOMAIN_SERVERS: tuple[tuple[str, FastMCP], ...] = (
+    ("workbooks", workbooks_server),
+    ("datasets", datasets_server),
+    ("elements", elements_server),
+    ("workspace", workspace_server),
+    ("admin", admin_server),
+)
+
+
+def _wire_name(local_name: str) -> str:
+    """Map a sub-server tool name to the mounted wire name (``{domain}_{local}``)."""
+    for domain, sub in _DOMAIN_SERVERS:
+        for component in sub._local_provider._components.values():
+            if getattr(component, "name", None) != local_name:
+                continue
+            if getattr(component, "type", None) == "tool" or type(component).__name__.endswith("Tool"):
+                return f"{domain}_{local_name}"
+    raise RuntimeError(f"No domain tool registered as {local_name!r}")
+
+
 _BULK_DESTRUCTIVE_TOOLS = {
     "bulk_deactivate_members",
     "admin_bulk_deactivate_members",
-    "sigma_bulk_deactivate_members",
     "bulk_remove_team_members",
     "admin_bulk_remove_team_members",
-    "sigma_bulk_remove_team_members",
 }
 
-_CORE_TOOLS = {f"sigma_{name}" for name in _CORE_NAMES}
-_ADMIN_TOOLS = {f"sigma_{name}" for name in _ADMIN_NAMES}
-_EMBED_TOOLS = {f"sigma_{name}" for name in _EMBED_NAMES}
+_CORE_TOOLS = {_wire_name(name) for name in _CORE_NAMES}
+_ADMIN_TOOLS = {_wire_name(name) for name in _ADMIN_NAMES}
+_EMBED_TOOLS = {_wire_name(name) for name in _EMBED_NAMES}
 
 _PROFILES = {
     "core": _CORE_TOOLS | _CORE_NAMES,
@@ -444,8 +485,8 @@ def resource_sigma_capabilities() -> str:
                 "saml_cert_management_beta",
             ],
             "workflow_recommendation": (
-                "Use template-then-stamp pattern (sigma_deploy_template_to_folder & sigma_swap_workbook_sources) for"
-                " automated workbook creation."
+                "Use template-then-stamp pattern (workbooks_deploy_template_to_folder &"
+                " elements_swap_workbook_sources) for automated workbook creation."
             ),
         },
         indent=2,
@@ -467,9 +508,9 @@ def prompt_provision_tenant_dashboard(
 ) -> str:
     return (
         f"You are provisioning a new dashboard for tenant '{tenant_id}':\n"
-        f"1. Call `sigma_deploy_template_to_folder` with template_id='{template_id}', folder_id='{folder_id}', and name='{dashboard_name}'.\n"
-        f"2. Inspect the created workbook sources using `sigma_list_workbook_sources`.\n"
-        f"3. Swap the workbook sources for tenant '{tenant_id}' using `sigma_swap_workbook_sources`.\n"
+        f"1. Call `workbooks_deploy_template_to_folder` with template_id='{template_id}', folder_id='{folder_id}', and name='{dashboard_name}'.\n"
+        f"2. Inspect the created workbook sources using `elements_list_workbook_sources`.\n"
+        f"3. Swap the workbook sources for tenant '{tenant_id}' using `elements_swap_workbook_sources`.\n"
         f"4. Verify the new workbook status and report success."
     )
 
@@ -478,9 +519,9 @@ def prompt_audit_organization_permissions(team_name: str = "") -> str:
     team_filter = f" for team '{team_name}'" if team_name else ""
     return (
         f"Perform an organization security & permission audit{team_filter}:\n"
-        "1. Retrieve organization members using `sigma_list_members`.\n"
-        "2. Retrieve teams using `sigma_list_teams` and examine memberships.\n"
-        "3. Retrieve assigned user attributes using `sigma_list_user_attributes`.\n"
+        "1. Retrieve organization members using `admin_list_members`.\n"
+        "2. Retrieve teams using `admin_list_teams` and examine memberships.\n"
+        "3. Retrieve assigned user attributes using `admin_list_user_attributes`.\n"
         "4. Highlight any inactive accounts, orphaned team assignments, or unexpected attribute overrides."
     )
 
@@ -488,37 +529,37 @@ def prompt_audit_organization_permissions(team_name: str = "") -> str:
 def prompt_prepare_data_model(connection_id: str, model_name: str) -> str:
     return (
         f"You are creating a new data model '{model_name}' on connection '{connection_id}':\n"
-        f"1. Verify connection validity using `sigma_get_connection(connection_id='{connection_id}')`.\n"
+        f"1. Verify connection validity using `datasets_get_connection(connection_id='{connection_id}')`.\n"
         "2. Draft the data model spec JSON containing SQL query or source table, columns, types, and join relationships.\n"
-        "3. Create the data model using `sigma_create_data_model`.\n"
-        "4. Retrieve and confirm the registered spec using `sigma_get_data_model_spec`."
+        "3. Create the data model using `datasets_create_data_model`.\n"
+        "4. Retrieve and confirm the registered spec using `datasets_get_data_model_spec`."
     )
 
 
 def prompt_onboard_team_member(email: str, first_name: str, last_name: str, team_name: str = "") -> str:
     steps = [
-        f"1. Onboard member using `sigma_onboard_member(email='{email}', first_name='{first_name}', last_name='{last_name}')`."
+        f"1. Onboard member using `admin_onboard_member(email='{email}', first_name='{first_name}', last_name='{last_name}')`."
     ]
     if team_name and team_name.strip():
-        steps.append(f"2. Assign to team '{team_name}' using `sigma_bulk_assign_team_members`.")
+        steps.append(f"2. Assign to team '{team_name}' using `admin_bulk_assign_team_members`.")
     step_num = len(steps) + 1
-    steps.append(f"{step_num}. Confirm homeFolderId is created using `sigma_get_member`.")
+    steps.append(f"{step_num}. Confirm homeFolderId is created using `admin_get_member`.")
     return f"You are onboarding a new user '{first_name} {last_name}' ({email}):\n" + "\n".join(steps)
 
 
 def prompt_swap_warehouse_source(workbook_id: str, target_connection_id: str) -> str:
     return (
         f"Re-binding data sources for workbook '{workbook_id}' to connection '{target_connection_id}':\n"
-        f"1. Retrieve existing sources using `sigma_list_workbook_sources(workbook_id='{workbook_id}')`.\n"
-        f"2. Inspect target connection paths using `sigma_get_connection(connection_id='{target_connection_id}')`.\n"
-        f"3. Rebind sources using `sigma_swap_workbook_sources`."
+        f"1. Retrieve existing sources using `elements_list_workbook_sources(workbook_id='{workbook_id}')`.\n"
+        f"2. Inspect target connection paths using `datasets_get_connection(connection_id='{target_connection_id}')`.\n"
+        f"3. Rebind sources using `elements_swap_workbook_sources`."
     )
 
 
 def prompt_audit_tenant_connections() -> str:
     return (
         "Multi-tenant connection audit:\n"
-        "1. List all active tenant orgs using `sigma_bulk_sync_tenant_connections(dry_run=True)`.\n"
+        "1. List all active tenant orgs using `datasets_bulk_sync_tenant_connections(dry_run=True)`.\n"
         "2. Review tenant databases and schema synchronization status.\n"
         "3. Execute synchronized schema updates if needed."
     )
@@ -533,11 +574,11 @@ def create_server(
     Architecture:
     Gateway (FastMCP)
     ├── Parent Middleware (ParentAuditMiddleware, ReadOnlyGateMiddleware)
-    ├── mount(workbooks_server)
-    ├── mount(datasets_server)
-    ├── mount(elements_server)
-    ├── mount(workspace_server)
-    ├── mount(admin_server)
+    ├── mount(workbooks_server, namespace="workbooks")
+    ├── mount(datasets_server, namespace="datasets")
+    ├── mount(elements_server, namespace="elements")
+    ├── mount(workspace_server, namespace="workspace")
+    ├── mount(admin_server, namespace="admin")
     └── (Optional) RegexSearchTransform if enable_tool_search=True
     """
     env_profile = os.environ.get("SIGMA_MCP_PROFILE")
@@ -573,67 +614,37 @@ def create_server(
     root.add_middleware(ParentAuditMiddleware())
     root.add_middleware(ReadOnlyGateMiddleware())
 
-    # Sub-server mounting (flat default for wire-format compatibility)
-    root.mount(workbooks_server)
-    root.mount(datasets_server)
-    root.mount(elements_server)
-    root.mount(workspace_server)
-    root.mount(admin_server)
+    # Domain namespaces are the wire prefix (workbooks_list_workbooks, not sigma_list_workbooks).
+    root.mount(workbooks_server, namespace="workbooks")
+    root.mount(datasets_server, namespace="datasets")
+    root.mount(elements_server, namespace="elements")
+    root.mount(workspace_server, namespace="workspace")
+    root.mount(admin_server, namespace="admin")
 
-    # Native MCP Resources
+    # Resources stay on the root. A domain URI scheme is already the prefix; mounting
+    # them on a namespaced server would insert a second path segment.
     root.resource(
-        "sigma://reference/formulas",
-        name="Sigma Formula Reference",
+        "elements://reference/formulas",
+        name="Formula Reference",
         description="Curated reference guide for writing valid Sigma formulas.",
         mime_type="text/markdown",
     )(resource_sigma_formula_reference)
 
     root.resource(
-        "sigma://reference/capabilities",
-        name="Sigma API Capabilities",
+        "admin://reference/capabilities",
+        name="API Capabilities",
         description="Overview of supported and unsupported Sigma API operations.",
         mime_type="application/json",
     )(resource_sigma_capabilities)
 
     root.resource(
-        "sigma://reference/docs-index",
-        name="Sigma Documentation Index",
+        "elements://reference/docs-index",
+        name="Documentation Index",
         description="Full index of all Sigma documentation pages with URLs. Use to discover available doc pages.",
         mime_type="text/plain",
     )(resource_sigma_docs_index)
 
-    root.resource("sigma://webhooks/recent")(resource_webhooks_recent)
-
-    # Native MCP Prompts
-    root.prompt(
-        "provision_tenant_dashboard",
-        description="Guide the agent through deploying a Sigma template into a folder and swapping data sources for a target tenant.",
-    )(prompt_provision_tenant_dashboard)
-
-    root.prompt(
-        "audit_organization_permissions",
-        description="Guide the agent through auditing organization members, team memberships, and assigned user attributes.",
-    )(prompt_audit_organization_permissions)
-
-    root.prompt(
-        "prepare_data_model",
-        description="Guide the agent in defining a production data model specification, columns, and relations.",
-    )(prompt_prepare_data_model)
-
-    root.prompt(
-        "onboard_team_member",
-        description="Guide the agent through creating a new member, assigning team memberships, and verifying home folder setup.",
-    )(prompt_onboard_team_member)
-
-    root.prompt(
-        "swap_warehouse_source",
-        description="Guide the agent through re-binding workbook or template data sources to a new connection or table.",
-    )(prompt_swap_warehouse_source)
-
-    root.prompt(
-        "audit_tenant_connections",
-        description="Guide the agent through reviewing multi-tenant connections and running dry-run syncs.",
-    )(prompt_audit_tenant_connections)
+    root.resource("admin://webhooks/recent")(resource_webhooks_recent)
 
     # Bulk-destructive gating:
     allow_bulk = (
@@ -649,7 +660,8 @@ def create_server(
         allowed_set = _PROFILES[active_profile]
         for sub in (workbooks_server, datasets_server, elements_server, workspace_server, admin_server):
             for c in list(sub._local_provider._components.values()):
-                if hasattr(c, "name") and (getattr(c, "type", None) == "tool" or hasattr(c, "parameters")):
+                is_tool = getattr(c, "type", None) == "tool" or type(c).__name__.endswith("Tool")
+                if hasattr(c, "name") and is_tool:
                     if c.name not in allowed_set:
                         sub.disable(names={c.name})
                     else:
@@ -672,12 +684,11 @@ def create_server(
     _orig_call_tool = root.call_tool
 
     async def _call_tool_compat(name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
-        target_name = LEGACY_TOOL_ALIAS_MAP.get(name, name)
         try:
             orig = getattr(sys.modules.get("sigma_mcp.server"), "_orig_call_tool", _orig_call_tool)
             if orig == _call_tool_compat:
                 orig = _orig_call_tool
-            raw_res = await orig(target_name, arguments or {}, **kwargs)
+            raw_res = await orig(name, arguments or {}, **kwargs)
         except NotFoundError as exc:
             raise ToolError(f"Unknown tool: '{name}'") from exc
         except Exception:
@@ -724,6 +735,43 @@ def create_server(
 
     return root
 
+
+def _register_domain_prompts() -> None:
+    """Register prompts on domain servers once so mounts expose ``{domain}_{prompt}``.
+
+    Domain servers are module singletons. Reloading this module must not register
+    the same prompt twice (FastMCP rejects duplicate component keys).
+    """
+    if getattr(workbooks_server, "_domain_prompts_registered", False):
+        return
+    workbooks_server.prompt(
+        "provision_tenant_dashboard",
+        description="Guide the agent through deploying a Sigma template into a folder and swapping data sources for a target tenant.",
+    )(prompt_provision_tenant_dashboard)
+    admin_server.prompt(
+        "audit_organization_permissions",
+        description="Guide the agent through auditing organization members, team memberships, and assigned user attributes.",
+    )(prompt_audit_organization_permissions)
+    datasets_server.prompt(
+        "prepare_data_model",
+        description="Guide the agent in defining a production data model specification, columns, and relations.",
+    )(prompt_prepare_data_model)
+    admin_server.prompt(
+        "onboard_team_member",
+        description="Guide the agent through creating a new member, assigning team memberships, and verifying home folder setup.",
+    )(prompt_onboard_team_member)
+    elements_server.prompt(
+        "swap_warehouse_source",
+        description="Guide the agent through re-binding workbook or template data sources to a new connection or table.",
+    )(prompt_swap_warehouse_source)
+    datasets_server.prompt(
+        "audit_tenant_connections",
+        description="Guide the agent through reviewing multi-tenant connections and running dry-run syncs.",
+    )(prompt_audit_tenant_connections)
+    workbooks_server._domain_prompts_registered = True  # type: ignore[attr-defined]
+
+
+_register_domain_prompts()
 
 # Default canonical server gateway instance
 mcp = create_server()

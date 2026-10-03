@@ -150,18 +150,18 @@ def test_server_profile_and_readonly_filtering(monkeypatch: pytest.MonkeyPatch) 
 
         monkeypatch.setenv("SIGMA_MCP_PROFILE", "core")
         importlib.reload(srv)
-        assert "sigma_list_workbooks" in srv.mcp._tool_manager._tools
+        assert "workbooks_list_workbooks" in srv.mcp._tool_manager._tools
 
         monkeypatch.setenv("SIGMA_MCP_PROFILE", "full")
         monkeypatch.setenv("SIGMA_MCP_READONLY", "1")
         importlib.reload(srv)
-        assert "sigma_delete_file" not in srv.mcp._tool_manager._tools
-        assert "sigma_list_workbooks" in srv.mcp._tool_manager._tools
+        assert "workspace_delete_file" not in srv.mcp._tool_manager._tools
+        assert "workbooks_list_workbooks" in srv.mcp._tool_manager._tools
 
         monkeypatch.delenv("SIGMA_MCP_READONLY", raising=False)
         monkeypatch.setenv("SIGMA_MCP_PROFILE", "full")
         importlib.reload(srv)
-        assert "sigma_delete_file" in srv.mcp._tool_manager._tools
+        assert "workspace_delete_file" in srv.mcp._tool_manager._tools
     finally:
         monkeypatch.undo()
         importlib.reload(srv)

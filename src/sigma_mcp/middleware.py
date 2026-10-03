@@ -21,29 +21,29 @@ from sigma_mcp.errors import SafetyViolationError, redact_secrets
 
 logger = logging.getLogger(__name__)
 
-_RO_PREFIXES = ("sigma_list_", "sigma_get_", "sigma_api_capabilities", "list_", "get_", "api_capabilities")
+_RO_PREFIXES = ("sigma_list_", "sigma_get_", "admin_api_capabilities", "list_", "get_", "api_capabilities")
 _RO_NAMES = {
-    "sigma_get_current_user",
+    "admin_get_current_user",
     "get_current_user",
-    "sigma_list_workbooks_shared_with_member",
+    "workbooks_list_workbooks_shared_with_member",
     "list_workbooks_shared_with_member",
-    "sigma_list_all_input_tables",
+    "elements_list_all_input_tables",
     "list_all_input_tables",
-    "sigma_list_tenants_paginated",
+    "admin_list_tenants_paginated",
     "list_tenants_paginated",
-    "sigma_get_tenant_scoped_info",
+    "admin_get_tenant_scoped_info",
     "get_tenant_scoped_info",
-    "sigma_formula_pitfalls",
+    "elements_formula_pitfalls",
     "formula_pitfalls",
-    "sigma_search_docs",
+    "elements_search_docs",
     "search_docs",
-    "sigma_get_doc_page",
+    "elements_get_doc_page",
     "get_doc_page",
-    "sigma_verify_workbook_spec",
+    "workbooks_verify_workbook_spec",
     "verify_workbook_spec",
-    "sigma_verify_report_spec",
+    "workbooks_verify_report_spec",
     "verify_report_spec",
-    "sigma_download_query_export",
+    "workbooks_download_query_export",
     "download_query_export",
 }
 
@@ -123,13 +123,9 @@ class AdminDomainGuardMiddleware(Middleware):
         tool_name = getattr(context.message, "name", "") if context.message else ""
         if tool_name in (
             "bulk_deactivate_members",
-            "sigma_bulk_deactivate_members",
             "admin_bulk_deactivate_members",
-            "admin_sigma_bulk_deactivate_members",
             "bulk_remove_team_members",
-            "sigma_bulk_remove_team_members",
             "admin_bulk_remove_team_members",
-            "admin_sigma_bulk_remove_team_members",
         ):
             allow_bulk = (
                 settings.MCP_ALLOW_BULK_DESTRUCTIVE

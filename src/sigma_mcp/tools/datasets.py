@@ -29,7 +29,7 @@ datasets_server = FastMCP(
 )
 
 
-@datasets_server.tool(name="sigma_list_connections", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
+@datasets_server.tool(name="list_connections", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_connections(summary_only: bool = False) -> str:
     """List all connections in the Sigma organization. Pass summary_only=True for concise token-efficient response."""
@@ -42,7 +42,7 @@ async def sigma_list_connections(summary_only: bool = False) -> str:
 list_connections = sigma_list_connections
 
 
-@datasets_server.tool(name="sigma_get_connection", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
+@datasets_server.tool(name="get_connection", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_get_connection(connection_id: str) -> str:
     """Get details for a specific connection."""
@@ -52,7 +52,7 @@ async def sigma_get_connection(connection_id: str) -> str:
 get_connection = sigma_get_connection
 
 
-@datasets_server.tool(name="sigma_sync_connection", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
+@datasets_server.tool(name="sync_connection", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
 @sigma_tool
 async def sigma_sync_connection(connection_id: str, path: list[str] | None = None) -> str:
     """Force Sigma to re-index a warehouse path. Pass empty list for full sync."""
@@ -62,7 +62,7 @@ async def sigma_sync_connection(connection_id: str, path: list[str] | None = Non
 sync_connection = sigma_sync_connection
 
 
-@datasets_server.tool(name="sigma_test_connection", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
+@datasets_server.tool(name="test_connection", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
 @sigma_tool
 async def sigma_test_connection(connection_id: str) -> str:
     """Test connectivity for a connection."""
@@ -72,9 +72,7 @@ async def sigma_test_connection(connection_id: str) -> str:
 test_connection = sigma_test_connection
 
 
-@datasets_server.tool(
-    name="sigma_list_columns_for_table", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="list_columns_for_table", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_columns_for_table(table_id: str) -> str:
     """List columns for a warehouse table by its tableId."""
@@ -84,9 +82,7 @@ async def sigma_list_columns_for_table(table_id: str) -> str:
 list_columns_for_table = sigma_list_columns_for_table
 
 
-@datasets_server.tool(
-    name="sigma_list_connection_grants", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="list_connection_grants", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_connection_grants(connection_id: str) -> str:
     """List permission grants on a connection."""
@@ -96,9 +92,7 @@ async def sigma_list_connection_grants(connection_id: str) -> str:
 list_connection_grants = sigma_list_connection_grants
 
 
-@datasets_server.tool(
-    name="sigma_add_connection_grant", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"}
-)
+@datasets_server.tool(name="add_connection_grant", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"})
 @sigma_tool
 async def sigma_add_connection_grant(connection_id: str, grant_type: str, grantee_id: str, permission: str) -> str:
     """Add a grant to a connection.
@@ -118,7 +112,7 @@ add_connection_grant = sigma_add_connection_grant
 
 
 @datasets_server.tool(
-    name="sigma_delete_connection_path_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"datasets", "destructive"}
+    name="delete_connection_path_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"datasets", "destructive"}
 )
 @sigma_tool
 async def sigma_delete_connection_path_grant(connection_path_id: str, grant_id: str, confirm: bool = False) -> str:
@@ -132,7 +126,7 @@ async def sigma_delete_connection_path_grant(connection_path_id: str, grant_id: 
 delete_connection_path_grant = sigma_delete_connection_path_grant
 
 
-@datasets_server.tool(name="sigma_list_data_models", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
+@datasets_server.tool(name="list_data_models", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_models(limit: int = 200, summary_only: bool = False) -> str:
     """List all data models in the organization. Pass summary_only=True for concise token-efficient response."""
@@ -145,7 +139,7 @@ async def sigma_list_data_models(limit: int = 200, summary_only: bool = False) -
 list_data_models = sigma_list_data_models
 
 
-@datasets_server.tool(name="sigma_get_data_model", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
+@datasets_server.tool(name="get_data_model", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_get_data_model(data_model_id: str) -> str:
     """Get data model metadata."""
@@ -155,9 +149,7 @@ async def sigma_get_data_model(data_model_id: str) -> str:
 get_data_model = sigma_get_data_model
 
 
-@datasets_server.tool(
-    name="sigma_get_data_model_spec", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="get_data_model_spec", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_get_data_model_spec(data_model_id: str) -> str:
     """Get the full code representation (JSON spec) of a data model — tables, columns, metrics, relationships."""
@@ -167,7 +159,7 @@ async def sigma_get_data_model_spec(data_model_id: str) -> str:
 get_data_model_spec = sigma_get_data_model_spec
 
 
-@datasets_server.tool(name="sigma_create_data_model", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
+@datasets_server.tool(name="create_data_model", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
 @sigma_tool
 async def sigma_create_data_model(spec: dict[str, Any]) -> str:
     """Create a data model from a JSON code representation. Must include name, folderId, schemaVersion, and pages with elements."""
@@ -177,7 +169,7 @@ async def sigma_create_data_model(spec: dict[str, Any]) -> str:
 create_data_model = sigma_create_data_model
 
 
-@datasets_server.tool(name="sigma_update_data_model", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
+@datasets_server.tool(name="update_data_model", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
 @sigma_tool
 async def sigma_update_data_model(data_model_id: str, spec: dict[str, Any]) -> str:
     """Update an existing data model from a JSON code representation (full replacement via PUT)."""
@@ -187,9 +179,7 @@ async def sigma_update_data_model(data_model_id: str, spec: dict[str, Any]) -> s
 update_data_model = sigma_update_data_model
 
 
-@datasets_server.tool(
-    name="sigma_list_data_model_elements", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="list_data_model_elements", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_elements(data_model_id: str) -> str:
     """List elements in a data model."""
@@ -199,9 +189,7 @@ async def sigma_list_data_model_elements(data_model_id: str) -> str:
 list_data_model_elements = sigma_list_data_model_elements
 
 
-@datasets_server.tool(
-    name="sigma_list_data_model_columns", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="list_data_model_columns", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_columns(data_model_id: str) -> str:
     """List all columns across all elements in a data model."""
@@ -211,9 +199,7 @@ async def sigma_list_data_model_columns(data_model_id: str) -> str:
 list_data_model_columns = sigma_list_data_model_columns
 
 
-@datasets_server.tool(
-    name="sigma_swap_data_model_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
-)
+@datasets_server.tool(name="swap_data_model_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
 @sigma_tool
 async def sigma_swap_data_model_sources(data_model_id: str, body: dict[str, Any]) -> str:
     """Swap data sources for a data model."""
@@ -223,9 +209,7 @@ async def sigma_swap_data_model_sources(data_model_id: str, body: dict[str, Any]
 swap_data_model_sources = sigma_swap_data_model_sources
 
 
-@datasets_server.tool(
-    name="sigma_list_data_model_lineage", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="list_data_model_lineage", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_lineage(data_model_id: str) -> str:
     """List lineage for a data model."""
@@ -235,7 +219,7 @@ async def sigma_list_data_model_lineage(data_model_id: str) -> str:
 list_data_model_lineage = sigma_list_data_model_lineage
 
 
-@datasets_server.tool(name="sigma_tag_data_model", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"})
+@datasets_server.tool(name="tag_data_model", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"})
 @sigma_tool
 async def sigma_tag_data_model(data_model_id: str, tag_name: str) -> str:
     """Apply a version tag to a data model by tag NAME. The Sigma API takes the tag name here, not its ID."""
@@ -245,9 +229,7 @@ async def sigma_tag_data_model(data_model_id: str, tag_name: str) -> str:
 tag_data_model = sigma_tag_data_model
 
 
-@datasets_server.tool(
-    name="sigma_swap_report_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
-)
+@datasets_server.tool(name="swap_report_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
 @sigma_tool
 async def sigma_swap_report_sources(
     report_id: str,
@@ -267,7 +249,7 @@ swap_report_sources = sigma_swap_report_sources
 
 
 @datasets_server.tool(
-    name="sigma_sync_all_tables_in_schema", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+    name="sync_all_tables_in_schema", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
 )
 @sigma_tool
 async def sigma_sync_all_tables_in_schema(connection_id: str, database: str, schema: str) -> str:
@@ -288,7 +270,7 @@ sync_all_tables_in_schema = sigma_sync_all_tables_in_schema
 
 
 @datasets_server.tool(
-    name="sigma_bulk_sync_tenant_connections", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+    name="bulk_sync_tenant_connections", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
 )
 @sigma_tool
 async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
@@ -370,9 +352,7 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
 bulk_sync_tenant_connections = sigma_bulk_sync_tenant_connections
 
 
-@datasets_server.tool(
-    name="sigma_list_all_data_models", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
-)
+@datasets_server.tool(name="list_all_data_models", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_all_data_models() -> str:
     """List ALL data models in the organization, automatically following pagination."""

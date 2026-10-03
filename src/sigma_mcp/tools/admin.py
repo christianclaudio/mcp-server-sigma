@@ -28,7 +28,7 @@ admin_server = FastMCP(
 admin_server.add_middleware(AdminDomainGuardMiddleware())
 
 
-@admin_server.tool(name="sigma_list_deployments", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_deployments", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployments() -> str:
     """List all deployment policies."""
@@ -38,7 +38,7 @@ async def sigma_list_deployments() -> str:
 list_deployments = sigma_list_deployments
 
 
-@admin_server.tool(name="sigma_get_deployment", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_deployment", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_deployment(policy_id: str) -> str:
     """Get a deployment policy."""
@@ -48,7 +48,7 @@ async def sigma_get_deployment(policy_id: str) -> str:
 get_deployment = sigma_get_deployment
 
 
-@admin_server.tool(name="sigma_create_deployment", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="create_deployment", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_create_deployment(name: str, body: dict[str, Any]) -> str:
     """Create a deployment policy."""
@@ -59,7 +59,7 @@ async def sigma_create_deployment(name: str, body: dict[str, Any]) -> str:
 create_deployment = sigma_create_deployment
 
 
-@admin_server.tool(name="sigma_archive_deployment", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@admin_server.tool(name="archive_deployment", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_archive_deployment(policy_id: str, confirm: bool = False) -> str:
     """Delete (archive) a deployment policy. Requires confirm=True."""
@@ -72,7 +72,7 @@ async def sigma_archive_deployment(policy_id: str, confirm: bool = False) -> str
 archive_deployment = sigma_archive_deployment
 
 
-@admin_server.tool(name="sigma_deactivate_member", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@admin_server.tool(name="deactivate_member", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_deactivate_member(member_id: str, confirm: bool = False) -> str:
     """Deactivate a member. Requires confirm=True."""
@@ -84,9 +84,7 @@ async def sigma_deactivate_member(member_id: str, confirm: bool = False) -> str:
 deactivate_member = sigma_deactivate_member
 
 
-@admin_server.tool(
-    name="sigma_list_deployment_documents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"}
-)
+@admin_server.tool(name="list_deployment_documents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployment_documents(policy_id: str) -> str:
     """List documents in a deployment policy."""
@@ -96,7 +94,7 @@ async def sigma_list_deployment_documents(policy_id: str) -> str:
 list_deployment_documents = sigma_list_deployment_documents
 
 
-@admin_server.tool(name="sigma_add_deployment_documents", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="add_deployment_documents", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_add_deployment_documents(policy_id: str, inode_ids: list[str]) -> str:
     """Add workbooks/reports to a deployment policy."""
@@ -106,7 +104,7 @@ async def sigma_add_deployment_documents(policy_id: str, inode_ids: list[str]) -
 add_deployment_documents = sigma_add_deployment_documents
 
 
-@admin_server.tool(name="sigma_list_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_tenants() -> str:
     """List all tenant organizations (for multi-tenant deployments)."""
@@ -116,7 +114,7 @@ async def sigma_list_tenants() -> str:
 list_tenants = sigma_list_tenants
 
 
-@admin_server.tool(name="sigma_get_tenant", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_tenant", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_tenant(tenant_id: str) -> str:
     """Get tenant organization details."""
@@ -126,7 +124,7 @@ async def sigma_get_tenant(tenant_id: str) -> str:
 get_tenant = sigma_get_tenant
 
 
-@admin_server.tool(name="sigma_create_tenant", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="create_tenant", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_create_tenant(name: str, body: dict[str, Any] | None = None) -> str:
     """Create a tenant organization."""
@@ -138,7 +136,7 @@ async def sigma_create_tenant(name: str, body: dict[str, Any] | None = None) -> 
 create_tenant = sigma_create_tenant
 
 
-@admin_server.tool(name="sigma_list_api_connectors", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_api_connectors", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_api_connectors() -> str:
     """List all API connectors (custom data integrations)."""
@@ -148,7 +146,7 @@ async def sigma_list_api_connectors() -> str:
 list_api_connectors = sigma_list_api_connectors
 
 
-@admin_server.tool(name="sigma_get_api_connector", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_api_connector", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_api_connector(connector_id: str) -> str:
     """Get details for an API connector."""
@@ -158,7 +156,7 @@ async def sigma_get_api_connector(connector_id: str) -> str:
 get_api_connector = sigma_get_api_connector
 
 
-@admin_server.tool(name="sigma_list_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_members(limit: int = 200, summary_only: bool = False) -> str:
     """List all members in the organization. Pass summary_only=True for concise token-efficient response."""
@@ -171,7 +169,7 @@ async def sigma_list_members(limit: int = 200, summary_only: bool = False) -> st
 list_members = sigma_list_members
 
 
-@admin_server.tool(name="sigma_get_member", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_member", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_member(member_id: str) -> str:
     """Get member details including homeFolderId."""
@@ -181,7 +179,7 @@ async def sigma_get_member(member_id: str) -> str:
 get_member = sigma_get_member
 
 
-@admin_server.tool(name="sigma_create_member", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="create_member", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_create_member(email: str, first_name: str, last_name: str, member_type: str = "viewer") -> str:
     """Create a new member. member_type: 'admin', 'creator', 'viewer'."""
@@ -196,7 +194,7 @@ async def sigma_create_member(email: str, first_name: str, last_name: str, membe
 create_member = sigma_create_member
 
 
-@admin_server.tool(name="sigma_update_member", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="update_member", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_update_member(member_id: str, body: dict[str, Any]) -> str:
     """Update member properties (firstName, lastName, memberType, isActive, etc.)."""
@@ -206,7 +204,7 @@ async def sigma_update_member(member_id: str, body: dict[str, Any]) -> str:
 update_member = sigma_update_member
 
 
-@admin_server.tool(name="sigma_get_current_user", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_current_user", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_current_user() -> str:
     """Get the current authenticated user's details."""
@@ -216,7 +214,7 @@ async def sigma_get_current_user() -> str:
 get_current_user = sigma_get_current_user
 
 
-@admin_server.tool(name="sigma_list_member_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_member_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_member_teams(member_id: str) -> str:
     """List teams a member belongs to."""
@@ -226,7 +224,7 @@ async def sigma_list_member_teams(member_id: str) -> str:
 list_member_teams = sigma_list_member_teams
 
 
-@admin_server.tool(name="sigma_list_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_teams(limit: int = 200, summary_only: bool = False) -> str:
     """List all teams. Pass summary_only=True for concise token-efficient response."""
@@ -239,7 +237,7 @@ async def sigma_list_teams(limit: int = 200, summary_only: bool = False) -> str:
 list_teams = sigma_list_teams
 
 
-@admin_server.tool(name="sigma_get_team", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_team", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_team(team_id: str) -> str:
     """Get team details."""
@@ -249,7 +247,7 @@ async def sigma_get_team(team_id: str) -> str:
 get_team = sigma_get_team
 
 
-@admin_server.tool(name="sigma_create_team", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="create_team", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_create_team(name: str, description: str = "") -> str:
     """Create a new team."""
@@ -259,7 +257,7 @@ async def sigma_create_team(name: str, description: str = "") -> str:
 create_team = sigma_create_team
 
 
-@admin_server.tool(name="sigma_delete_team", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@admin_server.tool(name="delete_team", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_delete_team(team_id: str, confirm: bool = False) -> str:
     """Delete a team. Requires confirm=True."""
@@ -272,7 +270,7 @@ async def sigma_delete_team(team_id: str, confirm: bool = False) -> str:
 delete_team = sigma_delete_team
 
 
-@admin_server.tool(name="sigma_list_team_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_team_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_team_members(team_id: str) -> str:
     """List members of a team."""
@@ -282,7 +280,7 @@ async def sigma_list_team_members(team_id: str) -> str:
 list_team_members = sigma_list_team_members
 
 
-@admin_server.tool(name="sigma_update_team_members", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="update_team_members", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_update_team_members(team_id: str, add: list[str] | None = None, remove: list[str] | None = None) -> str:
     """Add or remove members from a team. Provide lists of member IDs."""
@@ -297,7 +295,7 @@ async def sigma_update_team_members(team_id: str, add: list[str] | None = None, 
 update_team_members = sigma_update_team_members
 
 
-@admin_server.tool(name="sigma_list_user_attributes", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_user_attributes", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_user_attributes() -> str:
     """List all user attributes (used for row-level security and dynamic parameters)."""
@@ -307,7 +305,7 @@ async def sigma_list_user_attributes() -> str:
 list_user_attributes = sigma_list_user_attributes
 
 
-@admin_server.tool(name="sigma_create_user_attribute", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="create_user_attribute", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_create_user_attribute(
     name: str,
@@ -332,9 +330,7 @@ async def sigma_create_user_attribute(
 create_user_attribute = sigma_create_user_attribute
 
 
-@admin_server.tool(
-    name="sigma_set_user_attribute_for_teams", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"}
-)
+@admin_server.tool(name="set_user_attribute_for_teams", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"})
 @sigma_tool
 async def sigma_set_user_attribute_for_teams(
     attribute_id: str,
@@ -357,7 +353,7 @@ set_user_attribute_for_teams = sigma_set_user_attribute_for_teams
 
 
 @admin_server.tool(
-    name="sigma_set_user_attribute_for_tenants", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"}
+    name="set_user_attribute_for_tenants", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"}
 )
 @sigma_tool
 async def sigma_set_user_attribute_for_tenants(
@@ -381,7 +377,7 @@ async def sigma_set_user_attribute_for_tenants(
 set_user_attribute_for_tenants = sigma_set_user_attribute_for_tenants
 
 
-@admin_server.tool(name="sigma_get_user_attribute_users", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_user_attribute_users", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_users(attribute_id: str) -> str:
     """Get all user assignments for a user attribute."""
@@ -391,7 +387,7 @@ async def sigma_get_user_attribute_users(attribute_id: str) -> str:
 get_user_attribute_users = sigma_get_user_attribute_users
 
 
-@admin_server.tool(name="sigma_get_user_attribute_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_user_attribute_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_teams(attribute_id: str) -> str:
     """Get all team assignments for a user attribute."""
@@ -401,9 +397,7 @@ async def sigma_get_user_attribute_teams(attribute_id: str) -> str:
 get_user_attribute_teams = sigma_get_user_attribute_teams
 
 
-@admin_server.tool(
-    name="sigma_get_user_attribute_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"}
-)
+@admin_server.tool(name="get_user_attribute_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_tenants(attribute_id: str) -> str:
     """Get all tenant assignments for a user attribute."""
@@ -414,7 +408,7 @@ get_user_attribute_tenants = sigma_get_user_attribute_tenants
 
 
 @admin_server.tool(
-    name="sigma_update_user_attribute_for_users", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+    name="update_user_attribute_for_users", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
 )
 @sigma_tool
 async def sigma_update_user_attribute_for_users(
@@ -441,7 +435,7 @@ update_user_attribute_for_users = sigma_update_user_attribute_for_users
 
 
 @admin_server.tool(
-    name="sigma_update_user_attribute_for_teams", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+    name="update_user_attribute_for_teams", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
 )
 @sigma_tool
 async def sigma_update_user_attribute_for_teams(
@@ -464,7 +458,7 @@ update_user_attribute_for_teams = sigma_update_user_attribute_for_teams
 
 
 @admin_server.tool(
-    name="sigma_update_user_attribute_for_tenants", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+    name="update_user_attribute_for_tenants", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
 )
 @sigma_tool
 async def sigma_update_user_attribute_for_tenants(
@@ -487,7 +481,7 @@ update_user_attribute_for_tenants = sigma_update_user_attribute_for_tenants
 
 
 @admin_server.tool(
-    name="sigma_delete_user_attribute_for_user", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+    name="delete_user_attribute_for_user", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
 )
 @sigma_tool
 async def sigma_delete_user_attribute_for_user(attribute_id: str, user_id: str, confirm: bool = False) -> str:
@@ -502,7 +496,7 @@ delete_user_attribute_for_user = sigma_delete_user_attribute_for_user
 
 
 @admin_server.tool(
-    name="sigma_delete_user_attribute_for_team", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+    name="delete_user_attribute_for_team", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
 )
 @sigma_tool
 async def sigma_delete_user_attribute_for_team(attribute_id: str, team_id: str, confirm: bool = False) -> str:
@@ -517,7 +511,7 @@ delete_user_attribute_for_team = sigma_delete_user_attribute_for_team
 
 
 @admin_server.tool(
-    name="sigma_delete_user_attribute_for_tenant", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+    name="delete_user_attribute_for_tenant", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
 )
 @sigma_tool
 async def sigma_delete_user_attribute_for_tenant(attribute_id: str, tenant_org_id: str, confirm: bool = False) -> str:
@@ -531,7 +525,7 @@ async def sigma_delete_user_attribute_for_tenant(attribute_id: str, tenant_org_i
 delete_user_attribute_for_tenant = sigma_delete_user_attribute_for_tenant
 
 
-@admin_server.tool(name="sigma_list_account_types", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_account_types", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_account_types() -> str:
     """List all account types (license types) in the organization."""
@@ -541,7 +535,7 @@ async def sigma_list_account_types() -> str:
 list_account_types = sigma_list_account_types
 
 
-@admin_server.tool(name="sigma_list_grants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_grants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_grants(inode_id: str) -> str:
     """List grants for a specific file/workbook/data model by inodeId. Required: inodeId."""
@@ -551,7 +545,7 @@ async def sigma_list_grants(inode_id: str) -> str:
 list_grants = sigma_list_grants
 
 
-@admin_server.tool(name="sigma_create_grant", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"})
+@admin_server.tool(name="create_grant", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"})
 @sigma_tool
 async def sigma_create_grant(body: dict[str, Any]) -> str:
     """Create or update a grant. Body must include inodeId, granteeId, permission, type."""
@@ -561,7 +555,7 @@ async def sigma_create_grant(body: dict[str, Any]) -> str:
 create_grant = sigma_create_grant
 
 
-@admin_server.tool(name="sigma_list_translations", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_translations", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_translations() -> str:
     """List organization translation files."""
@@ -571,7 +565,7 @@ async def sigma_list_translations() -> str:
 list_translations = sigma_list_translations
 
 
-@admin_server.tool(name="sigma_onboard_member", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="onboard_member", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_onboard_member(
     email: str, first_name: str, last_name: str, member_type: str = "viewer", team_ids: list[str] | None = None
@@ -604,7 +598,7 @@ async def sigma_onboard_member(
 onboard_member = sigma_onboard_member
 
 
-@admin_server.tool(name="sigma_bulk_assign_team_members", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="bulk_assign_team_members", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_bulk_assign_team_members(team_id: str, member_ids: list[str]) -> str:
     """Add multiple members to a team in one call."""
@@ -620,9 +614,7 @@ async def sigma_bulk_assign_team_members(team_id: str, member_ids: list[str]) ->
 bulk_assign_team_members = sigma_bulk_assign_team_members
 
 
-@admin_server.tool(
-    name="sigma_bulk_deactivate_members", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
-)
+@admin_server.tool(name="bulk_deactivate_members", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True, confirm: bool = False) -> str:
     """Deactivate members matching a name pattern (regex on firstName+lastName).
@@ -749,7 +741,7 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
 bulk_deactivate_members = sigma_bulk_deactivate_members
 
 
-@admin_server.tool(name="sigma_change_member_email", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="change_member_email", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_change_member_email(member_id: str, new_email: str) -> str:
     """Change a member's email address via PATCH /v2/members/{id}."""
@@ -766,9 +758,7 @@ async def sigma_change_member_email(member_id: str, new_email: str) -> str:
 change_member_email = sigma_change_member_email
 
 
-@admin_server.tool(
-    name="sigma_bulk_remove_team_members", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
-)
+@admin_server.tool(name="bulk_remove_team_members", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str], confirm: bool = False) -> str:
     """Remove multiple members from a team by their email addresses.
@@ -814,7 +804,7 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
 bulk_remove_team_members = sigma_bulk_remove_team_members
 
 
-@admin_server.tool(name="sigma_list_tenants_paginated", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_tenants_paginated", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_tenants_paginated() -> str:
     """List all tenants using cursor-based pagination (nextPageToken model).
@@ -844,7 +834,7 @@ async def sigma_list_tenants_paginated() -> str:
 list_tenants_paginated = sigma_list_tenants_paginated
 
 
-@admin_server.tool(name="sigma_get_tenant_scoped_info", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_tenant_scoped_info", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_tenant_scoped_info(tenant_org_id: str) -> str:
     """Demonstrate tenant token exchange by calling /whoami through a tenant-scoped client.
@@ -873,7 +863,7 @@ async def sigma_get_tenant_scoped_info(tenant_org_id: str) -> str:
 get_tenant_scoped_info = sigma_get_tenant_scoped_info
 
 
-@admin_server.tool(name="sigma_api_capabilities", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="api_capabilities", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_api_capabilities() -> str:
     """Describe what the Sigma REST API can and cannot do programmatically."""
@@ -897,13 +887,13 @@ async def sigma_api_capabilities() -> str:
                 "set_control_defaults": "Control/parameter default values are UI-only",
             },
             "composite_recipes": {
-                "sigma_deploy_template_to_folder": "Instantiate template + swap sources in one call",
-                "sigma_materialize_and_wait": "Trigger materialization + poll until done",
-                "sigma_onboard_member": "Create member + add to teams",
-                "sigma_bulk_assign_team_members": "Add N members to a team",
-                "sigma_copy_workbook_to_member": "Copy workbook to member's My Documents",
-                "sigma_promote_workbook": "Tag a workbook for version promotion (creates tag if needed)",
-                "sigma_sync_all_tables_in_schema": "Sync a full schema path so tables resolve",
+                "workbooks_deploy_template_to_folder": "Instantiate template + swap sources in one call",
+                "elements_materialize_and_wait": "Trigger materialization + poll until done",
+                "admin_onboard_member": "Create member + add to teams",
+                "admin_bulk_assign_team_members": "Add N members to a team",
+                "workbooks_copy_workbook_to_member": "Copy workbook to member's My Documents",
+                "workbooks_promote_workbook": "Tag a workbook for version promotion (creates tag if needed)",
+                "datasets_sync_all_tables_in_schema": "Sync a full schema path so tables resolve",
             },
             "gotchas": {
                 "templateId_on_create_workbook": "POST /v2/workbooks silently ignores templateId. Use POST /v2/templates/save_workbook.",
@@ -922,7 +912,7 @@ async def sigma_api_capabilities() -> str:
 api_capabilities = sigma_api_capabilities
 
 
-@admin_server.tool(name="sigma_list_all_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_all_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_all_members() -> str:
     """List ALL members in the organization, automatically following pagination."""
@@ -932,7 +922,7 @@ async def sigma_list_all_members() -> str:
 list_all_members = sigma_list_all_members
 
 
-@admin_server.tool(name="sigma_list_all_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_all_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_all_teams() -> str:
     """List ALL teams in the organization, automatically following pagination."""
@@ -942,7 +932,7 @@ async def sigma_list_all_teams() -> str:
 list_all_teams = sigma_list_all_teams
 
 
-@admin_server.tool(name="sigma_list_recent_webhooks", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_recent_webhooks", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_recent_webhooks(limit: int = 20, event_type: str | None = None) -> str:
     """List recently recorded incoming Sigma webhook events.
@@ -972,7 +962,7 @@ VALID_ORG_SETTINGS = frozenset(
 )
 
 
-@admin_server.tool(name="sigma_list_org_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_org_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_org_workbook_agents(page_token: str | None = None, page_size: int | None = None) -> str:
     """List all workbook agents across the organization."""
@@ -984,7 +974,7 @@ async def sigma_list_org_workbook_agents(page_token: str | None = None, page_siz
 list_org_workbook_agents = sigma_list_org_workbook_agents
 
 
-@admin_server.tool(name="sigma_get_org_setting", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="get_org_setting", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_org_setting(setting_name: str) -> str:
     """Get organization setting value.
@@ -1006,7 +996,7 @@ async def sigma_get_org_setting(setting_name: str) -> str:
 get_org_setting = sigma_get_org_setting
 
 
-@admin_server.tool(name="sigma_update_org_setting", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="update_org_setting", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_update_org_setting(setting_name: str, setting_value: dict[str, Any], confirm: bool = False) -> str:
     """Update organization setting value.
@@ -1032,7 +1022,7 @@ async def sigma_update_org_setting(setting_name: str, setting_value: dict[str, A
 update_org_setting = sigma_update_org_setting
 
 
-@admin_server.tool(name="sigma_configure_org_ai", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="configure_org_ai", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_configure_org_ai(provider_config: dict[str, Any], confirm: bool = False) -> str:
     """Configure the organization AI provider and models.
@@ -1052,9 +1042,7 @@ async def sigma_configure_org_ai(provider_config: dict[str, Any], confirm: bool 
 configure_org_ai = sigma_configure_org_ai
 
 
-@admin_server.tool(
-    name="sigma_reset_org_email_branding", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
-)
+@admin_server.tool(name="reset_org_email_branding", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_reset_org_email_branding(confirm: bool = False) -> str:
     """Reset the organization email branding settings back to defaults.
@@ -1071,7 +1059,7 @@ async def sigma_reset_org_email_branding(confirm: bool = False) -> str:
 reset_org_email_branding = sigma_reset_org_email_branding
 
 
-@admin_server.tool(name="sigma_list_allowed_ips", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@admin_server.tool(name="list_allowed_ips", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_allowed_ips(page_token: str | None = None, page_size: int | None = None) -> str:
     """List IP allowlist entries configured for the organization (v3alpha)."""
@@ -1083,7 +1071,7 @@ async def sigma_list_allowed_ips(page_token: str | None = None, page_size: int |
 list_allowed_ips = sigma_list_allowed_ips
 
 
-@admin_server.tool(name="sigma_add_allowed_ips", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@admin_server.tool(name="add_allowed_ips", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
 @sigma_tool
 async def sigma_add_allowed_ips(entries: list[dict[str, Any]], confirm: bool = False) -> str:
     """Create/add IP allowlist entries for the organization (v3alpha).
@@ -1104,7 +1092,7 @@ async def sigma_add_allowed_ips(entries: list[dict[str, Any]], confirm: bool = F
 add_allowed_ips = sigma_add_allowed_ips
 
 
-@admin_server.tool(name="sigma_remove_allowed_ips", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@admin_server.tool(name="remove_allowed_ips", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
 @sigma_tool
 async def sigma_remove_allowed_ips(entry_ids: list[str], confirm: bool = False) -> str:
     """Delete IP allowlist entries by ID from the organization (v3alpha).

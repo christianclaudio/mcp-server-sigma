@@ -1,5 +1,206 @@
 # Changelog
 
+## 2.0.0 (2026-10-03)
+
+### Breaking
+- **Wire names**: Tools, prompts, and resources no longer use a product-wide `sigma_` prefix. Domain FastMCP mounts expose `{domain}_{name}` (for example `sigma_list_workbooks` is now `workbooks_list_workbooks`). Server identity is unchanged (`mcp-server-sigma`, package `sigma_mcp`). This release is not tagged.
+
+#### Prompts
+- `provision_tenant_dashboard` → `workbooks_provision_tenant_dashboard`
+- `audit_organization_permissions` → `admin_audit_organization_permissions`
+- `prepare_data_model` → `datasets_prepare_data_model`
+- `onboard_team_member` → `admin_onboard_team_member`
+- `swap_warehouse_source` → `elements_swap_warehouse_source`
+- `audit_tenant_connections` → `datasets_audit_tenant_connections`
+
+#### Resources
+- `sigma://reference/formulas` → `elements://reference/formulas`
+- `sigma://reference/capabilities` → `admin://reference/capabilities`
+- `sigma://reference/docs-index` → `elements://reference/docs-index`
+- `sigma://webhooks/recent` → `admin://webhooks/recent`
+
+#### Tools
+#### workbooks
+- `sigma_accept_shared_template` → `workbooks_accept_shared_template`
+- `sigma_add_workbook_bookmark` → `workbooks_add_workbook_bookmark`
+- `sigma_add_workbook_schedule` → `workbooks_add_workbook_schedule`
+- `sigma_convert_workbook_to_report` → `workbooks_convert_workbook_to_report`
+- `sigma_copy_workbook_to_member` → `workbooks_copy_workbook_to_member`
+- `sigma_create_report` → `workbooks_create_report`
+- `sigma_create_report_schedule` → `workbooks_create_report_schedule`
+- `sigma_create_workbook` → `workbooks_create_workbook`
+- `sigma_create_workbook_embed` → `workbooks_create_workbook_embed`
+- `sigma_create_workbook_from_template` → `workbooks_create_workbook_from_template`
+- `sigma_delete_workbook_schedule` → `workbooks_delete_workbook_schedule`
+- `sigma_deploy_template_to_folder` → `workbooks_deploy_template_to_folder`
+- `sigma_download_query_export` → `workbooks_download_query_export`
+- `sigma_duplicate_report` → `workbooks_duplicate_report`
+- `sigma_duplicate_workbook` → `workbooks_duplicate_workbook`
+- `sigma_export_and_download` → `workbooks_export_and_download`
+- `sigma_export_report` → `workbooks_export_report`
+- `sigma_export_workbook` → `workbooks_export_workbook`
+- `sigma_get_report` → `workbooks_get_report`
+- `sigma_get_template` → `workbooks_get_template`
+- `sigma_get_workbook` → `workbooks_get_workbook`
+- `sigma_get_workbook_tags` → `workbooks_get_workbook_tags`
+- `sigma_get_workbook_version_history` → `workbooks_get_workbook_version_history`
+- `sigma_grant_workbook_access` → `workbooks_grant_workbook_access`
+- `sigma_list_all_reports` → `workbooks_list_all_reports`
+- `sigma_list_all_workbooks` → `workbooks_list_all_workbooks`
+- `sigma_list_report_elements` → `workbooks_list_report_elements`
+- `sigma_list_report_lineage` → `workbooks_list_report_lineage`
+- `sigma_list_report_queries` → `workbooks_list_report_queries`
+- `sigma_list_report_schedules` → `workbooks_list_report_schedules`
+- `sigma_list_report_sources` → `workbooks_list_report_sources`
+- `sigma_list_reports` → `workbooks_list_reports`
+- `sigma_list_shared_templates` → `workbooks_list_shared_templates`
+- `sigma_list_templates` → `workbooks_list_templates`
+- `sigma_list_workbook_agents` → `workbooks_list_workbook_agents`
+- `sigma_list_workbook_bookmarks` → `workbooks_list_workbook_bookmarks`
+- `sigma_list_workbook_embeds` → `workbooks_list_workbook_embeds`
+- `sigma_list_workbook_grants` → `workbooks_list_workbook_grants`
+- `sigma_list_workbook_lineage` → `workbooks_list_workbook_lineage`
+- `sigma_list_workbook_pages` → `workbooks_list_workbook_pages`
+- `sigma_list_workbook_schedules` → `workbooks_list_workbook_schedules`
+- `sigma_list_workbooks` → `workbooks_list_workbooks`
+- `sigma_list_workbooks_shared_with_member` → `workbooks_list_workbooks_shared_with_member`
+- `sigma_promote_workbook` → `workbooks_promote_workbook`
+- `sigma_reassign_workbook_ownership` → `workbooks_reassign_workbook_ownership`
+- `sigma_remove_workbook_tag` → `workbooks_remove_workbook_tag`
+- `sigma_restore_workbook_version` → `workbooks_restore_workbook_version`
+- `sigma_run_workbook_agent` → `workbooks_run_workbook_agent`
+- `sigma_save_template_from_workbook` → `workbooks_save_template_from_workbook`
+- `sigma_tag_workbook` → `workbooks_tag_workbook`
+- `sigma_update_report_contents` → `workbooks_update_report_contents`
+- `sigma_update_workbook_contents` → `workbooks_update_workbook_contents`
+- `sigma_verify_report_spec` → `workbooks_verify_report_spec`
+- `sigma_verify_workbook_spec` → `workbooks_verify_workbook_spec`
+
+#### datasets
+- `sigma_add_connection_grant` → `datasets_add_connection_grant`
+- `sigma_bulk_sync_tenant_connections` → `datasets_bulk_sync_tenant_connections`
+- `sigma_create_data_model` → `datasets_create_data_model`
+- `sigma_delete_connection_path_grant` → `datasets_delete_connection_path_grant`
+- `sigma_get_connection` → `datasets_get_connection`
+- `sigma_get_data_model` → `datasets_get_data_model`
+- `sigma_get_data_model_spec` → `datasets_get_data_model_spec`
+- `sigma_list_all_data_models` → `datasets_list_all_data_models`
+- `sigma_list_columns_for_table` → `datasets_list_columns_for_table`
+- `sigma_list_connection_grants` → `datasets_list_connection_grants`
+- `sigma_list_connections` → `datasets_list_connections`
+- `sigma_list_data_model_columns` → `datasets_list_data_model_columns`
+- `sigma_list_data_model_elements` → `datasets_list_data_model_elements`
+- `sigma_list_data_model_lineage` → `datasets_list_data_model_lineage`
+- `sigma_list_data_models` → `datasets_list_data_models`
+- `sigma_swap_data_model_sources` → `datasets_swap_data_model_sources`
+- `sigma_swap_report_sources` → `datasets_swap_report_sources`
+- `sigma_sync_all_tables_in_schema` → `datasets_sync_all_tables_in_schema`
+- `sigma_sync_connection` → `datasets_sync_connection`
+- `sigma_tag_data_model` → `datasets_tag_data_model`
+- `sigma_test_connection` → `datasets_test_connection`
+- `sigma_update_data_model` → `datasets_update_data_model`
+
+#### elements
+- `sigma_create_source_swap_policy` → `elements_create_source_swap_policy`
+- `sigma_formula_pitfalls` → `elements_formula_pitfalls`
+- `sigma_get_doc_page` → `elements_get_doc_page`
+- `sigma_get_element_columns` → `elements_get_element_columns`
+- `sigma_get_element_query` → `elements_get_element_query`
+- `sigma_get_materialization_job` → `elements_get_materialization_job`
+- `sigma_get_source_swap_policy` → `elements_get_source_swap_policy`
+- `sigma_list_all_input_tables` → `elements_list_all_input_tables`
+- `sigma_list_materialization_schedules` → `elements_list_materialization_schedules`
+- `sigma_list_source_swap_policies` → `elements_list_source_swap_policies`
+- `sigma_list_workbook_columns` → `elements_list_workbook_columns`
+- `sigma_list_workbook_controls` → `elements_list_workbook_controls`
+- `sigma_list_workbook_elements` → `elements_list_workbook_elements`
+- `sigma_list_workbook_page_elements` → `elements_list_workbook_page_elements`
+- `sigma_list_workbook_queries` → `elements_list_workbook_queries`
+- `sigma_list_workbook_sources` → `elements_list_workbook_sources`
+- `sigma_materialize_and_wait` → `elements_materialize_and_wait`
+- `sigma_materialize_element` → `elements_materialize_element`
+- `sigma_search_docs` → `elements_search_docs`
+- `sigma_swap_template_sources` → `elements_swap_template_sources`
+- `sigma_swap_workbook_sources` → `elements_swap_workbook_sources`
+
+#### workspace
+- `sigma_create_folder` → `workspace_create_folder`
+- `sigma_create_tag` → `workspace_create_tag`
+- `sigma_create_workspace` → `workspace_create_workspace`
+- `sigma_delete_file` → `workspace_delete_file`
+- `sigma_delete_tag` → `workspace_delete_tag`
+- `sigma_delete_workspace` → `workspace_delete_workspace`
+- `sigma_delete_workspace_grant` → `workspace_delete_workspace_grant`
+- `sigma_get_workspace` → `workspace_get_workspace`
+- `sigma_grant_workspace_access` → `workspace_grant_workspace_access`
+- `sigma_list_all_files` → `workspace_list_all_files`
+- `sigma_list_files` → `workspace_list_files`
+- `sigma_list_tags` → `workspace_list_tags`
+- `sigma_list_workspace_grants` → `workspace_list_workspace_grants`
+- `sigma_list_workspaces` → `workspace_list_workspaces`
+- `sigma_update_file` → `workspace_update_file`
+
+#### admin
+- `sigma_add_allowed_ips` → `admin_add_allowed_ips`
+- `sigma_add_deployment_documents` → `admin_add_deployment_documents`
+- `sigma_api_capabilities` → `admin_api_capabilities`
+- `sigma_archive_deployment` → `admin_archive_deployment`
+- `sigma_bulk_assign_team_members` → `admin_bulk_assign_team_members`
+- `sigma_bulk_deactivate_members` → `admin_bulk_deactivate_members`
+- `sigma_bulk_remove_team_members` → `admin_bulk_remove_team_members`
+- `sigma_change_member_email` → `admin_change_member_email`
+- `sigma_configure_org_ai` → `admin_configure_org_ai`
+- `sigma_create_deployment` → `admin_create_deployment`
+- `sigma_create_grant` → `admin_create_grant`
+- `sigma_create_member` → `admin_create_member`
+- `sigma_create_team` → `admin_create_team`
+- `sigma_create_tenant` → `admin_create_tenant`
+- `sigma_create_user_attribute` → `admin_create_user_attribute`
+- `sigma_deactivate_member` → `admin_deactivate_member`
+- `sigma_delete_team` → `admin_delete_team`
+- `sigma_delete_user_attribute_for_team` → `admin_delete_user_attribute_for_team`
+- `sigma_delete_user_attribute_for_tenant` → `admin_delete_user_attribute_for_tenant`
+- `sigma_delete_user_attribute_for_user` → `admin_delete_user_attribute_for_user`
+- `sigma_get_api_connector` → `admin_get_api_connector`
+- `sigma_get_current_user` → `admin_get_current_user`
+- `sigma_get_deployment` → `admin_get_deployment`
+- `sigma_get_member` → `admin_get_member`
+- `sigma_get_org_setting` → `admin_get_org_setting`
+- `sigma_get_team` → `admin_get_team`
+- `sigma_get_tenant` → `admin_get_tenant`
+- `sigma_get_tenant_scoped_info` → `admin_get_tenant_scoped_info`
+- `sigma_get_user_attribute_teams` → `admin_get_user_attribute_teams`
+- `sigma_get_user_attribute_tenants` → `admin_get_user_attribute_tenants`
+- `sigma_get_user_attribute_users` → `admin_get_user_attribute_users`
+- `sigma_list_account_types` → `admin_list_account_types`
+- `sigma_list_all_members` → `admin_list_all_members`
+- `sigma_list_all_teams` → `admin_list_all_teams`
+- `sigma_list_allowed_ips` → `admin_list_allowed_ips`
+- `sigma_list_api_connectors` → `admin_list_api_connectors`
+- `sigma_list_deployment_documents` → `admin_list_deployment_documents`
+- `sigma_list_deployments` → `admin_list_deployments`
+- `sigma_list_grants` → `admin_list_grants`
+- `sigma_list_member_teams` → `admin_list_member_teams`
+- `sigma_list_members` → `admin_list_members`
+- `sigma_list_org_workbook_agents` → `admin_list_org_workbook_agents`
+- `sigma_list_recent_webhooks` → `admin_list_recent_webhooks`
+- `sigma_list_team_members` → `admin_list_team_members`
+- `sigma_list_teams` → `admin_list_teams`
+- `sigma_list_tenants` → `admin_list_tenants`
+- `sigma_list_tenants_paginated` → `admin_list_tenants_paginated`
+- `sigma_list_translations` → `admin_list_translations`
+- `sigma_list_user_attributes` → `admin_list_user_attributes`
+- `sigma_onboard_member` → `admin_onboard_member`
+- `sigma_remove_allowed_ips` → `admin_remove_allowed_ips`
+- `sigma_reset_org_email_branding` → `admin_reset_org_email_branding`
+- `sigma_set_user_attribute_for_teams` → `admin_set_user_attribute_for_teams`
+- `sigma_set_user_attribute_for_tenants` → `admin_set_user_attribute_for_tenants`
+- `sigma_update_member` → `admin_update_member`
+- `sigma_update_org_setting` → `admin_update_org_setting`
+- `sigma_update_team_members` → `admin_update_team_members`
+- `sigma_update_user_attribute_for_teams` → `admin_update_user_attribute_for_teams`
+- `sigma_update_user_attribute_for_tenants` → `admin_update_user_attribute_for_tenants`
+- `sigma_update_user_attribute_for_users` → `admin_update_user_attribute_for_users`
 ## 1.2.2 (2026-10-02)
 
 ### Security

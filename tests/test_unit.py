@@ -11,6 +11,8 @@ import sys
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 sys.path.insert(0, "src")
 
 
@@ -110,60 +112,68 @@ class TestInputValidation:
         return str(err)
 
     def test_sync_all_tables_empty_connection_id(self):
-        data = self._call_tool("sigma_sync_all_tables_in_schema", {"connection_id": "", "database": "x", "schema": "x"})
+        data = self._call_tool(
+            "datasets_sync_all_tables_in_schema", {"connection_id": "", "database": "x", "schema": "x"}
+        )
         assert "error" in data
         assert "connection_id" in self._error_text(data)
 
     def test_onboard_member_empty_email(self):
-        data = self._call_tool("sigma_onboard_member", {"email": "", "first_name": "x", "last_name": "x"})
+        data = self._call_tool("admin_onboard_member", {"email": "", "first_name": "x", "last_name": "x"})
         assert "error" in data
         assert "email" in self._error_text(data)
 
     def test_bulk_assign_empty_team_id(self):
-        data = self._call_tool("sigma_bulk_assign_team_members", {"team_id": "", "member_ids": ["x"]})
+        data = self._call_tool("admin_bulk_assign_team_members", {"team_id": "", "member_ids": ["x"]})
         assert "error" in data
         assert "team_id" in self._error_text(data)
 
     def test_deploy_template_empty_template_id(self):
-        data = self._call_tool("sigma_deploy_template_to_folder", {"template_id": "", "folder_id": "x", "name": "x"})
+        data = self._call_tool(
+            "workbooks_deploy_template_to_folder", {"template_id": "", "folder_id": "x", "name": "x"}
+        )
         assert "error" in data
         assert "template_id" in self._error_text(data)
 
     def test_promote_workbook_empty_workbook_id(self):
-        data = self._call_tool("sigma_promote_workbook", {"workbook_id": "", "tag_name": "x"})
+        data = self._call_tool("workbooks_promote_workbook", {"workbook_id": "", "tag_name": "x"})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_materialize_empty_workbook_id(self):
-        data = self._call_tool("sigma_materialize_and_wait", {"workbook_id": "", "element_id": "x"})
+        data = self._call_tool("elements_materialize_and_wait", {"workbook_id": "", "element_id": "x"})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_copy_workbook_empty_workbook_id(self):
-        data = self._call_tool("sigma_copy_workbook_to_member", {"workbook_id": "", "member_id": "x"})
+        data = self._call_tool("workbooks_copy_workbook_to_member", {"workbook_id": "", "member_id": "x"})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_onboard_member_invalid_member_type(self):
         data = self._call_tool(
-            "sigma_onboard_member", {"email": "a@b.com", "first_name": "x", "last_name": "x", "member_type": "invalid"}
+            "admin_onboard_member", {"email": "a@b.com", "first_name": "x", "last_name": "x", "member_type": "invalid"}
         )
         assert "error" in data
         assert "member_type" in self._error_text(data)
 
     def test_duplicate_report_empty_name(self):
-        data = self._call_tool("sigma_duplicate_report", {"report_id": "r1", "name": "", "destination_folder_id": "f1"})
+        data = self._call_tool(
+            "workbooks_duplicate_report", {"report_id": "r1", "name": "", "destination_folder_id": "f1"}
+        )
         assert "error" in data
         assert "name" in self._error_text(data)
 
     def test_duplicate_report_empty_folder(self):
-        data = self._call_tool("sigma_duplicate_report", {"report_id": "r1", "name": "x", "destination_folder_id": ""})
+        data = self._call_tool(
+            "workbooks_duplicate_report", {"report_id": "r1", "name": "x", "destination_folder_id": ""}
+        )
         assert "error" in data
         assert "destination_folder_id" in self._error_text(data)
 
     def test_grant_workspace_access_invalid_grant_type(self):
         data = self._call_tool(
-            "sigma_grant_workspace_access",
+            "workspace_grant_workspace_access",
             {"workspace_id": "ws1", "grant_type": "invalid", "grantee_id": "x", "permission": "view"},
         )
         assert "error" in data
@@ -177,7 +187,7 @@ class TestInputValidation:
 
         with patch("sigma_mcp.server.get_client", return_value=mock_client):
             data = self._call_tool(
-                "sigma_grant_workspace_access",
+                "workspace_grant_workspace_access",
                 {"workspace_id": "ws1", "grant_type": "member", "grantee_id": "m1", "permission": "view"},
             )
         assert "error" not in data
@@ -209,7 +219,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client) as ctor:
-            data = self._call_tool("sigma_search_docs", {"query": "embed workbook"})
+            data = self._call_tool("elements_search_docs", {"query": "embed workbook"})
         assert data["format"] == "markdown"
         assert "embedding" in data["content"]
         assert ctor.call_args.kwargs["follow_redirects"] is False
@@ -224,7 +234,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("sigma_search_docs", {"query": "test"})
+            data = self._call_tool("elements_search_docs", {"query": "test"})
         assert "error" in data
         assert data["error"]["type"] == "docs_search_failed"
 
@@ -239,7 +249,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client) as ctor:
-            data = self._call_tool("sigma_get_doc_page", {"page_slug": "create-a-workbook"})
+            data = self._call_tool("elements_get_doc_page", {"page_slug": "create-a-workbook"})
         assert data["format"] == "markdown"
         assert "Create a Workbook" in data["content"]
         assert ctor.call_args.kwargs["follow_redirects"] is False
@@ -255,7 +265,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("sigma_get_doc_page", {"page_slug": "nonexistent-page"})
+            data = self._call_tool("elements_get_doc_page", {"page_slug": "nonexistent-page"})
         assert "error" in data
         assert data["error"]["type"] == "page_not_found"
 
@@ -271,7 +281,7 @@ class TestDocsTools:
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             data = self._call_tool(
-                "sigma_get_doc_page",
+                "elements_get_doc_page",
                 {"page_slug": "https://help.sigmacomputing.com/docs/some-page"},
             )
         assert data["format"] == "markdown"
@@ -290,7 +300,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("sigma_search_docs", {"query": "nonexistent"})
+            data = self._call_tool("elements_search_docs", {"query": "nonexistent"})
         assert "error" in data
         assert data["error"]["type"] == "docs_search_empty"
 
@@ -305,7 +315,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("sigma_get_doc_page", {"page_slug": "docs/some-page.md"})
+            data = self._call_tool("elements_get_doc_page", {"page_slug": "docs/some-page.md"})
         assert data["format"] == "markdown"
         call_url = mock_client.get.call_args[0][0]
         assert call_url.endswith("/docs/some-page.md")
@@ -328,7 +338,7 @@ class TestDocsTools:
                 "docs/%2e%2e/%2e%2e/secret",
                 "https://evil.example/docs/page",
             ):
-                data = self._call_tool("sigma_get_doc_page", {"page_slug": slug})
+                data = self._call_tool("elements_get_doc_page", {"page_slug": slug})
                 assert data["error"]["type"] == "invalid_request", slug
         mock_client.get.assert_not_called()
 
@@ -419,6 +429,13 @@ class TestTransportArg:
 
 
 # ─── Profile integrity (regression: 'embed' silently fell back to core) ───────
+
+
+def test_wire_name_rejects_unknown_tool():
+    from sigma_mcp.server import _wire_name
+
+    with pytest.raises(RuntimeError, match="No domain tool"):
+        _wire_name("not_a_real_tool")
 
 
 def test_profiles_reference_only_real_tools():

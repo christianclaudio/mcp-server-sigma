@@ -362,29 +362,12 @@ from sigma_mcp.tools.workspace import (
     workspace_server,
 )
 
-LEGACY_TOOL_ALIAS_MAP: dict[str, str] = {}
-for _domain, _sub in [
-    ("workbooks", workbooks_server),
-    ("datasets", datasets_server),
-    ("elements", elements_server),
-    ("workspace", workspace_server),
-    ("admin", admin_server),
-]:
-    for _c in _sub._local_provider._components.values():
-        _name = getattr(_c, "name", None)
-        if _name and _name.startswith("sigma_"):
-            _clean = _name[len("sigma_") :]
-            LEGACY_TOOL_ALIAS_MAP[_clean] = _name
-            LEGACY_TOOL_ALIAS_MAP[f"{_domain}_{_clean}"] = _name
-            LEGACY_TOOL_ALIAS_MAP[_name] = _name
-
 __all__ = [
     "workbooks_server",
     "datasets_server",
     "elements_server",
     "workspace_server",
     "admin_server",
-    "LEGACY_TOOL_ALIAS_MAP",
     "sigma_list_workbooks",
     "list_workbooks",
     "sigma_get_workbook",

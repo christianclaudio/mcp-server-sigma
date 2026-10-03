@@ -97,7 +97,7 @@ Additional env-var filters compose on top of the profile:
 - **`SIGMA_MCP_READONLY=1`** — removes every tool whose MCP annotation does
   not set `readOnlyHint=true`. Results in 80 read-only tools (at `full`).
 - **`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`** — registers the bulk-destructive
-  tools (`sigma_bulk_deactivate_members`, `sigma_bulk_remove_team_members`).
+  tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`).
   Without this, they are not present. Adds 2 tools (154 total at `full`).
 
 **Filter application order:** profile → readonly → bulk-destructive gating.

@@ -30,9 +30,9 @@ def payload(result: Any) -> dict[str, Any] | list[Any]:
 
 async def get_member_home() -> str:
     """Get the current user's memberId to use as parent for folder creation."""
-    result = await mcp.call_tool("sigma_get_current_user", {})
+    result = await mcp.call_tool("admin_get_current_user", {})
     payload(result)
-    result = await mcp.call_tool("sigma_list_files", {})
+    result = await mcp.call_tool("workspace_list_files", {})
     files = payload(result)
     entries = files.get("entries", []) if isinstance(files, dict) else files
     for entry in entries:
@@ -57,7 +57,7 @@ def _extract_id(data: Any, *keys: str) -> str:
 async def create_folder(parent_id: str) -> str:
     """Create a test folder and return its inodeId."""
     result = await mcp.call_tool(
-        "sigma_create_folder",
+        "workspace_create_folder",
         {
             "name": f"{PREFIX}_folder",
             "parent_id": parent_id,
@@ -74,7 +74,7 @@ async def create_folder(parent_id: str) -> str:
 async def create_tag() -> str:
     """Create a test tag and return its tagId."""
     result = await mcp.call_tool(
-        "sigma_create_tag",
+        "workspace_create_tag",
         {
             "name": f"{PREFIX}_tag",
         },
@@ -90,7 +90,7 @@ async def create_tag() -> str:
 async def create_workspace() -> str:
     """Create a test workspace and return its workspaceId."""
     result = await mcp.call_tool(
-        "sigma_create_workspace",
+        "workspace_create_workspace",
         {
             "name": f"{PREFIX}_ws",
         },
@@ -107,7 +107,7 @@ async def verify_folder(folder_id: str) -> None:
     """Verify the folder exists in list_files."""
     if not folder_id:
         raise AssertionError("No folder_id to verify")
-    result = await mcp.call_tool("sigma_list_files", {})
+    result = await mcp.call_tool("workspace_list_files", {})
     data = payload(result)
     entries = data.get("entries", []) if isinstance(data, dict) else data if isinstance(data, list) else []
     found = any((e.get("inodeId") == folder_id or e.get("id") == folder_id) for e in entries if isinstance(e, dict))
@@ -116,7 +116,7 @@ async def verify_folder(folder_id: str) -> None:
 
 async def verify_tag(tag_id: str) -> None:
     """Verify the tag exists in list_tags."""
-    result = await mcp.call_tool("sigma_list_tags", {})
+    result = await mcp.call_tool("workspace_list_tags", {})
     data = payload(result)
     entries = data.get("entries", []) if isinstance(data, dict) else []
     if isinstance(data, list):
@@ -127,7 +127,7 @@ async def verify_tag(tag_id: str) -> None:
 
 async def verify_workspace(ws_id: str) -> None:
     """Verify the workspace exists via get_workspace."""
-    result = await mcp.call_tool("sigma_get_workspace", {"workspace_id": ws_id})
+    result = await mcp.call_tool("workspace_get_workspace", {"workspace_id": ws_id})
     data = payload(result)
     actual_name = data.get("name", "") if isinstance(data, dict) else ""
     assert f"{PREFIX}_ws" == actual_name, f"Workspace name mismatch: got {actual_name!r}"
@@ -139,19 +139,19 @@ async def teardown() -> list[str]:
 
     if "folder" in _created:
         try:
-            await mcp.call_tool("sigma_delete_file", {"inode_id": _created["folder"], "confirm": True})
+            await mcp.call_tool("workspace_delete_file", {"inode_id": _created["folder"], "confirm": True})
         except Exception as e:
             errors.append(f"delete folder: {e}")
 
     if "tag" in _created:
         try:
-            await mcp.call_tool("sigma_delete_tag", {"tag_id": _created["tag"], "confirm": True})
+            await mcp.call_tool("workspace_delete_tag", {"tag_id": _created["tag"], "confirm": True})
         except Exception as e:
             errors.append(f"delete tag: {e}")
 
     if "workspace" in _created:
         try:
-            await mcp.call_tool("sigma_delete_workspace", {"workspace_id": _created["workspace"], "confirm": True})
+            await mcp.call_tool("workspace_delete_workspace", {"workspace_id": _created["workspace"], "confirm": True})
         except Exception as e:
             errors.append(f"delete workspace: {e}")
 

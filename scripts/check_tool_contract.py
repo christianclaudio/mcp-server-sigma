@@ -35,6 +35,8 @@ from sigma_mcp.server import mcp
 
 async def main():
     tools = await mcp.list_tools()
+    prompts = await mcp.list_prompts()
+    resources = await mcp.list_resources()
     print(json.dumps({
         "total": len(tools),
         "read_only": sum(1 for t in tools if t.annotations and t.annotations.read_only_hint),
@@ -44,6 +46,8 @@ async def main():
         "all_read_only": all(t.annotations and t.annotations.read_only_hint for t in tools),
         "names": sorted(t.name for t in tools),
         "read_only_names": sorted(t.name for t in tools if t.annotations and t.annotations.read_only_hint),
+        "prompt_names": sorted(p.name for p in prompts),
+        "resource_uris": sorted(str(r.uri) for r in resources),
     }))
 
 asyncio.run(main())
@@ -126,14 +130,29 @@ def main() -> int:
     check("destructive annotations", base["destructive"], EXPECTED_DESTRUCTIVE)
     check("idempotent annotations", base["idempotent"], EXPECTED_IDEMPOTENT)
     check("unannotated tools", base["unannotated"], 0)
+    domains = ("workbooks", "datasets", "elements", "workspace", "admin")
+    sigma_names = [n for n in base["names"] if n.startswith("sigma_")]
+    doubled = [
+        n
+        for n in base["names"]
+        if any(n.startswith(f"{domain}_{domain}_") or n.startswith(f"{domain}_sigma_") for domain in domains)
+    ]
+    sigma_prompts = [n for n in base["prompt_names"] if n.startswith("sigma_")]
+    sigma_resources = [u for u in base["resource_uris"] if u.startswith("sigma:") or u.startswith("sigma_")]
+    undomain_prompts = [n for n in base["prompt_names"] if not any(n.startswith(f"{domain}_") for domain in domains)]
+    check("no tool name starts with sigma_", sigma_names, [])
+    check("no doubled domain prefix", doubled, [])
+    check("no prompt name starts with sigma_", sigma_prompts, [])
+    check("prompts use a domain prefix", undomain_prompts, [])
+    check("no resource URI starts with sigma_", sigma_resources, [])
     check(
         "bulk_deactivate absent by default",
-        ("sigma_bulk_deactivate_members" in base["names"] or "admin_bulk_deactivate_members" in base["names"]),
+        "admin_bulk_deactivate_members" in base["names"],
         False,
     )
     check(
         "bulk_remove_team absent by default",
-        ("sigma_bulk_remove_team_members" in base["names"] or "admin_bulk_remove_team_members" in base["names"]),
+        "admin_bulk_remove_team_members" in base["names"],
         False,
     )
 
@@ -143,12 +162,12 @@ def main() -> int:
     check("bulk destructive annotations", bulk["destructive"], 20)
     check(
         "bulk_deactivate present with opt-in",
-        ("sigma_bulk_deactivate_members" in bulk["names"] or "admin_bulk_deactivate_members" in bulk["names"]),
+        "admin_bulk_deactivate_members" in bulk["names"],
         True,
     )
     check(
         "bulk_remove_team present with opt-in",
-        ("sigma_bulk_remove_team_members" in bulk["names"] or "admin_bulk_remove_team_members" in bulk["names"]),
+        "admin_bulk_remove_team_members" in bulk["names"],
         True,
     )
 
@@ -158,7 +177,7 @@ def main() -> int:
     check("every tool is read-only", ro["all_read_only"], True)
     check(
         "bulk_remove_team absent from readonly",
-        ("sigma_bulk_remove_team_members" in ro["names"] or "admin_bulk_remove_team_members" in ro["names"]),
+        "admin_bulk_remove_team_members" in ro["names"],
         False,
     )
 
@@ -167,15 +186,12 @@ def main() -> int:
     check("combined: every tool is read-only", combined["all_read_only"], True)
     check(
         "combined: bulk_deactivate absent",
-        ("sigma_bulk_deactivate_members" in combined["names"] or "admin_bulk_deactivate_members" in combined["names"]),
+        "admin_bulk_deactivate_members" in combined["names"],
         False,
     )
     check(
         "combined: bulk_remove_team absent",
-        (
-            "sigma_bulk_remove_team_members" in combined["names"]
-            or "admin_bulk_remove_team_members" in combined["names"]
-        ),
+        "admin_bulk_remove_team_members" in combined["names"],
         False,
     )
 

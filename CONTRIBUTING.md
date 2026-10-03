@@ -100,14 +100,12 @@ Adding a tool takes just 3 simple steps:
        return (await self._request("GET", path)).json()
    ```
 
-2. **Register Server Tool** (`src/sigma_mcp/server.py`):
+2. **Register Server Tool** on the domain sub-server (wire name is `{domain}_get_something`, for example `admin_get_something`):
    ```python
-   @mcp.tool(
-       annotations=ToolAnnotations(
-           readOnlyHint=True,
-           idempotentHint=True,
-           openWorldHint=True,
-       )
+   @admin_server.tool(
+       name="get_something",
+       annotations=ANNOTATION_READ_ONLY,
+       tags={"admin", "read_only"},
    )
    @sigma_tool
    async def sigma_get_something(resource_id: str) -> str:
