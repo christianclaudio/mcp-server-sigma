@@ -211,6 +211,34 @@ def test_server_tool_manager_compat_uncovered_branches() -> None:
     mock_provider.disable.assert_called_with(names={"custom_lookup"})
 
 
+def test_compat_listing_omits_mounted_tool_disabled_by_exposed_name() -> None:
+    from fastmcp import FastMCP
+
+    child = FastMCP("workbooks-fixture")
+
+    @child.tool(name="list_workbooks")
+    def list_workbooks() -> str:
+        return "ok"
+
+    @child.tool(name="get_workbook")
+    def get_workbook() -> str:
+        return "ok"
+
+    root = FastMCP("root-fixture")
+    root.mount(child, namespace="workbooks")
+    compat = _ToolManagerCompat(root)
+
+    listed = compat._tools
+    assert "workbooks_list_workbooks" in listed
+    assert "workbooks_get_workbook" in listed
+
+    compat.remove_tool("workbooks_list_workbooks")
+
+    listed = compat._tools
+    assert "workbooks_list_workbooks" not in listed
+    assert "workbooks_get_workbook" in listed
+
+
 def test_create_server_invalid_profile() -> None:
     with pytest.raises(ValueError, match="Unknown SIGMA_MCP_PROFILE"):
         create_server(profile="non_existent_profile")

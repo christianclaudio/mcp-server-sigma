@@ -280,12 +280,14 @@ class _ToolManagerCompat:
                 name = getattr(component, "name", None)
                 if not isinstance(name, str) or not name:
                     continue
-                if name in disabled_names:
+                exposed = f"{namespace}_{name}" if namespace else name
+                # Child servers disable local names (list_workbooks). remove_tool()
+                # disables the mounted wire name (workbooks_list_workbooks).
+                if name in disabled_names or exposed in disabled_names:
                     continue
                 comp_tags = set(getattr(component, "tags", None) or [])
                 if disabled_tags and (comp_tags & disabled_tags):
                     continue
-                exposed = f"{namespace}_{name}" if namespace else name
                 tools[exposed] = component
         return tools
 
