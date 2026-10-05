@@ -56,7 +56,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
 - **Zero live network calls in the default suite.** Tests must run 100% offline in CI. Opt-in live modules are `tests/test_e2e_live.py` (`-m e2e`) and `tests/test_integration_live.py` (`SIGMA_LIVE_TESTS=1` plus `SIGMA_CLIENT_ID`).
 - Update expected tool count in `scripts/check_tool_contract.py` and `README.md`.
-- Ensure test statement and branch coverage remains at **100.0%**.
+- Ensure test statement coverage remains at **100.0%** (`--cov-fail-under=100`). Branch coverage is not enabled.
 
 ---
 
