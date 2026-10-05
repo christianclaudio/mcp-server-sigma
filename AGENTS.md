@@ -6,43 +6,23 @@ Instructions for AI coding agents (Antigravity, Claude Code, Copilot, Cursor, Wi
 
 ## 🎯 Project Overview
 
-This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server exposing 155 tools by default (157 with bulk-destructive operations enabled) covering the entire REST API surface (v2 and v3alpha) for **Sigma Computing**.
+This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server covering the entire REST API surface (v2 and v3alpha) for **Sigma Computing**. Bulk-destructive tools register only when enabled; the expected default and bulk tool counts live in `scripts/check_tool_contract.py`.
 
 **Primary Purpose**:
 Expose deep cloud business intelligence, embedded analytics, workbook lineage, SQL data modeling, user/team administration, and tenant token exchange to AI agents with strict enterprise safety gates, offline testing, and multi-tenant token isolation.
 
 ---
 
-## 🏗️ Architecture Blueprint
+## 🏗️ Key Paths
 
-```
-mcp-server-sigma/
-├── src/sigma_mcp/
-│   ├── __init__.py               # Package version (__version__) and public exports
-│   ├── server.py                 # FastMCP server instance, 155+ @mcp.tool() handlers, prompts, resources
-│   ├── client.py                 # Async HTTP client (httpx.AsyncClient, retries, jitter, RFC 8693 token exchange)
-│   ├── errors.py                 # Structured API exceptions and automatic secret redaction
-│   └── webhooks.py               # Webhook HMAC signature verification and event buffer
-├── scripts/
-│   ├── check_tool_contract.py    # AST/reflection contract testing total tool & annotation counts
-│   ├── check_openapi_drift.py    # AST visitor checking client methods against upstream OpenAPI specs
-│   └── write_ops_check.py        # Audit verifying all write operations have confirm parameter
-├── tests/
-│   ├── test_client_internals.py  # Unit tests for HTTP client, retries, headers, and error handling
-│   ├── test_server_*.py          # Tests for tool execution, parameter validation, and confirmation gating
-│   ├── test_security_hardening.py# Tenant allowlist, token exchange, and credential sanitization tests
-│   ├── test_webhooks.py          # HMAC signature and replay protection tests
-│   └── test_protocol.py          # Wire-level stdio & stateless streamable HTTP protocol verification
-├── .github/workflows/
-│   ├── ci.yml                    # Multi-job matrix: lint, py3.10-3.13 tests, contracts, CodeQL, docker build
-│   ├── release.yml               # Automated release on v* tags: wheels, sdist, CycloneDX SBOM, GHCR docker
-│   └── drift-monitor.yml         # Scheduled upstream schema drift check
-├── Dockerfile                    # Multi-stage container build running as non-root USER mcp
-├── server.json                   # MCP Registry catalog metadata (runtimeHint: uvx, stdio transport)
-├── pyproject.toml                # Packaging metadata, entrypoint CLI, dependency pinning
-├── AGENTS.md                     # Agent guidance map, gotchas, and conventions (this file)
-└── README.md                     # User-facing installation, quickstart, and tool index
-```
+- `src/sigma_mcp/server.py` — root gateway: `create_server` mounts the domain sub-servers (`workbooks`, `datasets`, `elements`, `workspace`, `admin`) with matching namespaces; profiles, prompts, resources.
+- `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds the `ANNOTATION_*` constants and shared helpers.
+- `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `errors.py` — exceptions and secret redaction. `webhooks.py` — HMAC verification. `middleware.py` — read-only and bulk-destructive gates. `config.py` — settings.
+- `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. Do not hard-code tool counts elsewhere.
+- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (every write op has `confirm`), `scripts/check_conformance.sh` + `conformance-baseline.yml`, `scripts/determine_bump.py`.
+- `tests/` — offline unit, security-hardening, webhook, and protocol tests.
+- `.github/workflows/` — `ci.yml`, `release.yml`, `sigma-drift-monitor.yml`, `dependabot-automerge.yml`.
+- `server.json` (MCP Registry metadata), `Dockerfile`, `pyproject.toml`.
 
 ---
 
@@ -56,21 +36,21 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 - URL path parameters **must** be safely quoted using `_encode_segment()` preserving colons on custom methods (e.g. `{id}:materialize`) while eliminating path traversal vulnerabilities (`..` $\rightarrow$ `%2E%2E`).
 - Call `await self._request("METHOD", path, params=..., json=...)`.
 
-### 2. Tool Handler (`server.py`)
-- Register the tool with `@mcp.tool()` and wrap with the server decorator (`@sigma_tool`).
+### 2. Tool Handler (`tools/<domain>.py`)
+- Register the tool on its domain sub-server with `@<domain>_server.tool(name=..., annotations=...)` and wrap with `@sigma_tool` (e.g. `tools/workbooks.py`). The root gateway in `server.py` mounts the domain with its namespace.
 - Provide an explicit, agent-friendly docstring describing capabilities, parameters, and return shape.
 - Destructive operations (`POST`, `PUT`, `PATCH`, `DELETE` mutating state) **must** accept `confirm: bool = False`.
 
 ### 3. Tool Annotations & Gating
-- Apply MCP `ToolAnnotations` post-registration via `mcp._tool_manager._tools`:
+- Pass MCP `ToolAnnotations` at registration with the `ANNOTATION_*` constants from `tools/common.py`:
   - `readOnlyHint`: `True` for inspection/GET; `False` for mutations.
   - `destructiveHint`: `True` for delete/archive/deactivate actions; `False` otherwise.
   - `idempotentHint`: `True` for GET, PUT, idempotent operations; `False` for creations.
   - `openWorldHint`: `True` when interacting with external networks/APIs.
 - Gating:
-  - Support `READONLY` mode (`SIGMA_MCP_READONLY=1` or `--readonly`) to filter out mutating tools.
+  - Support `READONLY` mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) to filter out mutating tools.
   - Support bulk protection (`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`) for mass-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`).
-  - Support profile filtering (`SIGMA_PROFILE`: `core`, `admin`, `embed`, `full`).
+  - Support profile filtering (`SIGMA_MCP_PROFILE` or `--profile`: `core`, `admin`, `embed`, `full`, `readonly`).
 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
@@ -132,14 +112,8 @@ coderabbit review --agent --uncommitted
 
 ---
 
-## 🔄 CI/CD Matrix & Operational Release SOP
+## 🔄 CI & Releases
 
-The GitHub Actions CI matrix enforces:
-- Ruff lint & format checks.
-- Mypy `--strict` type checks.
-- Python 3.10, 3.11, 3.12, 3.13 test matrix with 100% coverage.
-- Tool contract & OpenAPI drift validation.
-- Multi-stage Docker image build.
-- CodeQL security scan.
+CI is defined in `.github/workflows/ci.yml` (jobs: lint and types, tests on Python 3.10–3.13 at 100% coverage, tool contract and env gating, OpenAPI drift and conformance, build + `twine check`, Docker build, CodeQL). Run the commands above before opening a PR. Scheduled upstream drift runs in `sigma-drift-monitor.yml`.
 
-For release automation and packaging, push matching `v*` tags aligned with `pyproject.toml`'s `project.version` to trigger `.github/workflows/release.yml`.
+Do not create tags or releases unless the maintainer asks.
