@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.1 (2026-10-05)
+
+### Security
+- **FastMCP floor**: Raised the dependency floor from `fastmcp>=4.0.10` to `fastmcp>=4.0.11` and refreshed `uv.lock` (also `fastmcp.json`). This picks up the 4.0.11 security release. No server code changes.
+- **SSE Host/Origin (#5427)**: Applies here. `--transport sse` is still accepted, and `main()` already passes `host_origin_protection`, `allowed_hosts`, and optional `allowed_origins` into `mcp.run()`. On 4.0.10 those settings configured Streamable HTTP only; 4.0.11 applies the same policy to the legacy SSE connection and message endpoints. The default transport remains stdio.
+- **OpenAPI declared arguments (#5423)**: Does not apply. Tools are hand-written FastMCP functions. `scripts/check_openapi_drift.py` compares `SigmaClient` routes to Sigma's public REST spec; it does not build FastMCP OpenAPI components or a `RequestDirector`.
+- **Component-manager auth (#5425)**: Does not apply. No FastMCP auth provider is configured and the component manager is not mounted. `SIGMA_MCP_AUTH_TOKEN` is logged for network transports and is not passed as FastMCP `auth`.
+- **Hashed tool lookups (#5415)**: Does not apply to the published surface. Enable/disable gates (profiles, read-only, bulk-destructive) and the optional `RegexSearchTransform` run on public tool names. This server does not register FastMCP apps, which are the callers that invoke tools by hashed name.
+
 ## 2.0.0 (2026-10-03)
 
 ### Breaking
