@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-sigma"
-version = "2.0.0"
+version = "2.0.1"
 description = "Enterprise Model Context Protocol (MCP) server for Sigma Computing — provision dashboards, construct data models, and automate cloud analytics."
 readme = "README.md"
 license = "Apache-2.0"
@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp>=2.2.0",
-    "fastmcp>=4.0.10",
+    "fastmcp>=4.0.11",
     "httpx>=0.28.1",
     "pyjwt>=2.8.0",
     "pydantic>=2.13.5",
