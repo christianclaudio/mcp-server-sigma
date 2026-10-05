@@ -39,7 +39,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 ### 2. Tool Handler (`tools/<domain>.py`)
 - Register the tool on its domain sub-server with `@<domain>_server.tool(name=..., annotations=...)` and wrap with `@sigma_tool` (e.g. `tools/workbooks.py`). The root gateway in `server.py` mounts the domain with its namespace.
 - Provide an explicit, agent-friendly docstring describing capabilities, parameters, and return shape.
-- Destructive tools (delete, archive, deactivate, and bulk removal) **must** accept `confirm: bool = False`. Not every `POST`, `PUT`, or `PATCH` does (for example `sigma_create_workbook` has no `confirm`).
+- Destructive tools (delete, archive, deactivate, and bulk removal) **must** accept `confirm: bool = False`. Not every `POST`, `PUT`, or `PATCH` does (for example `workbooks_create_workbook` has no `confirm`).
 
 ### 3. Tool Annotations & Gating
 - Pass MCP `ToolAnnotations` at registration with the `ANNOTATION_*` constants from `tools/common.py`:
