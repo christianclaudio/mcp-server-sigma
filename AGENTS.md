@@ -19,8 +19,8 @@ Expose deep cloud business intelligence, embedded analytics, workbook lineage, S
 - `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds the `ANNOTATION_*` constants and shared helpers.
 - `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `errors.py` — exceptions and secret redaction. `webhooks.py` — HMAC verification. `middleware.py` — read-only and bulk-destructive gates. `config.py` — settings.
 - `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. Do not hard-code tool counts elsewhere.
-- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (every write op has `confirm`), `scripts/check_conformance.sh` + `conformance-baseline.yml`, `scripts/determine_bump.py`.
-- `tests/` — offline unit, security-hardening, webhook, and protocol tests.
+- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create-and-teardown against a Sigma org; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`, `scripts/determine_bump.py`.
+- `tests/` — unit tests are offline; live network tests live in `tests/test_e2e_live.py` (marked `pytest.mark.e2e`, deselected by default pytest `addopts` `-m 'not e2e'`, run with `-m e2e`). That test sets no skip and no env check; tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` skips unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID` are set. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`.
 - `.github/workflows/` — `ci.yml`, `release.yml`, `sigma-drift-monitor.yml`, `dependabot-automerge.yml`.
 - `server.json` (MCP Registry metadata), `Dockerfile`, `pyproject.toml`.
 
@@ -34,18 +34,18 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 - Implement a dedicated `async def` method on `SigmaClient`.
 - Type all arguments strictly. Never use bare `dict` or `Any` when a concrete schema or literal is known.
 - URL path parameters **must** be safely quoted using `_encode_segment()` preserving colons on custom methods (e.g. `{id}:materialize`) while eliminating path traversal vulnerabilities (`..` $\rightarrow$ `%2E%2E`).
-- Call `await self._request("METHOD", path, params=..., json=...)`.
+- Call `await self._request("METHOD", path, params=..., json_data=...)`.
 
 ### 2. Tool Handler (`tools/<domain>.py`)
 - Register the tool on its domain sub-server with `@<domain>_server.tool(name=..., annotations=...)` and wrap with `@sigma_tool` (e.g. `tools/workbooks.py`). The root gateway in `server.py` mounts the domain with its namespace.
 - Provide an explicit, agent-friendly docstring describing capabilities, parameters, and return shape.
-- Destructive operations (`POST`, `PUT`, `PATCH`, `DELETE` mutating state) **must** accept `confirm: bool = False`.
+- Destructive tools (delete, archive, deactivate, and bulk removal) **must** accept `confirm: bool = False`. Not every `POST`, `PUT`, or `PATCH` does (for example `sigma_create_workbook` has no `confirm`).
 
 ### 3. Tool Annotations & Gating
 - Pass MCP `ToolAnnotations` at registration with the `ANNOTATION_*` constants from `tools/common.py`:
   - `readOnlyHint`: `True` for inspection/GET; `False` for mutations.
   - `destructiveHint`: `True` for delete/archive/deactivate actions; `False` otherwise.
-  - `idempotentHint`: `True` for GET, PUT, idempotent operations; `False` for creations.
+  - `idempotentHint`: `True` only on `ANNOTATION_IDEMPOTENT`. `ANNOTATION_READ_ONLY` (GET) and `ANNOTATION_WRITE_SAFE` leave it unset.
   - `openWorldHint`: `True` when interacting with external networks/APIs.
 - Gating:
   - Support `READONLY` mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) to filter out mutating tools.
@@ -54,7 +54,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
-- **Zero live network calls during tests.** Tests must run 100% offline in CI.
+- **Zero live network calls in the default suite.** Tests must run 100% offline in CI. Opt-in live modules are `tests/test_e2e_live.py` (`-m e2e`) and `tests/test_integration_live.py` (`SIGMA_LIVE_TESTS=1` plus `SIGMA_CLIENT_ID`).
 - Update expected tool count in `scripts/check_tool_contract.py` and `README.md`.
 - Ensure test statement and branch coverage remains at **100.0%**.
 
@@ -63,16 +63,16 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 ## 🛡️ Non-Negotiable Safety & Security Rules
 
 1. **Destructive Confirmation Gate**:
-   - Every mutating tool must accept `confirm: bool = False`. If `False`, return a dry-run / confirmation preview without executing the side-effect.
+   - Delete, archive, deactivate, and bulk-removal tools must accept `confirm: bool = False`. If `False`, do not execute the side-effect (`_invalid_request` refusal, or a dry-run preview on `admin_bulk_deactivate_members`).
 2. **Secret Redaction**:
-   - Error messages, logs, and tracebacks must pass through regex redaction (`_redact_secrets`) stripping Bearer tokens, passwords, client secrets, access tokens, subject tokens, raw JWTs, and `ghs_` tokens.
+   - Error messages, logs, and tracebacks must pass through regex redaction (`_redact_secrets`) stripping Bearer tokens, client secrets, access tokens, subject tokens, raw JWTs, and `ghs_` tokens.
 3. **Multi-Tenant RFC 8693 Token Exchange**:
    - Strictly validate tenant delegation via `SIGMA_ALLOWED_TENANTS`. If `SIGMA_STRICT_TENANT_ALLOWLIST=1` is set, fail-closed with HTTP 403 on unrecognized tenants.
    - Delegation JWTs must include standard claims: `ver: "1.1"`, `aud: "sigmacomputing"`, `iat`, `exp` (+300s), and `jti` (UUID).
 4. **Path Traversal Protection**:
    - All dynamic URL path segments must pass through `_encode_segment()`, preventing traversal attacks.
 5. **Bulk Destructive Caps**:
-   - Mass operations require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`, default to `dry_run=True`, and enforce hard batch limits (10-member cap on user deactivation, 50-member cap on team member removal).
+   - Mass operations require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. `admin_bulk_deactivate_members` defaults to `dry_run=True` and caps at 10 active members. `admin_bulk_remove_team_members` has no `dry_run` parameter, requires `confirm=True`, and caps at 50 emails.
 6. **Webhook Signature Validation**:
    - Webhook payloads must be verified using `hmac.compare_digest` to prevent timing attacks.
 7. **Registry Metadata Constraint**:
