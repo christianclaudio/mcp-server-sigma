@@ -65,7 +65,7 @@ This skill provides expert instructions, architectural workflows, and safety pro
 ### Resources
 - `elements://reference/docs-index` — Full index of all Sigma documentation pages (1000+ entries with URLs). Use to discover which page to fetch.
 - `elements://reference/formulas` — Cheat sheet of common formula syntax traps and corrections.
-- `admin://reference/capabilities` — Returns dynamic server metadata (total tools registered, active profiles, read-only status).
+- `admin://reference/capabilities` — Returns static JSON: the supported Sigma API domains, unsupported operations (direct element creation, direct page layout, SAML certificate management beta), and the recommended template-then-stamp workflow. It does not report the active profile, read-only status, or tool counts.
 
 ### Workflow
 1. Start with `elements_search_docs(query="...")` for broad questions
