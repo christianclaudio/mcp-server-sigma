@@ -91,7 +91,7 @@ mypy --strict src/
 
 ## 🛠️ How to Add a New Sigma MCP Tool
 
-Adding a tool takes just 3 simple steps:
+Adding a tool takes 4 steps:
 
 1. **Add Client Method** (`src/sigma_mcp/client.py`):
    ```python
@@ -117,6 +117,8 @@ Adding a tool takes just 3 simple steps:
 3. **Add Unit Test** (`tests/test_tools_mocked.py`):
    Add a mocked test asserting clean JSON output and proper error handling.
 
+4. **Place the tool in a profile and update the counts**: add its wire name to a job profile allowlist in `src/sigma_mcp/profiles.py` or to `FULL_ONLY_TOOLS` (the tests fail on a tool that is in neither; a full-only tool also goes in `EXPECTED_FULL_ONLY` in `scripts/check_tool_contract.py`). Then update the expected counts in `scripts/check_tool_contract.py`, the matching `README.md` tables, and the copies in `tests/test_profiles.py` (`SIGNED_OFF`), `tests/test_unit.py` and `tests/test_enterprise_assertion.py`.
+
 ---
 
 ## 🛡️ Live Integration Tests (Optional)
@@ -128,7 +130,7 @@ If you have a test Sigma organization and want to run live smoke tests:
 export SIGMA_CLIENT_ID="your-client-id"
 export SIGMA_CLIENT_SECRET="your-client-secret"
 export SIGMA_API_BASE_URL="https://api.us-a.aws.sigmacomputing.com"
-SIGMA_LIVE_TESTS=1 pytest tests/test_integration_live.py -v
+SIGMA_LIVE_TESTS=1 pytest tests/test_integration_live.py -v --no-cov
 ```
 
 #### Windows (PowerShell):
@@ -137,7 +139,7 @@ $env:SIGMA_CLIENT_ID="your-client-id"
 $env:SIGMA_CLIENT_SECRET="your-client-secret"
 $env:SIGMA_API_BASE_URL="https://api.us-a.aws.sigmacomputing.com"
 $env:SIGMA_LIVE_TESTS="1"
-pytest tests/test_integration_live.py -v
+pytest tests/test_integration_live.py -v --no-cov
 ```
 
 #### Windows (Command Prompt `cmd.exe`):
@@ -146,7 +148,7 @@ set SIGMA_CLIENT_ID=your-client-id
 set SIGMA_CLIENT_SECRET=your-client-secret
 set SIGMA_API_BASE_URL=https://api.us-a.aws.sigmacomputing.com
 set SIGMA_LIVE_TESTS=1
-pytest tests/test_integration_live.py -v
+pytest tests/test_integration_live.py -v --no-cov
 ```
 
 > **Safety Guarantee:** Live tests register every created resource ID in a strict registry and clean them up when pytest teardown runs, including after test failures or exceptions. If execution is forcefully interrupted (e.g., SIGKILL or hard crash) before teardown runs, manually delete any remaining `mcptest-*` resources or rely on the pre-run sweep fixture on the next run.

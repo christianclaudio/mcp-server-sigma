@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # Multi-stage build for mcp-server-sigma
-# Produces a minimal runtime image (~150MB) with no dev tooling.
+# Produces a slim runtime image with no dev tooling.
 
 # ─── Stage 1: Builder ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install build deps in a virtualenv so we can copy it cleanly
+# Install the package and its runtime dependencies into a virtualenv that the runtime stage copies
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 

@@ -31,7 +31,7 @@ Expose deep cloud business intelligence, embedded analytics, workbook lineage, S
 - `src/sigma_mcp/profiles.py` — `PROFILES` (`full`, `readonly`, and the job profiles `analyst`, `author`, `modeler`, `embed`, `access_admin`), their tool allowlists, `FULL_ONLY_TOOLS`, `BULK_DESTRUCTIVE_TOOLS`, and the `readOnlyHint` filter.
 - `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds the `ANNOTATION_*` constants and shared helpers.
 - `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `errors.py` — exceptions and secret redaction. `webhooks.py` — HMAC verification. `middleware.py` — read-only gate (`readOnlyHint` only, unwraps the Tool Search `call_tool` proxy) and the admin bulk-destructive gate. `config.py` — settings.
-- `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. Do not hard-code tool counts elsewhere.
+- `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. `README.md` and three test files repeat some of these counts (`SIGNED_OFF` in `tests/test_profiles.py`, the 172 in `tests/test_unit.py` and `tests/test_enterprise_assertion.py`), so change them together; do not add new copies.
 - `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create-and-teardown against a Sigma org; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`.
 - `scripts/release_notes.py` — release body from squash commits since the previous `v*` tag. `scripts/check_version.py` — runs after the build and reads the version from the single wheel in `dist/` (the file that ships, as release.yml's tag check does); fails on `0.0.0` (no git metadata) or `0.0.1.devN` (no reachable tag, a shallow checkout).
 - `tests/` — unit tests are offline; live network tests live in `tests/test_e2e_live.py` (marked `pytest.mark.e2e`, deselected by default pytest `addopts` `-m 'not e2e'`, run with `-m e2e`). That test sets no skip and no env check; tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` skips unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID` are set. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`. Profile, read-only, and composition tests are `tests/test_profiles.py` and `tests/test_layered.py`. Version and release-tooling tests are `tests/test_version.py`, `tests/test_release_notes.py`, and `tests/test_check_version.py`.
@@ -69,7 +69,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
 - **Zero live network calls in the default suite.** Tests must run 100% offline in CI. Opt-in live modules are `tests/test_e2e_live.py` (`-m e2e`) and `tests/test_integration_live.py` (`SIGMA_LIVE_TESTS=1` plus `SIGMA_CLIENT_ID`).
-- Update expected tool counts (per profile) in `scripts/check_tool_contract.py` and `README.md`.
+- Update expected tool counts (per profile) in `scripts/check_tool_contract.py`, the `README.md` tables, and the copies in `tests/test_profiles.py` (`SIGNED_OFF`), `tests/test_unit.py` and `tests/test_enterprise_assertion.py`. A full-only tool also goes in `EXPECTED_FULL_ONLY` in `scripts/check_tool_contract.py`.
 - Ensure test statement coverage remains at **100.0%** (`--cov-fail-under=100`). Branch coverage is not enabled.
 
 ---
@@ -124,7 +124,7 @@ uv run python scripts/check_tool_contract.py
 uv run python scripts/check_openapi_drift.py
 
 # Protocol integration tests (stdio handshake & stateless streamable HTTP)
-uv run pytest tests/test_protocol.py
+uv run pytest tests/test_protocol.py --no-cov
 
 # Build version guard (reads the single wheel in dist/; rejects 0.0.0 and the untagged 0.0.1.devN)
 rm -rf dist && uv build && uv run python scripts/check_version.py

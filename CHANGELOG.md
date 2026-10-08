@@ -3,7 +3,7 @@
 > **This file is frozen as of 1.2.2. Release notes now live on [GitHub Releases](https://github.com/christianclaudio/mcp-server-sigma/releases).**
 > Each release body is generated from the squash commits since the previous tag by `scripts/release_notes.py`, including every `BREAKING CHANGE:` footer and its migration steps. Do not add entries here; the history below is kept for reference.
 
-All notable changes through 1.2.2 are documented in this file. The `[Unreleased]`, `2.0.1` and `2.0.0` entries were pending at the freeze: 2.0.0 and 2.0.1 were never tagged or published, so all three ship in the first release after 1.2.2.
+Releases through 1.2.2 are documented in this file, except 1.1.1 and 1.1.2, which have no entry (see their tags and PyPI releases). The `[Unreleased]`, `2.0.1` and `2.0.0` entries were pending at the freeze: 2.0.0 and 2.0.1 were never tagged or published, so all three ship in the first release after 1.2.2.
 
 ## [Unreleased]
 

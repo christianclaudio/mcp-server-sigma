@@ -16,9 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
@@ -27,7 +28,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: '3.11'
 
@@ -60,13 +61,14 @@ jobs:
             }
             
             const status = process.env.DRIFT_STATUS;
-            const drift = status === '1';
+            // Exit 1 is also an uncaught Python exception, so drift needs the script's own summary line.
+            const drift = status === '1' && driftOutput.includes('❌ Drift detected');
             const issueTitle = drift
               ? "Sigma API drift: client calls endpoints missing from the spec"
               : `Sigma API drift monitor failed (exit ${status})`;
             const summary = drift
-              ? "The scheduled weekly OpenAPI drift scan found client endpoints that are not in the Sigma Computing REST specification (possibly wrong or removed paths)."
-              : "The scheduled weekly OpenAPI drift scan could not finish (spec fetch or script error), so there is no drift result.";
+              ? "The OpenAPI drift scan found client endpoints that are not in the Sigma Computing REST specification (possibly wrong or removed paths)."
+              : "The OpenAPI drift scan could not finish (spec fetch failure, or an error in the script or its environment), so there is no drift result.";
             const issueBody = [
               "### Sigma API Drift Monitor",
               "",
