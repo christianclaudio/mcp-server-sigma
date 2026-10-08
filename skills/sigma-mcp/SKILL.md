@@ -44,7 +44,10 @@ This skill provides expert instructions, architectural workflows, and safety pro
 3. **Always Run Dry-Run First**:
    For composite operations (`workbooks_reassign_workbook_ownership`, `admin_bulk_deactivate_members`, `datasets_bulk_sync_tenant_connections`), invoke with `dry_run=True` first to report expected changes before executing. Bulk destructive tools also require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
 
-4. **Formula Syntax Validation**:
+4. **Read-Only Mode and Profiles**:
+   Under `SIGMA_MCP_READONLY=1` or `SIGMA_MCP_PROFILE=readonly`, only tools annotated `readOnlyHint=True` are callable; any other call, including through Tool Search `call_tool`, returns an error result (`isError: true`) naming the blocked tool. Job profiles (`analyst`, `author`, `modeler`, `embed`, `access_admin`) list only their job's tools; a tool outside the profile is `Unknown tool`.
+
+5. **Formula Syntax Validation**:
    Read `elements://reference/formulas` before crafting Sigma workbook formulas. Note key differences from Excel/SQL:
    - String concatenation uses `Concat(a, b)`, not `+`.
    - Null handling requires `IfNull(val, fallback)`.

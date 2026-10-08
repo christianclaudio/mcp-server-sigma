@@ -1,66 +1,51 @@
 """Hierarchical middleware for FastMCP 4 Server Composition.
 
 Execution Order:
-1. Parent Middleware (Global audit, timing, secret redaction, and global read-only gate).
-2. Child Middleware (Domain-specific guards, bulk-destructive gating, and parameter limits).
+1. Parent Middleware (Global audit, timing, secret redaction, and the annotation-driven read-only gate).
+2. Child Middleware (Domain-specific guards: the admin bulk-destructive gate).
 3. Tool Handler (Core business logic).
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from typing import Any
 
+from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware, MiddlewareContext
+from fastmcp.tools import Tool
 
-from sigma_mcp.config import settings
+from sigma_mcp.config import bulk_destructive_allowed, readonly_enabled
 from sigma_mcp.errors import SafetyViolationError, redact_secrets
+from sigma_mcp.profiles import is_read_only_tool
 
 logger = logging.getLogger(__name__)
 
-_RO_PREFIXES = ("sigma_list_", "sigma_get_", "admin_api_capabilities", "list_", "get_", "api_capabilities")
-_RO_NAMES = {
-    "admin_get_current_user",
-    "get_current_user",
-    "workbooks_list_workbooks_shared_with_member",
-    "list_workbooks_shared_with_member",
-    "elements_list_all_input_tables",
-    "list_all_input_tables",
-    "admin_list_tenants_paginated",
-    "list_tenants_paginated",
-    "admin_get_tenant_scoped_info",
-    "get_tenant_scoped_info",
-    "elements_formula_pitfalls",
-    "formula_pitfalls",
-    "elements_search_docs",
-    "search_docs",
-    "elements_get_doc_page",
-    "get_doc_page",
-    "workbooks_verify_workbook_spec",
-    "verify_workbook_spec",
-    "workbooks_verify_report_spec",
-    "verify_report_spec",
-    "workbooks_download_query_export",
-    "download_query_export",
-}
+# Synthetic discovery proxies that may wrap a real tool name in arguments.
+_SEARCH_PROXY_TOOLS = {"call_tool"}
+
+# Bulk destructive tools by local (child) name; the admin domain guard refuses them
+# unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
+_ADMIN_BULK_LOCAL_NAMES = ("bulk_deactivate_members", "bulk_remove_team_members")
 
 
-def is_read_only_tool(tool_name: str) -> bool:
-    """Determine whether a tool is read-only based on naming conventions and allowlists."""
-    clean_name = (
-        tool_name.split("_", 1)[-1]
-        if any(tool_name.startswith(p) for p in ("workbooks_", "datasets_", "elements_", "workspace_", "admin_"))
-        else tool_name
-    )
-    return (
-        tool_name in _RO_NAMES
-        or clean_name in _RO_NAMES
-        or any(tool_name.startswith(p) for p in _RO_PREFIXES)
-        or any(clean_name.startswith(p) for p in _RO_PREFIXES)
-    )
+def _resolve_effective_tool_name(context: MiddlewareContext) -> str:
+    """Return the tool name under enforcement, unwrapping search ``call_tool`` proxies."""
+    message = context.message
+    tool_name = getattr(message, "name", "") if message else ""
+    if tool_name not in _SEARCH_PROXY_TOOLS or message is None:
+        return str(tool_name)
+
+    arguments = getattr(message, "arguments", None)
+    if not isinstance(arguments, dict):
+        return str(tool_name)
+
+    nested = arguments.get("name")
+    if isinstance(nested, str) and nested:
+        return nested
+    return str(tool_name)
 
 
 class ParentAuditMiddleware(Middleware):
@@ -92,47 +77,99 @@ class ParentAuditMiddleware(Middleware):
             raise
 
 
+def _read_only_refusal(name: str) -> SafetyViolationError:
+    """Build the read-only refusal for ``name`` (a FastMCP ``ToolError``: ``isError: true``)."""
+    return SafetyViolationError(
+        f"Server running in read-only mode; tool '{name}' blocked (not annotated readOnlyHint=True)."
+    )
+
+
 class ReadOnlyGateMiddleware(Middleware):
-    """Middleware enforcing read-only operation when settings.MCP_READONLY or SIGMA_MCP_READONLY is active."""
+    """Refuse calls to real tools not annotated ``readOnlyHint=True`` while read-only is on.
+
+    Read-only is on when ``SIGMA_MCP_READONLY=1`` (or ``settings.MCP_READONLY``) or the gate is
+    built with ``enforce=True`` (the ``readonly`` profile). Classification uses only the MCP
+    ``readOnlyHint`` annotation of the resolved tool: a missing annotation or
+    ``readOnlyHint`` other than ``True`` is a write and is refused (fail closed).
+
+    A name that is not a tool on this server is not refused here: it passes through so
+    FastMCP returns its normal ``Unknown tool`` error, and a typo is never reported as an
+    existing tool. ``catalog`` holds the profile's tool names captured before the
+    read-only filter hid the writes, so a hidden real tool is still refused, not unknown.
+    The ``call_tool`` proxy gets the same check: it is unwrapped only when it is a real
+    tool on this server (Tool Search attached).
+    """
+
+    def __init__(self, enforce: bool = False, catalog: Collection[str] = ()) -> None:
+        self.enforce = enforce
+        self.catalog = frozenset(catalog)
 
     async def on_message(
         self,
         context: MiddlewareContext,
         call_next: Callable[[MiddlewareContext], Any],
     ) -> Any:
-        """Block mutating operations before reaching tool handlers when in read-only mode."""
-        is_ro = settings.MCP_READONLY or os.environ.get("SIGMA_MCP_READONLY", "").strip() == "1"
-        if is_ro and getattr(context, "method", None) == "tools/call":
-            tool_name = getattr(context.message, "name", "") if context.message else ""
-            if not is_read_only_tool(tool_name):
-                raise SafetyViolationError(
-                    f"Server running in read-only mode (SIGMA_MCP_READONLY=1); tool '{tool_name}' blocked."
-                )
+        """Block non-read-only tool calls before they reach tool handlers.
+
+        1. No serving FastMCP context: the annotation cannot be read, so refuse.
+        2. Outer name is ``call_tool`` but not a tool on this server (no Tool Search):
+           pass through, so FastMCP reports ``Unknown tool: 'call_tool'``.
+        3. Otherwise resolve the effective name (``call_tool`` unwrapped to the proxied
+           tool) and refuse it only if it is a real tool not annotated read-only.
+        """
+        readonly = self.enforce or readonly_enabled()
+        if not readonly or getattr(context, "method", None) != "tools/call":
+            return await call_next(context)
+
+        fastmcp_context = context.fastmcp_context
+        if fastmcp_context is None:
+            raise _read_only_refusal(_resolve_effective_tool_name(context))
+        server = fastmcp_context.fastmcp
+
+        outer_name = getattr(context.message, "name", "")
+        if outer_name in _SEARCH_PROXY_TOOLS:
+            _, proxy_known = await self._lookup(server, outer_name)
+            if not proxy_known:
+                return await call_next(context)
+
+        effective_name = _resolve_effective_tool_name(context)
+        tool, known = await self._lookup(server, effective_name)
+        if known and not is_read_only_tool(tool):
+            logger.warning("Blocked non-read-only tool call in read-only mode: %s", effective_name)
+            raise _read_only_refusal(effective_name)
         return await call_next(context)
+
+    async def _lookup(self, server: FastMCP, name: str) -> tuple[Tool | None, bool]:
+        """Resolve ``name`` with the public ``get_tool``; return ``(tool, is_real_tool)``.
+
+        ``get_tool`` returns ``None`` for an unknown name and for a tool hidden by the
+        read-only filter; the recorded ``catalog`` tells the two apart.
+        """
+        tool = await server.get_tool(name)
+        return tool, tool is not None or name in self.catalog
 
 
 class AdminDomainGuardMiddleware(Middleware):
-    """Child domain middleware mounted on admin sub-server for bulk mutation protection."""
+    """Child domain middleware mounted on the admin sub-server for bulk mutation protection.
+
+    The bulk tools stay listed in ``full``; this guard refuses them at call time unless
+    ``SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1``. Inside the mounted child the tool name is the
+    local name (``bulk_deactivate_members``); the namespaced name is checked too so the
+    guard also holds if the server is mounted differently.
+    """
 
     async def on_message(
         self,
         context: MiddlewareContext,
         call_next: Callable[[MiddlewareContext], Any],
     ) -> Any:
-        """Enforce domain safety gates strictly within the admin namespace."""
-        tool_name = getattr(context.message, "name", "") if context.message else ""
-        if tool_name in (
-            "bulk_deactivate_members",
-            "admin_bulk_deactivate_members",
-            "bulk_remove_team_members",
-            "admin_bulk_remove_team_members",
-        ):
-            allow_bulk = (
-                settings.MCP_ALLOW_BULK_DESTRUCTIVE
-                or os.environ.get("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "").strip() == "1"
-            )
-            if not allow_bulk:
-                raise SafetyViolationError(
-                    "Bulk destructive operations disabled. Set SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1."
-                )
+        """Refuse bulk destructive calls while the bulk gate is off."""
+        if getattr(context, "method", None) == "tools/call":
+            tool_name = getattr(context.message, "name", "") if context.message else ""
+            for local_name in _ADMIN_BULK_LOCAL_NAMES:
+                if tool_name in (local_name, f"admin_{local_name}") and not bulk_destructive_allowed():
+                    raise SafetyViolationError(
+                        f"Bulk destructive operations disabled; tool 'admin_{local_name}' blocked. "
+                        "Set SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1."
+                    )
         return await call_next(context)

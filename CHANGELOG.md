@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased]
+
+### Breaking Changes
+- **Read-only fails closed on `readOnlyHint` alone**: `ReadOnlyGateMiddleware` no longer matches tool-name prefixes or the `_RO_NAMES` list (`middleware.is_read_only_tool(name)` is removed; `profiles.is_read_only_tool(tool)` reads the annotation). Under `--profile readonly` or `SIGMA_MCP_READONLY=1` it refuses any real tool not annotated `readOnlyHint=True` (a missing annotation counts as a write), including writes the read-only filter hid. The read-only listing now filters on the annotation instead of the `mutation`/`destructive`/`idempotent` tags. A gate with no serving server context refuses. Names that are not tools on the server get FastMCP's `Unknown tool`, directly or through `call_tool`.
+- **Refusals are `isError` results**: `SafetyViolationError` now subclasses FastMCP `ToolError`. Read-only and bulk refusals reach clients as a `tools/call` result with `isError: true` and the refusal message; before, a read-only refusal surfaced as a JSON-RPC `Internal server error`. Messages are now `Server running in read-only mode; tool '<name>' blocked (not annotated readOnlyHint=True).` and `Bulk destructive operations disabled; tool '<name>' blocked. Set SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.`
+- **Profiles**: `core` and `admin` are removed; `embed` is now a job allowlist (50 tools, was 57). New job profiles `analyst`, `author`, `modeler` (the builder job split in two) and `access_admin`. An unknown or removed profile raises `ValueError("Unknown profile ...")` at build and is rejected by `--profile`.
+- **Bulk tools listed and gated at call time**: `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are always listed in `full` (170 → 172 tools) and refused with `isError: true` unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. Before, they were hidden from the catalog without the env. No job profile lists them.
+- **Discovery is `full`-only**: Tool Search no longer attaches on `readonly` or the job profiles; requesting it there logs a warning and keeps the flat list. Tool Search and Code Mode together raise `ValueError`.
+- **`create_server` and module surface**: `create_server(profile, enable_tool_search, enable_code_mode, tool_search_backend)` adds two keyword arguments. The returned server no longer wraps `call_tool`: it returns FastMCP `ToolResult` (not `mcp.types.CallToolResult`) and raises `NotFoundError` for unknown names, and it has no `_tool_manager`. Removed module attributes: `_tool_mgr`, `_orig_call_tool`, `_ToolManagerCompat`, `_PROFILES`, `_CORE_TOOLS`, `_ADMIN_TOOLS`, `_EMBED_TOOLS`, `_BULK_DESTRUCTIVE_TOOLS`, `_DOMAIN_SERVERS`, `_wire_name`. Use `profiles.PROFILES`, `profiles.BULK_DESTRUCTIVE_TOOLS`, `server.DOMAIN_SERVERS`, and the public `list_tools()` / `get_tool()` / `call_tool()`.
+
+### Added
+- **Job profiles** (`profiles.py`): `analyst` (31 tools, 23 read-only), `author` (40, 28), `modeler` (33, 24), `embed` (50, 27) and `access_admin` (52, 22). They mount every domain and expose an explicit tool-name allowlist; prompts and resources stay available. Every profile has a one-line `job`. Unknown allowlisted names raise `ValueError` at build.
+- **`FULL_ONLY_TOOLS`**: the 9 tools in no job profile (both bulk tools, `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_api_capabilities`, `admin_list_recent_webhooks`). Tests require every tool to be in a job profile or this set.
+- **BM25 Tool Search and Code Mode**: `SIGMA_MCP_TOOL_SEARCH_BACKEND` / `--tool-search-backend` (`regex` or `bm25`) and `SIGMA_MCP_ENABLE_CODE_MODE` / `--enable-code-mode` (experimental, `full` only). `search_tools`, `search` and `get_schema` are annotated `readOnlyHint=True`; Code Mode `execute` is refused under read-only.
+- **Tests**: `tests/test_profiles.py` and `tests/test_layered.py` cover per-profile counts, read-only composition, prompts and resources on job profiles, unknown names, the `call_tool` unwrap (with a spy and an unwrap-removed regression test), `Unknown tool` paths, hidden writes, `isError` on refusals, `FULL_ONLY_TOOLS`, explicit `readOnlyHint` on every tool, and the bulk gate.
+
+### Fixed
+- **Read-only through Tool Search**: with `full` + Tool Search + read-only, every `call_tool` was refused as `call_tool` itself, so reads were blocked too. The gate now unwraps `call_tool` (only when it is a real tool on the server) and judges the proxied tool: reads succeed, writes are refused.
+- **`create_server()` dispatched to the module default**: the `call_tool` compatibility wrapper looked up the module-level `mcp` dispatcher, so a server built with another profile ran calls against the default `full` catalog. The wrapper is removed and each server dispatches on itself.
+- **Shared sub-servers are no longer mutated**: profile, read-only and bulk filters used to disable tools on the module-level domain servers, so one `create_server()` call changed the catalog of later ones. All filters now apply to the per-call root.
+
+### Changed
+- **Public FastMCP API only**: filtering uses `root.disable`/`root.enable` visibility and `ReadOnlyToolFilter`/`ReadOnlyAnnotations` transforms instead of `_local_provider._components`, `sub._transforms.clear()` and the `_tool_manager` shim. The read-only gate looks tools up with the public `get_tool`.
+- **Stale `sigma_*` names removed from the gate**: the `sigma_list_`/`sigma_get_` prefixes are gone. Python function names (`sigma_*`) are unchanged.
+- **Contract script**: `scripts/check_tool_contract.py` asserts every profile's total and read-only counts, the README profile table, `FULL_ONLY_TOOLS`, explicit `readOnlyHint` on every tool, and that read-only composes with every profile.
+- **Conformance baseline**: `tools-call-simple-text` and `tools-call-error` are removed from `conformance-baseline.yml`. They pass now that unknown tool names get FastMCP's native `Unknown tool` result instead of going through the removed `call_tool` compatibility wrapper.
+- **Docs**: README, `AGENTS.md` (now with a `vcs:` block), `SECURITY.md`, `TESTING.md`, `docs/architecture.md` and the skill describe the profiles, read-only behavior, the call-time bulk gate and `full`-only discovery.
+
 ## 2.0.1 (2026-10-05)
 
 ### Security

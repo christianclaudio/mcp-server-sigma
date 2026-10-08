@@ -6,10 +6,7 @@
 
 ## 🔒 Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| `1.0.x` | ✅ Yes    |
-| `< 1.0` | ❌ No     |
+Only the latest release receives security fixes. Upgrade to the newest version on [Releases](https://github.com/christianclaudio/mcp-server-sigma/releases) or [PyPI](https://pypi.org/project/mcp-server-sigma/).
 
 ---
 
@@ -41,11 +38,11 @@ When connecting this server to autonomous agents or public assistant interfaces,
 ```bash
 SIGMA_MCP_READONLY=1 sigma-mcp
 ```
-This restricts registration exclusively to **83 read-only tools**, completely removing all mutation endpoints from the model's tool context.
+This lists only the **90 tools annotated `readOnlyHint=True`** and refuses every other tool at call time, including through the Tool Search `call_tool` proxy. The gate reads the `readOnlyHint` annotation and nothing else; a tool without the hint is treated as a write. A refusal is a `SafetyViolationError` (a FastMCP `ToolError`), so the client receives a `tools/call` result with `isError: true`. `SIGMA_MCP_READONLY=1` composes with every profile.
 
 ### 4. Safety Gates for Single & Bulk Operations
 - **Single Delete Operations:** Require explicit `confirm=True` on all atomic delete/deactivate endpoints (`workspace_delete_workspace`, `workspace_delete_file`, etc.).
-- **Bulk Destructive Tools:** `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
+- **Bulk Destructive Tools:** `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are listed in the `full` profile but refused at call time (`isError: true`) unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. No job profile lists them.
 - **Bulk Deactivation Protections:** Includes `dry_run=True` default, `confirm=False` gate, rejection of catch-all regexes (`.*`, `.+`), and a 10-member safety cap.
 
 ### 5. Network Transport Exposure
@@ -57,8 +54,12 @@ When using network transport (`--transport streamable-http`), bind to `127.0.0.1
 
 | Use Case | Recommended Configuration |
 |----------|---------------------------|
-| **Agent Exploration & Shared Assistants** | `SIGMA_MCP_READONLY=1` |
-| **Building Dashboards & Data Models** | `SIGMA_MCP_PROFILE=core` |
+| **Agent Exploration & Shared Assistants** | `SIGMA_MCP_PROFILE=readonly` or `SIGMA_MCP_READONLY=1` |
+| **Consuming Workbooks & Reports** | `SIGMA_MCP_PROFILE=analyst` |
+| **Building Workbooks & Reports** | `SIGMA_MCP_PROFILE=author` |
+| **Building Data Models & Connections** | `SIGMA_MCP_PROFILE=modeler` |
 | **Embedded Analytics & Multi-Tenant** | `SIGMA_MCP_PROFILE=embed` |
-| **Organization Administration** | `SIGMA_MCP_PROFILE=admin` |
+| **Users, Teams & Access** | `SIGMA_MCP_PROFILE=access_admin` |
 | **Full Operations (Default)** | `SIGMA_MCP_PROFILE=full` |
+
+Job profiles are tool allowlists; any of them can be combined with `SIGMA_MCP_READONLY=1`. Tool Search and Code Mode attach only on `full`.

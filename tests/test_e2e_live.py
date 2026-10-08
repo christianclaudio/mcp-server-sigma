@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock
 import pytest
 from mcp.types import CallToolResult, TextContent
 
+from sigma_mcp.config import bulk_destructive_allowed
+from sigma_mcp.profiles import BULK_DESTRUCTIVE_TOOLS
 from sigma_mcp.server import _redact_secrets, mcp
 
 SAFE_TOOL_FIXTURES: dict[str, dict[str, Any]] = {
@@ -59,7 +61,7 @@ async def dispatch_tool_call(tool_name: str, is_destructive: bool) -> tuple[str,
         else:
             res = await mcp.call_tool(tool_name, {})
 
-        is_err = res.is_error if isinstance(res, CallToolResult) else False
+        is_err = bool(getattr(res, "is_error", False))
         status = "FAIL" if is_err else "PASS"
         return (status, is_err, None)
     except Exception as exc:
@@ -74,11 +76,11 @@ async def test_dispatch_tool_call_offline(monkeypatch: pytest.MonkeyPatch) -> No
 
     # 1. Successful non-destructive tool
     mock_call.return_value = CallToolResult(content=[TextContent(type="text", text="ok")], is_error=False)
-    status, is_err, err = await dispatch_tool_call("sigma_get_user", is_destructive=False)
+    status, is_err, err = await dispatch_tool_call("admin_get_current_user", is_destructive=False)
     assert status == "PASS"
     assert not is_err
     assert err is None
-    mock_call.assert_awaited_with("sigma_get_user", {})
+    mock_call.assert_awaited_with("admin_get_current_user", {})
 
     # 2. Destructive tool with safety confirmation gate from fixture map
     status, is_err, err = await dispatch_tool_call("workspace_delete_file", is_destructive=True)
@@ -94,23 +96,23 @@ async def test_dispatch_tool_call_offline(monkeypatch: pytest.MonkeyPatch) -> No
 
     # 4. Error response with is_error=True
     mock_call.return_value = CallToolResult(content=[TextContent(type="text", text="error")], is_error=True)
-    status, is_err, err = await dispatch_tool_call("sigma_get_user", is_destructive=False)
+    status, is_err, err = await dispatch_tool_call("admin_get_current_user", is_destructive=False)
     assert status == "FAIL"
     assert is_err
     assert err is None
 
     # 5. Unexpected exception raised
     mock_call.side_effect = RuntimeError("transport broken with Bearer secret-tok")
-    status, is_err, err = await dispatch_tool_call("sigma_get_user", is_destructive=False)
+    status, is_err, err = await dispatch_tool_call("admin_get_current_user", is_destructive=False)
     assert status == "FAIL"
     assert is_err
     assert err is not None
     assert "secret-tok" not in err
 
-    # 6. Non-CallToolResult return value (exercises False branch of isinstance)
+    # 6. Result without an is_error attribute counts as success
     mock_call.side_effect = None
     mock_call.return_value = "plain string result"
-    status, is_err, err = await dispatch_tool_call("sigma_get_user", is_destructive=False)
+    status, is_err, err = await dispatch_tool_call("admin_get_current_user", is_destructive=False)
     assert status == "PASS"
     assert not is_err
     assert err is None
@@ -128,6 +130,9 @@ async def test_all_discovered_tools_live() -> None:
     for tool in tools:
         t0 = time.perf_counter()
         tool_name = tool.name
+        if tool_name in BULK_DESTRUCTIVE_TOOLS and not bulk_destructive_allowed():
+            # Listed in full but refused at call time until SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
+            continue
         annotations = tool.annotations
         is_destructive = getattr(annotations, "destructive_hint", False)
 

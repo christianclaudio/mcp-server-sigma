@@ -6,6 +6,8 @@ import os
 import re
 from typing import Any
 
+from fastmcp.exceptions import ToolError
+
 _REDACT_KEYS = {"email", "userEmail", "memberEmail", "token", "access_token", "client_secret", "secret"}
 
 
@@ -52,8 +54,12 @@ class SigmaError(Exception):
         super().__init__(self.message)
 
 
-class SafetyViolationError(SigmaError):
-    """Raised when an operation violates single-delete, bulk-destructive, or read-only safety gates."""
+class SafetyViolationError(SigmaError, ToolError):
+    """Raised when an operation violates the bulk-destructive or read-only safety gates.
+
+    Also a FastMCP ``ToolError``, so a refusal raised from middleware reaches the client as
+    a ``tools/call`` result with ``isError: true`` instead of a JSON-RPC internal error.
+    """
 
 
 class SigmaAPIError(SigmaError):

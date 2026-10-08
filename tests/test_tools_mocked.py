@@ -203,26 +203,38 @@ class TestCompositeToolsValidation:
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
-    def test_bulk_deactivate_empty_pattern(self):
-        """Without SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1, tool is unregistered."""
+    def test_bulk_deactivate_empty_pattern(self, monkeypatch):
+        """Listed in full; refused without SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1, validated with it."""
         import pytest
-        from mcp.server.mcpserver.exceptions import ToolError
 
-        with pytest.raises(ToolError, match="Unknown tool"):
+        from sigma_mcp.errors import SafetyViolationError
+
+        monkeypatch.delenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", raising=False)
+        with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
             self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
+        monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
+        data = self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
+        assert "error" in data
 
     def test_change_email_empty_member_id(self):
         data = self._call("admin_change_member_email", {"member_id": "", "new_email": "x@y.com"})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
-    def test_bulk_remove_team_empty_team_id(self):
-        """Without SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1, tool is unregistered."""
+    def test_bulk_remove_team_empty_team_id(self, monkeypatch):
+        """Listed in full; refused without SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1, validated with it."""
         import pytest
-        from mcp.server.mcpserver.exceptions import ToolError
 
-        with pytest.raises(ToolError, match="Unknown tool"):
+        from sigma_mcp.errors import SafetyViolationError
+
+        monkeypatch.delenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", raising=False)
+        with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
             self._call("admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"]})
+        monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
+        data = self._call(
+            "admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"], "confirm": True}
+        )
+        assert "team_id" in self._error_text(data)
 
 
 class TestErrorRedaction:

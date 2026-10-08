@@ -7,13 +7,19 @@ Exposes every Sigma REST API operation as an MCP tool, organized by domain sub-s
   - workspace: Workspaces, files, folders, and tags.
   - admin: Members, teams, account types, tenants, user attributes, deployments, and connectors.
 
-Environment variables controlling tool registration:
-  SIGMA_MCP_PROFILE          - Tool subset: core, admin, embed, full (default: full).
-  SIGMA_MCP_READONLY=1       - When set, only tools annotated read_only_hint=True are
-                               registered. Composes with SIGMA_MCP_PROFILE.
-  SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 - Required to register bulk-destructive operations.
-  SIGMA_MCP_ENABLE_TOOL_SEARCH=1 - Opt-in dynamic regex tool discovery transform.
+Environment variables controlling the gateway:
+  SIGMA_MCP_PROFILE          - Profile (default: full): full, readonly, or a job allowlist profile
+                               analyst, author, modeler, embed, access_admin (see profiles.PROFILES).
+  SIGMA_MCP_READONLY=1       - Keep only tools annotated readOnlyHint=True and refuse every other call.
+                               Composes with SIGMA_MCP_PROFILE.
+  SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 - Required to execute admin_bulk_deactivate_members and
+                               admin_bulk_remove_team_members (listed in full, refused without it).
+  SIGMA_MCP_ENABLE_TOOL_SEARCH=1 - Opt-in Tool Search (profile=full only).
+  SIGMA_MCP_TOOL_SEARCH_BACKEND  - Tool Search backend: regex (default) or bm25.
+  SIGMA_MCP_ENABLE_CODE_MODE=1   - Opt-in experimental Code Mode (profile=full only; not with Tool Search).
   SIGMA_MCP_STATELESS_HTTP=1 - Stateless Streamable HTTP mode (Spec 2026-07-28 / SEP-1049).
+
+Build order: domain mounts -> job allowlist -> read-only filter -> discovery (full only).
 """
 
 from __future__ import annotations
@@ -28,24 +34,31 @@ import signal
 import sys
 import time as time
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from fastmcp import FastMCP
-from fastmcp.exceptions import NotFoundError
-from fastmcp.server.transforms.search import RegexSearchTransform
+from fastmcp.server.transforms.search import BM25SearchTransform, RegexSearchTransform
 from fastmcp.tools import FunctionTool, Tool
 from mcp.server.caching import CacheHint
-from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import CallToolResult
 
 from sigma_mcp import __version__
 from sigma_mcp.client import SigmaClient
-from sigma_mcp.config import settings
+from sigma_mcp.config import readonly_enabled, settings
 from sigma_mcp.errors import redact_secrets
 from sigma_mcp.middleware import (
     ParentAuditMiddleware,
     ReadOnlyGateMiddleware,
+)
+from sigma_mcp.profiles import (
+    BULK_DESTRUCTIVE_TOOLS,  # noqa: F401 - re-exported for callers of sigma_mcp.server
+    FULL_ONLY_TOOLS,  # noqa: F401 - re-exported for callers of sigma_mcp.server
+    PROFILES,
+    ReadOnlyAnnotations,
+    ReadOnlyToolFilter,
+    get_profile,
+    validate_allowlist,
 )
 from sigma_mcp.tools import (
     admin_server,
@@ -223,81 +236,6 @@ if not hasattr(Tool, "input_schema"):
     Tool.input_schema = property(lambda self: getattr(self, "parameters", {}))  # type: ignore[attr-defined]
 
 
-def _unwrap_provider(provider: Any) -> tuple[Any, str | None]:
-    """Return the inner provider and FastMCP mount namespace, if any."""
-    namespace: str | None = None
-    current: Any = provider
-    while type(current).__name__ == "_WrappedProvider":
-        for transform in current.transforms:
-            if type(transform).__name__ == "Namespace":
-                prefix = getattr(transform, "_prefix", None)
-                if isinstance(prefix, str):
-                    namespace = prefix
-        current = current._inner
-    return current, namespace
-
-
-class _ToolManagerCompat:
-    """Compatibility bridge for internal _tool_manager access.
-
-    Keys are the names clients see after domain mounts (``workbooks_list_workbooks``).
-    """
-
-    def __init__(self, server: FastMCP) -> None:
-        self._server = server
-
-    def _mounted(self) -> list[tuple[Any, str | None]]:
-        mounted: list[tuple[Any, str | None]] = [(self._server, None)]
-        for provider in self._server.providers:
-            inner, namespace = _unwrap_provider(provider)
-            server = getattr(inner, "server", None)
-            if isinstance(server, FastMCP):
-                mounted.append((server, namespace))
-        return mounted
-
-    @property
-    def _tools(self) -> dict[str, Any]:
-        tools: dict[str, Any] = {}
-        disabled_names: set[str] = set()
-        disabled_tags: set[str] = set()
-        mounted = self._mounted()
-
-        for server, _namespace in mounted:
-            for transform in server.transforms:
-                if getattr(transform, "_enabled", True) is False:
-                    t_names = getattr(transform, "names", None)
-                    if isinstance(t_names, (set, list)):
-                        disabled_names.update(t_names)
-                    t_tags = getattr(transform, "tags", None)
-                    if isinstance(t_tags, (set, list)):
-                        disabled_tags.update(t_tags)
-
-        for server, namespace in mounted:
-            components = server._local_provider._components
-            for key, component in components.items():
-                if not (str(key).startswith("tool:") or type(component).__name__.endswith("Tool")):
-                    continue
-                name = getattr(component, "name", None)
-                if not isinstance(name, str) or not name:
-                    continue
-                exposed = f"{namespace}_{name}" if namespace else name
-                # Child servers disable local names (list_workbooks). remove_tool()
-                # disables the mounted wire name (workbooks_list_workbooks).
-                if name in disabled_names or exposed in disabled_names:
-                    continue
-                comp_tags = set(getattr(component, "tags", None) or [])
-                if disabled_tags and (comp_tags & disabled_tags):
-                    continue
-                tools[exposed] = component
-        return tools
-
-    def remove_tool(self, name: str) -> None:
-        self._server.disable(names={name})
-        for provider in self._server.providers:
-            if hasattr(provider, "disable"):
-                provider.disable(names={name})
-
-
 class _ResourceList(list[Any]):
     """Compatibility list wrapper for read_resource return type."""
 
@@ -324,92 +262,12 @@ class _UriCompat(str):
         return hash(str(self))
 
 
-# Profile tool definitions
-_CORE_NAMES = {
-    "list_connections",
-    "get_connection",
-    "sync_connection",
-    "list_workbooks",
-    "get_workbook",
-    "create_workbook",
-    "duplicate_workbook",
-    "delete_file",
-    "list_workbook_pages",
-    "list_workbook_elements",
-    "list_workbook_columns",
-    "list_workbook_queries",
-    "list_workbook_sources",
-    "swap_workbook_sources",
-    "list_data_models",
-    "get_data_model",
-    "get_data_model_spec",
-    "create_data_model",
-    "update_data_model",
-    "list_members",
-    "get_member",
-    "get_current_user",
-    "list_teams",
-    "get_team",
-    "list_files",
-    "create_folder",
-    "list_tags",
-    "create_tag",
-    "list_templates",
-    "create_workbook_from_template",
-    "deploy_template_to_folder",
-    "materialize_and_wait",
-    "promote_workbook",
-    "api_capabilities",
-    "export_and_download",
-    "formula_pitfalls",
-    "search_docs",
-    "get_doc_page",
-}
+ToolSearchBackend = Literal["regex", "bm25"]
 
-_ADMIN_NAMES = _CORE_NAMES | {
-    "create_member",
-    "update_member",
-    "deactivate_member",
-    "onboard_member",
-    "bulk_assign_team_members",
-    "bulk_deactivate_members",
-    "change_member_email",
-    "bulk_remove_team_members",
-    "reassign_workbook_ownership",
-    "create_team",
-    "delete_team",
-    "update_team_members",
-    "list_user_attributes",
-    "create_user_attribute",
-    "get_user_attribute_users",
-    "get_user_attribute_teams",
-    "get_user_attribute_tenants",
-    "list_account_types",
-}
-
-_EMBED_NAMES = _CORE_NAMES | {
-    "list_workbook_embeds",
-    "create_workbook_embed",
-    "list_user_attributes",
-    "create_user_attribute",
-    "set_user_attribute_for_teams",
-    "get_user_attribute_users",
-    "get_user_attribute_teams",
-    "get_user_attribute_tenants",
-    "list_tenants",
-    "get_tenant",
-    "list_tenants_paginated",
-    "get_tenant_scoped_info",
-    "bulk_sync_tenant_connections",
-    "swap_data_model_sources",
-    "swap_template_sources",
-    "list_workbook_grants",
-    "grant_workbook_access",
-    "list_workspaces",
-    "grant_workspace_access",
-}
-
-_DOMAIN_SERVERS: tuple[tuple[str, FastMCP], ...] = (
+# Domain sub-servers by mount namespace (hybrid A+B: the namespace is the domain, the wire prefix).
+# create_server only mounts them; every profile, read-only and discovery transform is applied on
+# the per-call root, so no profile state is written to these shared sub-servers.
+DOMAIN_SERVERS: tuple[tuple[str, FastMCP], ...] = (
     ("workbooks", workbooks_server),
     ("datasets", datasets_server),
     ("elements", elements_server),
@@ -417,38 +275,9 @@ _DOMAIN_SERVERS: tuple[tuple[str, FastMCP], ...] = (
     ("admin", admin_server),
 )
 
-
-def _wire_name(local_name: str) -> str:
-    """Map a sub-server tool name to the mounted wire name (``{domain}_{local}``)."""
-    for domain, sub in _DOMAIN_SERVERS:
-        for component in sub._local_provider._components.values():
-            if getattr(component, "name", None) != local_name:
-                continue
-            if getattr(component, "type", None) == "tool" or type(component).__name__.endswith("Tool"):
-                return f"{domain}_{local_name}"
-    raise RuntimeError(f"No domain tool registered as {local_name!r}")
-
-
-_BULK_DESTRUCTIVE_TOOLS = {
-    "bulk_deactivate_members",
-    "admin_bulk_deactivate_members",
-    "bulk_remove_team_members",
-    "admin_bulk_remove_team_members",
-}
-
-_CORE_TOOLS = {_wire_name(name) for name in _CORE_NAMES}
-_ADMIN_TOOLS = {_wire_name(name) for name in _ADMIN_NAMES}
-_EMBED_TOOLS = {_wire_name(name) for name in _EMBED_NAMES}
-
-_PROFILES = {
-    "core": _CORE_TOOLS | _CORE_NAMES,
-    "admin": _ADMIN_TOOLS | _ADMIN_NAMES,
-    "embed": _EMBED_TOOLS | _EMBED_NAMES,
-}
-
-_profile_env = os.environ.get("SIGMA_MCP_PROFILE", settings.MCP_PROFILE).lower()
-if _profile_env not in {"full", "core", "admin", "embed", "readonly"}:
-    raise ValueError(f"Unknown SIGMA_MCP_PROFILE: '{_profile_env}'. Valid values: full, core, admin, embed, readonly")
+# FastMCP synthetic discovery tools that only read the catalog (annotated readOnlyHint=True).
+TOOL_SEARCH_READ_ONLY_TOOLS = ("search_tools",)
+CODE_MODE_READ_ONLY_TOOLS = ("search", "get_schema")
 
 
 def _redact_secrets(text: str, extra_secret: str | None = None) -> str:
@@ -565,39 +394,123 @@ def prompt_audit_tenant_connections() -> str:
     )
 
 
+def _catalog_tool_names(root: FastMCP) -> set[str]:
+    """Return the client-visible tool names of ``root`` via the public ``list_tools()``.
+
+    Runs on a worker thread with its own event loop so ``create_server`` stays synchronous
+    and safe to call from inside a running loop (tests, hosts).
+    """
+
+    async def _collect() -> set[str]:
+        return {tool.name for tool in await root.list_tools()}
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, _collect()).result()
+
+
+def _apply_tool_allowlist(root: FastMCP, allowlist: frozenset[str]) -> None:
+    """Expose only ``allowlist`` tools; prompts, resources, and templates are untouched.
+
+    Public visibility API: disable every tool, then re-enable the named tools. The later
+    ``enable`` wins. ``enable(only=True)`` is not used because it disables every component
+    type first, which would also hide prompts and resources.
+    """
+    root.disable(components={"tool"})
+    root.enable(names=set(allowlist), components={"tool"})
+
+
+def _attach_tool_search(root: FastMCP, backend: ToolSearchBackend) -> None:
+    """Attach Regex (default) or BM25 Tool Search transform to the root gateway."""
+    if backend == "bm25":
+        root.add_transform(BM25SearchTransform())
+    else:
+        root.add_transform(RegexSearchTransform())
+    root.add_transform(ReadOnlyAnnotations(TOOL_SEARCH_READ_ONLY_TOOLS))
+
+
+def _attach_code_mode(root: FastMCP) -> bool:
+    """Attach experimental Code Mode when the FastMCP build exports it.
+
+    Returns True when the transform was attached; False when ImportError skipped it.
+    """
+    try:
+        from fastmcp.experimental.transforms.code_mode import CodeMode
+    except ImportError:
+        logger.warning(
+            "Code Mode requested but fastmcp.experimental.transforms.code_mode is unavailable; "
+            "skipping attach. Upgrade FastMCP or omit --enable-code-mode."
+        )
+        return False
+    root.add_transform(CodeMode())
+    root.add_transform(ReadOnlyAnnotations(CODE_MODE_READ_ONLY_TOOLS))
+    return True
+
+
+def _env_bool(name: str, configured: bool) -> bool:
+    """Return ``configured`` or the live ``name=1``/``name=true`` environment flag."""
+    return configured or os.environ.get(name, "").strip().lower() in ("1", "true")
+
+
+def _configured_search_backend() -> ToolSearchBackend:
+    """Return the Tool Search backend from the live env or settings; reject unknown values."""
+    raw = (os.environ.get("SIGMA_MCP_TOOL_SEARCH_BACKEND") or settings.MCP_TOOL_SEARCH_BACKEND).strip().lower()
+    if raw not in ("regex", "bm25"):
+        raise ValueError(f"Unknown SIGMA_MCP_TOOL_SEARCH_BACKEND {raw!r}; valid: bm25, regex.")
+    return cast(ToolSearchBackend, raw)
+
+
 def create_server(
     profile: str | None = None,
     enable_tool_search: bool | None = None,
+    enable_code_mode: bool | None = None,
+    tool_search_backend: ToolSearchBackend | None = None,
 ) -> FastMCP:
     """Build root gateway FastMCP instance using Server Composition and Hierarchical Middleware.
 
     Architecture:
     Gateway (FastMCP)
     ├── Parent Middleware (ParentAuditMiddleware, ReadOnlyGateMiddleware)
-    ├── mount(workbooks_server, namespace="workbooks")
+    ├── mount(workbooks_server, namespace="workbooks")   # domain mount, not a product stamp
     ├── mount(datasets_server, namespace="datasets")
     ├── mount(elements_server, namespace="elements")
     ├── mount(workspace_server, namespace="workspace")
     ├── mount(admin_server, namespace="admin")
-    └── (Optional) RegexSearchTransform if enable_tool_search=True
+    ├── (job profiles) tools-only visibility allowlist over the full catalog
+    ├── (readonly) ReadOnlyToolFilter: keep tools annotated readOnlyHint=True
+    └── (Optional, profile==full only) Tool Search XOR experimental Code Mode
+
+    Profile rules:
+    * Every profile mounts all five domains. Job profiles expose only their allowlisted
+      tool names (prompts/resources stay).
+    * An unknown profile, or an allowlisted name missing from the full catalog, raises
+      ``ValueError`` at build time.
+    * Bulk destructive tools stay listed in ``full``; the admin domain guard refuses them at
+      call time unless ``SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1``.
+
+    Discovery rules:
+    * Default: flat ``tools/list`` of the profile's tools.
+    * Tool Search / Code Mode attach only when explicitly enabled **and** ``profile == "full"``.
+    * Requesting either discovery mode on another profile logs a warning and skips attach.
+    * Enabling both Tool Search and Code Mode raises ``ValueError`` (mutual exclusion).
     """
-    env_profile = os.environ.get("SIGMA_MCP_PROFILE")
-    active_profile = (profile or env_profile or settings.MCP_PROFILE or "full").lower()
+    active = get_profile(profile or os.environ.get("SIGMA_MCP_PROFILE") or settings.MCP_PROFILE or "full")
+    active_profile = active.name
     use_tool_search = (
         enable_tool_search
         if enable_tool_search is not None
-        else (
-            settings.MCP_ENABLE_TOOL_SEARCH
-            or os.environ.get("SIGMA_MCP_ENABLE_TOOL_SEARCH", "").strip() in ("1", "true")
-        )
+        else _env_bool("SIGMA_MCP_ENABLE_TOOL_SEARCH", settings.MCP_ENABLE_TOOL_SEARCH)
+    )
+    use_code_mode = (
+        enable_code_mode
+        if enable_code_mode is not None
+        else _env_bool("SIGMA_MCP_ENABLE_CODE_MODE", settings.MCP_ENABLE_CODE_MODE)
+    )
+    search_backend: ToolSearchBackend = (
+        tool_search_backend if tool_search_backend is not None else _configured_search_backend()
     )
 
-    if active_profile not in ("full", "core", "admin", "embed", "readonly"):
-        raise ValueError(f"Unknown SIGMA_MCP_PROFILE {active_profile!r}. Valid: core, admin, embed, full, readonly.")
-
-    # Reset any transforms on sub-servers
-    for sub in (workbooks_server, datasets_server, elements_server, workspace_server, admin_server):
-        sub._transforms.clear()
+    if use_tool_search and use_code_mode:
+        raise ValueError("Tool Search and Code Mode are mutually exclusive; enable only one discovery mode.")
 
     root = FastMCP(
         "mcp-server-sigma",
@@ -610,16 +523,14 @@ def create_server(
     # Attach compatibility bridges
     root.streamable_http_app = _streamable_http_app.__get__(root, FastMCP)  # type: ignore[attr-defined]
 
-    # Global Parent Middleware
+    # 1. Global Parent Middleware (audit logging, timing, and the read-only gate)
+    readonly_gate = ReadOnlyGateMiddleware(enforce=active.readonly)
     root.add_middleware(ParentAuditMiddleware())
-    root.add_middleware(ReadOnlyGateMiddleware())
+    root.add_middleware(readonly_gate)
 
-    # Domain namespaces are the wire prefix (workbooks_list_workbooks, not sigma_list_workbooks).
-    root.mount(workbooks_server, namespace="workbooks")
-    root.mount(datasets_server, namespace="datasets")
-    root.mount(elements_server, namespace="elements")
-    root.mount(workspace_server, namespace="workspace")
-    root.mount(admin_server, namespace="admin")
+    # 2. Domain namespaces are the wire prefix (workbooks_list_workbooks, not sigma_list_workbooks).
+    for domain, sub in DOMAIN_SERVERS:
+        root.mount(sub, namespace=domain)
 
     # Resources stay on the root. A domain URI scheme is already the prefix; mounting
     # them on a namespaced server would insert a second path segment.
@@ -646,64 +557,40 @@ def create_server(
 
     root.resource("admin://webhooks/recent")(resource_webhooks_recent)
 
-    # Bulk-destructive gating:
-    allow_bulk = (
-        settings.MCP_ALLOW_BULK_DESTRUCTIVE or os.environ.get("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "").strip() == "1"
-    )
-    if not allow_bulk:
-        admin_server.disable(names=_BULK_DESTRUCTIVE_TOOLS)
-    else:
-        admin_server.enable(names=_BULK_DESTRUCTIVE_TOOLS)
+    # 3. Job profiles: validate against the full mounted catalog, then filter tools
+    if active.is_allowlist:
+        allowlist = validate_allowlist(active, _catalog_tool_names(root))
+        _apply_tool_allowlist(root, allowlist)
 
-    # Profile filtering
-    if active_profile in _PROFILES:
-        allowed_set = _PROFILES[active_profile]
-        for sub in (workbooks_server, datasets_server, elements_server, workspace_server, admin_server):
-            for c in list(sub._local_provider._components.values()):
-                is_tool = getattr(c, "type", None) == "tool" or type(c).__name__.endswith("Tool")
-                if hasattr(c, "name") and is_tool:
-                    if c.name not in allowed_set:
-                        sub.disable(names={c.name})
-                    else:
-                        sub.enable(names={c.name})
+    # 4. Read-only: keep only tools annotated readOnlyHint=True (annotation is the truth)
+    if active.readonly or readonly_enabled():
+        # Capture the profile catalog before the filter hides writes, so the gate refuses a
+        # hidden real tool but lets an unknown name reach FastMCP's "Unknown tool" error.
+        readonly_gate.catalog = frozenset(_catalog_tool_names(root))
+        root.add_transform(ReadOnlyToolFilter())
 
-    # Read-only filtering
-    is_ro = (
-        settings.MCP_READONLY or os.environ.get("SIGMA_MCP_READONLY", "").strip() == "1" or active_profile == "readonly"
-    )
-    if is_ro:
-        root.disable(tags={"mutation", "destructive", "idempotent"})
-        for sub in (workbooks_server, datasets_server, elements_server, workspace_server, admin_server):
-            sub.disable(tags={"mutation", "destructive", "idempotent"})
-
-    # Optional ToolSearch transform
+    # 5. Opt-in discovery transforms — full profile only (never dump the catalog by default)
     if use_tool_search:
-        root.add_transform(RegexSearchTransform())
+        if active_profile != "full":
+            logger.warning(
+                "Tool Search requested with profile=%r; attach is allowed only on profile='full'. "
+                "Keeping flat curated tools/list.",
+                active_profile,
+            )
+        else:
+            _attach_tool_search(root, search_backend)
 
-    # Compatibility wrappers on root instance
-    _orig_call_tool = root.call_tool
+    if use_code_mode:
+        if active_profile != "full":
+            logger.warning(
+                "Code Mode requested with profile=%r; attach is allowed only on profile='full'. "
+                "Keeping flat curated tools/list.",
+                active_profile,
+            )
+        else:
+            _attach_code_mode(root)
 
-    async def _call_tool_compat(name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
-        try:
-            orig = getattr(sys.modules.get("sigma_mcp.server"), "_orig_call_tool", _orig_call_tool)
-            if orig == _call_tool_compat:
-                orig = _orig_call_tool
-            raw_res = await orig(name, arguments or {}, **kwargs)
-        except NotFoundError as exc:
-            raise ToolError(f"Unknown tool: '{name}'") from exc
-        except Exception:
-            raise
-        if isinstance(raw_res, CallToolResult):
-            return raw_res
-        return CallToolResult(
-            content=getattr(raw_res, "content", []),
-            structured_content=getattr(raw_res, "structured_content", None),
-            is_error=getattr(raw_res, "is_error", False),
-            _meta=getattr(raw_res, "meta", None),
-        )
-
-    root.call_tool = _call_tool_compat  # type: ignore[method-assign]
-
+    # Compatibility wrappers on the root instance (public prompt/resource APIs only)
     _orig_get_prompt = root.get_prompt
 
     async def _get_prompt_compat(name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
@@ -731,7 +618,6 @@ def create_server(
         return res_list
 
     root.list_resources = _list_resources_compat  # type: ignore[method-assign]
-    root._tool_manager = _ToolManagerCompat(root)  # type: ignore[attr-defined]
 
     return root
 
@@ -775,8 +661,6 @@ _register_domain_prompts()
 
 # Default canonical server gateway instance
 mcp = create_server()
-_tool_mgr = mcp._tool_manager  # type: ignore[attr-defined]
-_orig_call_tool = mcp.call_tool
 
 
 # Re-export all flat tool functions for backward compatibility
@@ -814,15 +698,34 @@ def main() -> None:
     )
     parser.add_argument(
         "--profile",
-        choices=["full", "core", "admin", "embed", "readonly"],
+        type=str.lower,
+        choices=sorted(PROFILES),
         default=None,
-        help="Server profile: 'full' (default), 'core', 'admin', 'embed', or 'readonly'.",
+        help=(
+            "Server profile (default 'full'): full, readonly, or a job allowlist profile "
+            "analyst/author/modeler/embed/access_admin."
+        ),
     )
     parser.add_argument(
         "--enable-tool-search",
         action="store_true",
         default=settings.MCP_ENABLE_TOOL_SEARCH,
-        help="Enable dynamic ToolSearch transform replacing flat tools/list.",
+        help="Enable Tool Search on profile=full only (replaces tools/list with search_tools + call_tool).",
+    )
+    parser.add_argument(
+        "--tool-search-backend",
+        choices=["regex", "bm25"],
+        default=None,
+        help="Tool Search backend: 'regex' (default) or 'bm25'.",
+    )
+    parser.add_argument(
+        "--enable-code-mode",
+        action="store_true",
+        default=settings.MCP_ENABLE_CODE_MODE,
+        help=(
+            "Enable experimental Code Mode on profile=full only (search + execute). "
+            "Mutually exclusive with --enable-tool-search."
+        ),
     )
     parser.add_argument(
         "--stateless",
@@ -862,8 +765,20 @@ def main() -> None:
     raw_profile = getattr(args, "profile", None)
     profile = raw_profile if raw_profile is not None else default_profile
     enable_search = getattr(args, "enable_tool_search", settings.MCP_ENABLE_TOOL_SEARCH)
-    if profile != default_profile or enable_search != settings.MCP_ENABLE_TOOL_SEARCH:
-        mcp = create_server(profile=profile, enable_tool_search=enable_search)
+    enable_code = getattr(args, "enable_code_mode", settings.MCP_ENABLE_CODE_MODE)
+    backend = getattr(args, "tool_search_backend", None)
+    if (
+        profile != default_profile
+        or enable_search != settings.MCP_ENABLE_TOOL_SEARCH
+        or enable_code != settings.MCP_ENABLE_CODE_MODE
+        or backend is not None
+    ):
+        mcp = create_server(
+            profile=profile,
+            enable_tool_search=enable_search,
+            enable_code_mode=enable_code,
+            tool_search_backend=backend,
+        )
 
     auth_token = os.environ.get("SIGMA_MCP_AUTH_TOKEN", "")
     host = getattr(args, "host", "127.0.0.1")

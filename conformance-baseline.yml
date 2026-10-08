@@ -10,8 +10,6 @@
 
 server:
   - completion-complete
-  - tools-call-simple-text
-  - tools-call-error
   - tools-call-image
   - tools-call-audio
   - tools-call-embedded-resource

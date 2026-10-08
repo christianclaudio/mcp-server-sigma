@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+import os
+from typing import Any, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -75,7 +76,7 @@ class Settings(BaseSettings):
     )
     MCP_ALLOW_BULK_DESTRUCTIVE: bool = Field(
         default=False,
-        description="Gate required to register and execute batch destructive mutations",
+        description="Opt-in gate required to execute bulk destructive tools (listed in full, refused without it)",
     )
 
     # Transport Options (Spec 2026-07-28 / SEP-1049)
@@ -91,11 +92,25 @@ class Settings(BaseSettings):
     # Composition and Discovery
     MCP_ENABLE_TOOL_SEARCH: bool = Field(
         default=False,
-        description="Enable dynamic ToolSearch transform replacing flat tools/list",
+        description="Opt-in Tool Search transform (search_tools + call_tool). Attached only when profile is 'full'.",
+    )
+    MCP_TOOL_SEARCH_BACKEND: Literal["regex", "bm25"] = Field(
+        default="regex",
+        description="Tool Search backend: 'regex' (default) or 'bm25'",
+    )
+    MCP_ENABLE_CODE_MODE: bool = Field(
+        default=False,
+        description=(
+            "Opt-in experimental Code Mode transform (search + execute). "
+            "Attached only when profile is 'full'; mutually exclusive with Tool Search."
+        ),
     )
     MCP_PROFILE: str = Field(
         default="full",
-        description="Server profile: 'full', 'core', 'admin', or 'embed'",
+        description=(
+            "Server profile: 'full', 'readonly', or a job profile 'analyst', 'author', 'modeler', "
+            "'embed', 'access_admin' (see profiles.PROFILES)"
+        ),
     )
 
     @field_validator(
@@ -105,6 +120,7 @@ class Settings(BaseSettings):
         "MCP_STATELESS_HTTP",
         "MCP_JSON_RESPONSE",
         "MCP_ENABLE_TOOL_SEARCH",
+        "MCP_ENABLE_CODE_MODE",
         mode="before",
     )
     @classmethod
@@ -119,3 +135,18 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def _env_flag(name: str) -> bool:
+    """Return True when environment variable ``name`` is set to ``1`` at call time."""
+    return os.environ.get(name, "").strip() == "1"
+
+
+def readonly_enabled() -> bool:
+    """Return True when read-only mode is on (settings or live ``SIGMA_MCP_READONLY=1``)."""
+    return settings.MCP_READONLY or _env_flag("SIGMA_MCP_READONLY")
+
+
+def bulk_destructive_allowed() -> bool:
+    """Return True when bulk destructive tools may execute (``SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1``)."""
+    return settings.MCP_ALLOW_BULK_DESTRUCTIVE or _env_flag("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE")

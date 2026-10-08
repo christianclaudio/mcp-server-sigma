@@ -428,48 +428,42 @@ class TestTransportArg:
                 )
 
 
-# ─── Profile integrity (regression: 'embed' silently fell back to core) ───────
-
-
-def test_wire_name_rejects_unknown_tool():
-    from sigma_mcp.server import _wire_name
-
-    with pytest.raises(RuntimeError, match="No domain tool"):
-        _wire_name("not_a_real_tool")
+# ─── Profile integrity ────────────────────────────────────────────────────────
 
 
 def test_profiles_reference_only_real_tools():
-    """Every tool named in a profile must actually be registered (or gated by env)."""
+    """Every tool named in a job profile or FULL_ONLY_TOOLS is registered in full."""
     import asyncio
 
     from sigma_mcp import server
+    from sigma_mcp.profiles import FULL_ONLY_TOOLS, PROFILES
 
-    real = {t.name for t in asyncio.run(server.mcp.list_tools())}
-    # Bulk-destructive tools are gated by env and may not be registered
-    gated = server._BULK_DESTRUCTIVE_TOOLS
-    for name, tools in (
-        ("core", server._CORE_TOOLS),
-        ("admin", server._ADMIN_TOOLS),
-        ("embed", server._EMBED_TOOLS),
-    ):
-        missing = tools - real - gated
+    real = {t.name for t in asyncio.run(server.create_server(profile="full").list_tools())}
+    for name, profile in PROFILES.items():
+        missing = (profile.tools or frozenset()) - real
         assert not missing, f"profile {name} names nonexistent tools: {sorted(missing)}"
+    assert FULL_ONLY_TOOLS <= real
 
 
-def test_profiles_are_distinct_and_nested():
-    """core must be a strict subset of admin and embed; embed != core."""
-    from sigma_mcp import server
+def test_job_profiles_are_distinct():
+    """No two job profiles share the same allowlist."""
+    from sigma_mcp.profiles import PROFILES
 
-    assert server._CORE_TOOLS < server._ADMIN_TOOLS
-    assert server._CORE_TOOLS < server._EMBED_TOOLS
-    assert server._EMBED_TOOLS != server._CORE_TOOLS
+    allowlists = [p.tools for p in PROFILES.values() if p.tools is not None]
+    assert len(allowlists) == 5
+    assert len(set(allowlists)) == len(allowlists)
 
 
 def test_unknown_profile_is_rejected():
-    """An invalid SIGMA_MCP_PROFILE must fail loudly, not silently fall back."""
-    from sigma_mcp import server
+    """An invalid profile must fail loudly, not silently fall back."""
+    from sigma_mcp.profiles import get_profile
+    from sigma_mcp.server import create_server
 
-    assert "bogus" not in server._PROFILES
+    for removed in ("bogus", "core", "admin", "builder"):
+        with pytest.raises(ValueError, match="Unknown profile"):
+            get_profile(removed)
+        with pytest.raises(ValueError, match="Unknown profile"):
+            create_server(profile=removed)
 
 
 # ─── Annotation integrity (README publishes these exact counts) ──────────────
@@ -489,8 +483,8 @@ def test_all_tools_are_annotated():
 def test_annotation_counts_match_readme():
     """Guard the counts published in README against silent drift.
 
-    Default (no SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE): 155 tools registered.
-    With SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1: 157 tools.
+    The default full profile lists all 172 tools; the two bulk-destructive tools are
+    listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
     """
     import asyncio
 
@@ -502,12 +496,11 @@ def test_annotation_counts_match_readme():
     idempotent = sum(1 for t in tools if t.annotations.idempotent_hint)
     open_world = sum(1 for t in tools if t.annotations.open_world_hint)
 
-    # Default: 2 bulk-destructive tools are gated out
-    assert len(tools) == 170, f"tool count changed: {len(tools)} (expected 170 without bulk-destructive)"
+    assert len(tools) == 172, f"tool count changed: {len(tools)} (expected 172 in full)"
     assert ro == 90, f"read-only count changed: {ro}"
-    assert destructive == 18, f"destructive count changed: {destructive}"
+    assert destructive == 20, f"destructive count changed: {destructive}"
     assert idempotent == 8, f"idempotent count changed: {idempotent}"
-    assert open_world == 170, f"open_world count changed: {open_world}"
+    assert open_world == 172, f"open_world count changed: {open_world}"
 
 
 def test_destructive_tools_are_not_marked_read_only():

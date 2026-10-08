@@ -143,25 +143,31 @@ async def test_bulk_sync_tenant_connections_branches(monkeypatch: pytest.MonkeyP
 
 
 def test_server_profile_and_readonly_filtering(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    def names() -> set[str]:
+        return {t.name for t in asyncio.run(srv.mcp.list_tools())}
+
     try:
         monkeypatch.setenv("SIGMA_MCP_PROFILE", "invalid_profile_name")
-        with pytest.raises(ValueError, match="Unknown SIGMA_MCP_PROFILE"):
+        with pytest.raises(ValueError, match="Unknown profile 'invalid_profile_name'"):
             importlib.reload(srv)
 
-        monkeypatch.setenv("SIGMA_MCP_PROFILE", "core")
+        monkeypatch.setenv("SIGMA_MCP_PROFILE", "analyst")
         importlib.reload(srv)
-        assert "workbooks_list_workbooks" in srv.mcp._tool_manager._tools
+        assert "workbooks_list_workbooks" in names()
+        assert "workspace_delete_file" not in names()
 
         monkeypatch.setenv("SIGMA_MCP_PROFILE", "full")
         monkeypatch.setenv("SIGMA_MCP_READONLY", "1")
         importlib.reload(srv)
-        assert "workspace_delete_file" not in srv.mcp._tool_manager._tools
-        assert "workbooks_list_workbooks" in srv.mcp._tool_manager._tools
+        assert "workspace_delete_file" not in names()
+        assert "workbooks_list_workbooks" in names()
 
         monkeypatch.delenv("SIGMA_MCP_READONLY", raising=False)
         monkeypatch.setenv("SIGMA_MCP_PROFILE", "full")
         importlib.reload(srv)
-        assert "workspace_delete_file" in srv.mcp._tool_manager._tools
+        assert "workspace_delete_file" in names()
     finally:
         monkeypatch.undo()
         importlib.reload(srv)
