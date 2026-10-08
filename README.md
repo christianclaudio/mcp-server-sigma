@@ -161,7 +161,7 @@ source .env
 sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
-Point your local Codex / HTTP SSE client to `http://127.0.0.1:8000/sse`.
+Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`.
 
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>

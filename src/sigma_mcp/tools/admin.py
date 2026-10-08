@@ -624,7 +624,8 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     Uses ?includeInactive=true to avoid re-deactivating already-inactive members.
 
     Safety:
-      - Requires env SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 for the tool to be registered.
+      - Always listed in the full profile, but refused at call time unless
+        SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
       - Catch-all patterns (e.g. '.*', '.+', '.') are rejected.
       - Hard cap: refuses if pattern matches more than 10 active members.
     """
@@ -764,6 +765,11 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     """Remove multiple members from a team by their email addresses.
 
     Resolves emails to member IDs, then sends a single PATCH to remove all. Requires confirm=True.
+
+    Safety:
+      - Always listed in the full profile, but refused at call time unless
+        SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
+      - Hard cap: refuses more than 50 member emails per call.
     """
     if not confirm:
         return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
