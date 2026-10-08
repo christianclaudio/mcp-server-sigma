@@ -1,66 +1,117 @@
 #!/usr/bin/env python3
-"""Assert the tool surface matches what the README publishes.
+"""Assert the Sigma tool surface matches the published contract and safety gates.
 
 Two things drift silently and embarrass us:
-  1. Tool counts and annotation counts quoted in README.
-  2. The safety env vars — if gating breaks, destructive tools ship by default.
+  1. Tool, annotation, and per-profile counts quoted in README.
+  2. The safety gates: read-only must keep exactly the readOnlyHint=True tools, and the
+     bulk-destructive tools must stay listed in ``full`` but refused without the opt-in.
 
 This runs in CI so both are caught before release.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 
-# Expected registered-tool counts per configuration.
-EXPECTED_DEFAULT = 170
-EXPECTED_WITH_BULK = 172
-EXPECTED_READONLY = 90
+# Expected (total tools, tools annotated readOnlyHint=True) per profile. ``full`` is exhaustive:
+# the two bulk tools are listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
+EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
+    "full": (172, 90),
+    "readonly": (90, 90),
+    # Job (allowlist) profiles
+    "analyst": (31, 23),
+    "author": (40, 28),
+    "modeler": (33, 24),
+    "embed": (50, 27),
+    "access_admin": (52, 22),
+}
+JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
 
-# Expected annotation split at default registration.
+# Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
+EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
+    "workbooks": 54,
+    "datasets": 22,
+    "elements": 21,
+    "workspace": 15,
+    "admin": 60,
+}
+
+# Expected annotation split on ``full``.
+EXPECTED_DEFAULT = EXPECTED_PROFILE_COUNTS["full"][0]
+EXPECTED_READONLY = EXPECTED_PROFILE_COUNTS["readonly"][0]
 EXPECTED_READ_ONLY = 90
-EXPECTED_DESTRUCTIVE = 18
+EXPECTED_DESTRUCTIVE = 20
 EXPECTED_IDEMPOTENT = 8
+
+BULK_TOOLS = ("admin_bulk_deactivate_members", "admin_bulk_remove_team_members")
+EXPECTED_FULL_ONLY = {
+    "workspace_delete_file",
+    "workspace_update_file",
+    "workspace_create_tag",
+    "workspace_delete_tag",
+    "admin_list_translations",
+    "admin_bulk_deactivate_members",
+    "admin_bulk_remove_team_members",
+    "admin_api_capabilities",
+    "admin_list_recent_webhooks",
+}
 
 PROBE = """
 import asyncio, json, sys
 sys.path.insert(0, "src")
-from sigma_mcp.server import mcp
+from sigma_mcp.profiles import FULL_ONLY_TOOLS, PROFILES
+from sigma_mcp.server import create_server, mcp
+
+def describe(tools):
+    return {
+        "total": len(tools),
+        "read_only": sum(1 for t in tools if t.annotations and t.annotations.read_only_hint is True),
+        "destructive": sum(1 for t in tools if t.annotations and t.annotations.destructive_hint is True),
+        "idempotent": sum(1 for t in tools if t.annotations and t.annotations.idempotent_hint is True),
+        "unannotated": sum(1 for t in tools if t.annotations is None),
+        "missing_read_only_hint": sorted(
+            t.name for t in tools if t.annotations is None or t.annotations.read_only_hint is None
+        ),
+        "all_read_only": all(t.annotations and t.annotations.read_only_hint is True for t in tools),
+        "names": sorted(t.name for t in tools),
+        "read_only_names": sorted(
+            t.name for t in tools if t.annotations and t.annotations.read_only_hint is True
+        ),
+    }
 
 async def main():
-    tools = await mcp.list_tools()
-    prompts = await mcp.list_prompts()
-    resources = await mcp.list_resources()
-    print(json.dumps({
-        "total": len(tools),
-        "read_only": sum(1 for t in tools if t.annotations and t.annotations.read_only_hint),
-        "destructive": sum(1 for t in tools if t.annotations and t.annotations.destructive_hint),
-        "idempotent": sum(1 for t in tools if t.annotations and t.annotations.idempotent_hint),
-        "unannotated": sum(1 for t in tools if t.annotations is None),
-        "all_read_only": all(t.annotations and t.annotations.read_only_hint for t in tools),
-        "names": sorted(t.name for t in tools),
-        "read_only_names": sorted(t.name for t in tools if t.annotations and t.annotations.read_only_hint),
-        "prompt_names": sorted(p.name for p in prompts),
-        "resource_uris": sorted(str(r.uri) for r in resources),
-    }))
+    report = {"default": describe(await mcp.list_tools()), "profiles": {}}
+    report["prompt_names"] = sorted(p.name for p in await mcp.list_prompts())
+    report["resource_uris"] = sorted(str(r.uri) for r in await mcp.list_resources())
+    for name in PROFILES:
+        report["profiles"][name] = describe(await create_server(profile=name).list_tools())
+    report["full_only"] = sorted(FULL_ONLY_TOOLS)
+    print(json.dumps(report))
 
 asyncio.run(main())
 """
 
 
-def probe(**env_overrides: str) -> dict:
-    """Import the server under given env vars and report its tool surface."""
-    import json
-
+def probe(**env_overrides: str) -> dict[str, Any]:
+    """Import the server under given env vars and report its tool surface per profile."""
     env = dict(os.environ)
     # Start from a clean slate so the host environment cannot skew results.
-    for key in ("SIGMA_MCP_PROFILE", "SIGMA_MCP_READONLY", "SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE"):
+    for key in (
+        "SIGMA_MCP_PROFILE",
+        "SIGMA_MCP_READONLY",
+        "SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE",
+        "SIGMA_MCP_ENABLE_TOOL_SEARCH",
+        "SIGMA_MCP_ENABLE_CODE_MODE",
+        "SIGMA_MCP_TOOL_SEARCH_BACKEND",
+    ):
         env.pop(key, None)
     env.update(env_overrides)
     env.setdefault("SIGMA_CLIENT_ID", "ci-placeholder")
@@ -74,22 +125,21 @@ def probe(**env_overrides: str) -> dict:
         text=True,
         check=True,
     )
-    return json.loads(out.stdout.strip().splitlines()[-1])
+    res: dict[str, Any] = json.loads(out.stdout.strip().splitlines()[-1])
+    return res
 
 
-def parse_readme_counts() -> dict[str, int]:
-    """Extract tool/annotation counts from README.md.
+def parse_readme_counts() -> dict[str, Any]:
+    """Extract tool counts and the profile table from README.md.
 
-    Returns a dict of recognized keys to integer values.
     Fails loudly if a required pattern is missing.
     """
     readme = (REPO / "README.md").read_text()
     patterns = {
         "default_total": r"\b(\d+)\s+tools covering connections",
         "readonly": r"readOnlyHint=true[`\s|]*(\d+)",
-        "with_bulk": r"\((\d+)\s+total\)",
     }
-    results: dict[str, int] = {}
+    results: dict[str, Any] = {}
     for key, pat in patterns.items():
         m = re.search(pat, readme)
         if not m:
@@ -104,6 +154,13 @@ def parse_readme_counts() -> dict[str, int]:
             )
             sys.exit(2)
         results[key] = int(m.group(1))
+    rows = re.findall(r"^\| `([a-z_]+)` \| [^|]+ \| \*\*(\d+)\*\* \| (\d+) \|$", readme, flags=re.M)
+    results["profiles"] = {name: (int(total), int(ro)) for name, total, ro in rows}
+    domain_alt = "|".join(EXPECTED_DOMAIN_COUNTS)
+    domain_rows = re.findall(rf"^\| `({domain_alt})` \| (\d+) \|", readme, flags=re.M)
+    results["domains"] = {name: int(count) for name, count in domain_rows}
+    total = re.search(r"^\| \*\*Total\*\* \| \*\*(\d+)\*\* \|", readme, flags=re.M)
+    results["domain_total"] = int(total.group(1)) if total else None
     return results
 
 
@@ -116,25 +173,34 @@ def main() -> int:
         else:
             print(f"  ok  {label} = {actual!r}")
 
-    # Validate README counts against computed values.
     print("README count validation:")
     readme_counts = parse_readme_counts()
     check("README default_total", readme_counts["default_total"], EXPECTED_DEFAULT)
     check("README readonly", readme_counts["readonly"], EXPECTED_READONLY)
-    check("README with_bulk", readme_counts["with_bulk"], EXPECTED_WITH_BULK)
+    check("README profile table", readme_counts["profiles"], EXPECTED_PROFILE_COUNTS)
+    check("README domain table", readme_counts["domains"], EXPECTED_DOMAIN_COUNTS)
+    check("README domain table total", readme_counts["domain_total"], EXPECTED_DEFAULT)
 
-    print("\nDefault registration:")
+    print("\nDefault registration (profile=full):")
     base = probe()
-    check("total tools", base["total"], EXPECTED_DEFAULT)
-    check("read-only annotations", base["read_only"], EXPECTED_READ_ONLY)
-    check("destructive annotations", base["destructive"], EXPECTED_DESTRUCTIVE)
-    check("idempotent annotations", base["idempotent"], EXPECTED_IDEMPOTENT)
-    check("unannotated tools", base["unannotated"], 0)
-    domains = ("workbooks", "datasets", "elements", "workspace", "admin")
-    sigma_names = [n for n in base["names"] if n.startswith("sigma_")]
+    default = base["default"]
+    check("total tools", default["total"], EXPECTED_DEFAULT)
+    check("read-only annotations", default["read_only"], EXPECTED_READ_ONLY)
+    check("destructive annotations", default["destructive"], EXPECTED_DESTRUCTIVE)
+    check("idempotent annotations", default["idempotent"], EXPECTED_IDEMPOTENT)
+    check("unannotated tools", default["unannotated"], 0)
+    check("tools without explicit readOnlyHint", default["missing_read_only_hint"], [])
+    for name in BULK_TOOLS:
+        check(f"{name} listed in full (gated at call time)", name in default["names"], True)
+    check("FULL_ONLY_TOOLS", set(base["full_only"]), EXPECTED_FULL_ONLY)
+
+    domains = tuple(EXPECTED_DOMAIN_COUNTS)
+    live_domains = {domain: sum(1 for n in default["names"] if n.startswith(f"{domain}_")) for domain in domains}
+    check("tools per domain", live_domains, EXPECTED_DOMAIN_COUNTS)
+    sigma_names = [n for n in default["names"] if n.startswith("sigma_")]
     doubled = [
         n
-        for n in base["names"]
+        for n in default["names"]
         if any(n.startswith(f"{domain}_{domain}_") or n.startswith(f"{domain}_sigma_") for domain in domains)
     ]
     sigma_prompts = [n for n in base["prompt_names"] if n.startswith("sigma_")]
@@ -145,79 +211,42 @@ def main() -> int:
     check("no prompt name starts with sigma_", sigma_prompts, [])
     check("prompts use a domain prefix", undomain_prompts, [])
     check("no resource URI starts with sigma_", sigma_resources, [])
-    check(
-        "bulk_deactivate absent by default",
-        "admin_bulk_deactivate_members" in base["names"],
-        False,
-    )
-    check(
-        "bulk_remove_team absent by default",
-        "admin_bulk_remove_team_members" in base["names"],
-        False,
-    )
 
-    print("\nSIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1:")
+    print("\nProfiles (total tools):")
+    for name, (total, _) in EXPECTED_PROFILE_COUNTS.items():
+        check(f"{name} total", base["profiles"].get(name, {}).get("total"), total)
+    check("profile names", set(base["profiles"]), set(EXPECTED_PROFILE_COUNTS))
+    in_jobs = set().union(*(set(base["profiles"][j]["names"]) for j in JOB_PROFILES))
+    check(
+        "every full tool is in a job profile or FULL_ONLY_TOOLS",
+        in_jobs | set(base["full_only"]),
+        set(default["names"]),
+    )
+    check("job profiles and FULL_ONLY_TOOLS are disjoint", in_jobs & set(base["full_only"]), set())
+
+    print("\nSIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 (listing unchanged):")
     bulk = probe(SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE="1")
-    check("total tools", bulk["total"], EXPECTED_WITH_BULK)
-    check("bulk destructive annotations", bulk["destructive"], 20)
-    check(
-        "bulk_deactivate present with opt-in",
-        "admin_bulk_deactivate_members" in bulk["names"],
-        True,
-    )
-    check(
-        "bulk_remove_team present with opt-in",
-        "admin_bulk_remove_team_members" in bulk["names"],
-        True,
-    )
+    check("total tools", bulk["default"]["total"], EXPECTED_DEFAULT)
 
-    print("\nSIGMA_MCP_READONLY=1:")
+    print("\nSIGMA_MCP_READONLY=1 composes with every profile (read-only tools only):")
     ro = probe(SIGMA_MCP_READONLY="1")
-    check("total tools", ro["total"], EXPECTED_READONLY)
-    check("every tool is read-only", ro["all_read_only"], True)
-    check(
-        "bulk_remove_team absent from readonly",
-        "admin_bulk_remove_team_members" in ro["names"],
-        False,
-    )
+    for name, (_, read_only) in EXPECTED_PROFILE_COUNTS.items():
+        report = ro["profiles"].get(name, {})
+        check(f"{name}+readonly total", report.get("total"), read_only)
+        check(f"{name}+readonly all read-only", report.get("all_read_only"), True)
+        check(
+            f"{name}+readonly names == {name} read-only names",
+            report.get("names"),
+            base["profiles"][name]["read_only_names"],
+        )
+    for name in BULK_TOOLS:
+        check(f"{name} listed under readonly", name in ro["default"]["names"], False)
 
     print("\nSIGMA_MCP_READONLY=1 + SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 (combined):")
     combined = probe(SIGMA_MCP_READONLY="1", SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE="1")
-    check("combined: every tool is read-only", combined["all_read_only"], True)
-    check(
-        "combined: bulk_deactivate absent",
-        "admin_bulk_deactivate_members" in combined["names"],
-        False,
-    )
-    check(
-        "combined: bulk_remove_team absent",
-        "admin_bulk_remove_team_members" in combined["names"],
-        False,
-    )
-
-    print("\nProfiles:")
-    core = probe(SIGMA_MCP_PROFILE="core")
-    admin = probe(SIGMA_MCP_PROFILE="admin")
-    embed = probe(SIGMA_MCP_PROFILE="embed")
-    check("core < admin", core["total"] < admin["total"], True)
-    check("core < embed", core["total"] < embed["total"], True)
-    check("embed != core", embed["total"] != core["total"], True)
-    check("admin < default", admin["total"] < base["total"], True)
-    print(f"  info core={core['total']} admin={admin['total']} embed={embed['total']}")
-
-    print("\nProfile + readonly compose:")
-    admin_ro = probe(SIGMA_MCP_PROFILE="admin", SIGMA_MCP_READONLY="1")
-    check("admin+readonly all read-only", admin_ro["all_read_only"], True)
-    check("admin+readonly <= admin", admin_ro["total"] <= admin["total"], True)
-    # Exact name-set comparison: every tool in admin+readonly must be exactly
-    # the read-only subset from the admin probe (no missing or extra tools).
-    admin_ro_name_set = set(admin_ro["names"])
-    admin_read_only_name_set = set(admin["read_only_names"])
-    check(
-        "admin+readonly names == admin read-only names",
-        admin_ro_name_set,
-        admin_read_only_name_set,
-    )
+    check("combined: every tool is read-only", combined["default"]["all_read_only"], True)
+    for name in BULK_TOOLS:
+        check(f"combined: {name} listed", name in combined["default"]["names"], False)
 
     if failures:
         print(f"\nFAILED — {len(failures)} contract violation(s):", file=sys.stderr)

@@ -4,11 +4,16 @@ import asyncio
 import inspect
 import json
 
-from sigma_mcp.server import mcp
+from sigma_mcp.server import DOMAIN_SERVERS
 
 
 async def _test_all_tools():
-    tools = mcp._tool_manager._tools
+    # Public API only: each domain sub-server lists its local FunctionTools (with .fn).
+    tools = {}
+    for domain, sub in DOMAIN_SERVERS:
+        for tool in await sub.list_tools():
+            tools[f"{domain}_{tool.name}"] = tool
+    assert len(tools) == 172
     print(f"Testing {len(tools)} registered tools with invalid args...")
     failures = []
     for name, tool_info in tools.items():

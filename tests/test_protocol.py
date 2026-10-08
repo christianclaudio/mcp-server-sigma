@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
-from mcp.types import CallToolResult
+from fastmcp.tools import ToolResult
 
 from sigma_mcp.server import main, mcp
 
@@ -82,7 +82,7 @@ async def test_dynamic_tool_call_dispatch() -> None:
     """Verify offline tool dispatch via MCPServer.call_tool."""
     res = await mcp.call_tool("admin_api_capabilities", {})
     assert res is not None
-    assert isinstance(res, CallToolResult)
+    assert isinstance(res, ToolResult)
     assert len(res.content) > 0
     assert not res.is_error
 

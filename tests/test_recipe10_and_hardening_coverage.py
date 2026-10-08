@@ -3,8 +3,8 @@
 Covers:
 - config.py: lenient boolean parsing
 - tools/common.py: _summarize_list edge cases
-- middleware.py: is_read_only_tool prefixes, ReadOnlyGateMiddleware, AdminDomainGuardMiddleware
-- server.py: _summarize_list, _ToolManagerCompat, create_server profiles and transforms, main()
+- middleware.py: ReadOnlyGateMiddleware, AdminDomainGuardMiddleware
+- server.py: _summarize_list, create_server profiles and transforms, main()
 - client.py: Recipe 10 formatters, SSRFSafeAsyncTransport, _validate_base_url, _validate_hostname_dns
 """
 
@@ -13,7 +13,7 @@ from __future__ import annotations
 import socket
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -38,13 +38,11 @@ from sigma_mcp.errors import SafetyViolationError, SigmaAPIError
 from sigma_mcp.middleware import (
     AdminDomainGuardMiddleware,
     ReadOnlyGateMiddleware,
-    is_read_only_tool,
 )
 from sigma_mcp.server import (
     _summarize_list as server_summarize_list,
 )
 from sigma_mcp.server import (
-    _ToolManagerCompat,
     create_server,
     main,
 )
@@ -89,25 +87,14 @@ def test_common_summarize_list_non_entries() -> None:
 # ============================================================================
 
 
-def test_middleware_is_read_only_tool_prefixes() -> None:
-    assert is_read_only_tool("workbooks_list_workbooks") is True
-    assert is_read_only_tool("datasets_get_dataset") is True
-    assert is_read_only_tool("elements_get_element") is True
-    assert is_read_only_tool("workspace_list_files") is True
-    assert is_read_only_tool("admin_list_members") is True
-
-    # Mutating with sub-server prefix
-    assert is_read_only_tool("admin_delete_file") is False
-    assert is_read_only_tool("workbooks_delete_workbook") is False
-    assert is_read_only_tool("custom_unknown_prefix_test") is False
-
-
 @pytest.mark.asyncio
 async def test_read_only_gate_middleware_blocks_mutation() -> None:
     mw = ReadOnlyGateMiddleware()
+    serving = SimpleNamespace(fastmcp=create_server(profile="full"))
     ctx = SimpleNamespace(
         method="tools/call",
         message=SimpleNamespace(name="workspace_delete_file"),
+        fastmcp_context=serving,
     )
     next_called = False
 
@@ -116,7 +103,7 @@ async def test_read_only_gate_middleware_blocks_mutation() -> None:
         next_called = True
         return "ok"
 
-    with patch("sigma_mcp.middleware.settings.MCP_READONLY", True):
+    with patch("sigma_mcp.config.settings.MCP_READONLY", True):
         with pytest.raises(SafetyViolationError, match="read-only mode"):
             await mw.on_message(ctx, dummy_next)  # type: ignore[arg-type]
         assert not next_called
@@ -125,8 +112,9 @@ async def test_read_only_gate_middleware_blocks_mutation() -> None:
     ctx_ro = SimpleNamespace(
         method="tools/call",
         message=SimpleNamespace(name="workbooks_list_workbooks"),
+        fastmcp_context=serving,
     )
-    with patch("sigma_mcp.middleware.settings.MCP_READONLY", True):
+    with patch("sigma_mcp.config.settings.MCP_READONLY", True):
         res = await mw.on_message(ctx_ro, dummy_next)  # type: ignore[arg-type]
         assert res == "ok"
         assert next_called
@@ -146,14 +134,14 @@ async def test_admin_domain_guard_middleware_blocks_bulk() -> None:
         next_called = True
         return "ok"
 
-    with patch("sigma_mcp.middleware.settings.MCP_ALLOW_BULK_DESTRUCTIVE", False):
+    with patch("sigma_mcp.config.settings.MCP_ALLOW_BULK_DESTRUCTIVE", False):
         with patch.dict("os.environ", {"SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE": ""}, clear=False):
             with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
                 await mw.on_message(ctx, dummy_next)  # type: ignore[arg-type]
             assert not next_called
 
     # When bulk destructive is allowed
-    with patch("sigma_mcp.middleware.settings.MCP_ALLOW_BULK_DESTRUCTIVE", True):
+    with patch("sigma_mcp.config.settings.MCP_ALLOW_BULK_DESTRUCTIVE", True):
         res = await mw.on_message(ctx, dummy_next)  # type: ignore[arg-type]
         assert res == "ok"
         assert next_called
@@ -180,92 +168,37 @@ def test_server_summarize_list_branches() -> None:
     ]
 
 
-def test_server_tool_manager_compat_uncovered_branches() -> None:
-    mock_server = MagicMock()
-    mock_provider = MagicMock()
-    mock_server.providers = [mock_provider]
-    mock_server._local_provider = mock_provider
-
-    # Tool with no name (empty)
-    unnamed_tool = MagicMock()
-    unnamed_tool.name = None
-
-    # Tool with non-sigma name
-    custom_tool = MagicMock()
-    custom_tool.name = "custom_lookup"
-    custom_tool.tags = []
-
-    mock_provider._components = {
-        "tool:unnamed": unnamed_tool,
-        "tool:custom": custom_tool,
-    }
-
-    compat = _ToolManagerCompat(mock_server)
-    tools = compat._tools
-    assert "custom_lookup" in tools
-    assert "sigma_custom_lookup" not in tools
-
-    # Test remove_tool
-    compat.remove_tool("custom_lookup")
-    mock_server.disable.assert_called_with(names={"custom_lookup"})
-    mock_provider.disable.assert_called_with(names={"custom_lookup"})
-
-
-def test_compat_listing_omits_mounted_tool_disabled_by_exposed_name() -> None:
-    from fastmcp import FastMCP
-
-    child = FastMCP("workbooks-fixture")
-
-    @child.tool(name="list_workbooks")
-    def list_workbooks() -> str:
-        return "ok"
-
-    @child.tool(name="get_workbook")
-    def get_workbook() -> str:
-        return "ok"
-
-    root = FastMCP("root-fixture")
-    root.mount(child, namespace="workbooks")
-    compat = _ToolManagerCompat(root)
-
-    listed = compat._tools
-    assert "workbooks_list_workbooks" in listed
-    assert "workbooks_get_workbook" in listed
-
-    compat.remove_tool("workbooks_list_workbooks")
-
-    listed = compat._tools
-    assert "workbooks_list_workbooks" not in listed
-    assert "workbooks_get_workbook" in listed
-
-
 def test_create_server_invalid_profile() -> None:
-    with pytest.raises(ValueError, match="Unknown SIGMA_MCP_PROFILE"):
+    with pytest.raises(ValueError, match="Unknown profile 'non_existent_profile'"):
         create_server(profile="non_existent_profile")
 
 
 def test_create_server_with_bulk_destructive_and_profiles() -> None:
     with patch.dict("os.environ", {"SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE": "1"}):
-        srv = create_server(profile="core")
+        srv = create_server(profile="access_admin")
         assert srv is not None
 
-    srv_admin = create_server(profile="admin")
-    assert srv_admin is not None
+    srv_author = create_server(profile="author")
+    assert srv_author is not None
 
     srv_embed = create_server(profile="embed")
     assert srv_embed is not None
 
 
-def test_create_server_enable_tool_search() -> None:
+@pytest.mark.asyncio
+async def test_create_server_enable_tool_search() -> None:
     srv = create_server(enable_tool_search=True)
-    assert srv is not None
-    assert len(srv._transforms) >= 1
+    assert [t.name for t in await srv.list_tools()] == ["search_tools", "call_tool"]
 
 
-def test_main_cli_profile_override() -> None:
+def test_main_cli_profile_override(monkeypatch: pytest.MonkeyPatch) -> None:
     import sys
 
-    with patch.object(sys, "argv", ["sigma_mcp", "--profile", "core", "--transport", "stdio"]):
+    import sigma_mcp.server as server_module
+
+    # main() rebinds the module-level server; restore it for later tests.
+    monkeypatch.setattr(server_module, "mcp", server_module.mcp)
+    with patch.object(sys, "argv", ["sigma_mcp", "--profile", "analyst", "--transport", "stdio"]):
         with patch("sigma_mcp.server.create_server", wraps=create_server) as mock_create:
             with patch("fastmcp.FastMCP.run"):
                 main()

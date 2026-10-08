@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# ─── sigma_bulk_deactivate_members safety ─────────────────────────────────────
+# ─── admin_bulk_deactivate_members safety ─────────────────────────────────────
 
 
 def _mock_client_with_members(members: list[dict]) -> MagicMock:
@@ -183,22 +183,29 @@ class TestReadonlyMode:
         assert result["all_read_only"] is True
         assert result["total"] > 0
 
-    def test_readonly_middleware_allows_verify_and_download(self) -> None:
-        from sigma_mcp.middleware import is_read_only_tool
+    @pytest.mark.asyncio
+    async def test_verify_and_download_tools_are_annotated_read_only(self) -> None:
+        from sigma_mcp.profiles import is_read_only_tool
+        from sigma_mcp.server import create_server
 
-        assert is_read_only_tool("workbooks_verify_workbook_spec")
-        assert is_read_only_tool("verify_workbook_spec")
-        assert is_read_only_tool("workbooks_verify_report_spec")
-        assert is_read_only_tool("verify_report_spec")
-        assert is_read_only_tool("workbooks_download_query_export")
-        assert is_read_only_tool("download_query_export")
+        app = create_server(profile="full")
+        for tool_name in (
+            "workbooks_verify_workbook_spec",
+            "workbooks_verify_report_spec",
+            "workbooks_download_query_export",
+        ):
+            assert is_read_only_tool(await app.get_tool(tool_name)), tool_name
 
     @pytest.mark.asyncio
     async def test_readonly_gate_middleware_permits_read_only_tools(self) -> None:
+        from types import SimpleNamespace
+
         from sigma_mcp.middleware import ReadOnlyGateMiddleware
+        from sigma_mcp.server import create_server
 
         gate = ReadOnlyGateMiddleware()
         next_mock = AsyncMock(return_value="ok")
+        serving = SimpleNamespace(fastmcp=create_server(profile="full"))
 
         for tool_name in (
             "workbooks_verify_workbook_spec",
@@ -209,6 +216,7 @@ class TestReadonlyMode:
             ctx.method = "tools/call"
             ctx.message = MagicMock()
             ctx.message.name = tool_name
+            ctx.fastmcp_context = serving
             with patch.dict(os.environ, {"SIGMA_MCP_READONLY": "1"}):
                 res = await gate.on_message(ctx, next_mock)
                 assert res == "ok"
@@ -231,7 +239,8 @@ asyncio.run(main())
 
 
 class TestBulkDestructiveGating:
-    def test_bulk_tools_absent_without_env(self) -> None:
+    def test_bulk_tools_listed_without_env(self) -> None:
+        """Bulk tools are listed in full; the admin domain guard refuses them at call time."""
         env = dict(os.environ)
         env["SIGMA_CLIENT_ID"] = "test"
         env["SIGMA_CLIENT_SECRET"] = "test"
@@ -248,8 +257,8 @@ class TestBulkDestructiveGating:
             check=True,
         )
         result = json.loads(out.stdout.strip())
-        assert "admin_bulk_deactivate_members" not in result["names"]
-        assert "admin_bulk_remove_team_members" not in result["names"]
+        assert "admin_bulk_deactivate_members" in result["names"]
+        assert "admin_bulk_remove_team_members" in result["names"]
 
     def test_bulk_tools_present_with_env(self) -> None:
         env = dict(os.environ)
@@ -308,15 +317,23 @@ class TestProfileFiltering:
         return json.loads(out.stdout.strip())
 
     def test_profile_counts(self) -> None:
-        core = self._probe_profile("core")
-        admin = self._probe_profile("admin")
-        embed = self._probe_profile("embed")
+        expected = {"analyst": 31, "author": 40, "modeler": 33, "embed": 50, "access_admin": 52}
+        for profile, count in expected.items():
+            assert self._probe_profile(profile)["count"] == count, profile
 
-        assert core["count"] > 0
-        assert admin["count"] > core["count"]
-        assert embed["count"] > core["count"]
-
-    def test_core_is_subset_of_admin(self) -> None:
-        core = set(self._probe_profile("core")["names"])
-        admin = set(self._probe_profile("admin")["names"])
-        assert core.issubset(admin), f"Core tools not in admin: {core - admin}"
+    def test_author_and_modeler_share_only_lookups(self) -> None:
+        """The former builder profile is split; author and modeler overlap on 10 lookups."""
+        author = set(self._probe_profile("author")["names"])
+        modeler = set(self._probe_profile("modeler")["names"])
+        assert author & modeler == {
+            "workbooks_list_workbooks",
+            "workbooks_get_workbook",
+            "workbooks_list_reports",
+            "workbooks_get_report",
+            "workbooks_list_report_sources",
+            "elements_list_workbook_page_elements",
+            "elements_list_workbook_elements",
+            "elements_get_element_query",
+            "elements_get_element_columns",
+            "admin_get_current_user",
+        }

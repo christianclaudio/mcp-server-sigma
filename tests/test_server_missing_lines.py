@@ -87,22 +87,23 @@ async def test_list_all_input_tables_element_scanning(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
-async def test_call_tool_compat_reraises_other_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
-    mock_call = AsyncMock(side_effect=RuntimeError("database crashed"))
-    monkeypatch.setattr(srv, "_orig_call_tool", mock_call)
-    with pytest.raises(RuntimeError, match="database crashed"):
-        await srv.mcp.call_tool("admin_api_capabilities", {})
+async def test_call_tool_unknown_name_is_fastmcp_unknown_tool() -> None:
+    from fastmcp.exceptions import NotFoundError
+
+    with pytest.raises(NotFoundError, match="Unknown tool: 'test_missing_tool'"):
+        await srv.mcp.call_tool("test_missing_tool", {})
 
 
 @pytest.mark.asyncio
-async def test_call_tool_compat_translates_not_found_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_built_server_dispatches_on_itself_not_the_module_default() -> None:
+    """A create_server() root runs its own catalog: a tool outside analyst is unknown there."""
     from fastmcp.exceptions import NotFoundError
-    from mcp.server.mcpserver.exceptions import ToolError
 
-    mock_call = AsyncMock(side_effect=NotFoundError("Tool not found"))
-    monkeypatch.setattr(srv, "_orig_call_tool", mock_call)
-    with pytest.raises(ToolError, match="Unknown tool: 'test_missing_tool'"):
-        await srv.mcp.call_tool("test_missing_tool", {})
+    analyst = srv.create_server(profile="analyst")
+    with pytest.raises(NotFoundError, match="Unknown tool: 'admin_api_capabilities'"):
+        await analyst.call_tool("admin_api_capabilities", {})
+    res = await srv.mcp.call_tool("admin_api_capabilities", {})
+    assert not res.is_error
 
 
 def test_uri_compat_hash_and_equality() -> None:

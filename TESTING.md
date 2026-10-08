@@ -5,6 +5,11 @@
 **Test method:** Live MCP protocol calls via `mcp__sigma__*` tools  
 **Result:** **100+ tools pass live, 0 bugs found**
 
+> Historical report: the counts below describe the server as of 2026-08-04. Current
+> per-profile counts are in the README Profiles section and `scripts/check_tool_contract.py`.
+> Since then the bulk-destructive tools are always listed in the `full` profile and are
+> refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
+
 ---
 
 ## Summary

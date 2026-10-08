@@ -8,7 +8,7 @@
 [![CodeRabbit Reviews](https://img.shields.io/coderabbit/prs/github/christianclaudio/mcp-server-sigma?utm_source=oss&utm_medium=github&utm_campaign=christianclaudio%2Fmcp-server-sigma&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 > **Supercharge your AI Agents with native Sigma Computing superpowers!** ⚡  
-> An enterprise-grade Model Context Protocol (MCP) server with **170 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
+> An enterprise-grade Model Context Protocol (MCP) server with **172 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
 
 ---
 
@@ -21,8 +21,8 @@
 > [!WARNING]
 > **Credentials & Safety Notice**  
 > This server uses API credentials scoped to your Sigma organization. Tools can mutate workbooks, users, teams, and data models.  
-> - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` (grants 90 read-only tools).  
-> - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are disabled by default and require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
+> - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` or `--profile readonly` (lists the 90 tools annotated `readOnlyHint=true` and refuses every other call).  
+> - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are listed in `full` but refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
 > - Read [SECURITY.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/SECURITY.md) before deploying to production.
 
 ---
@@ -161,7 +161,7 @@ source .env
 sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
-Point your local Codex / HTTP SSE client to `http://127.0.0.1:8000/sse`.
+Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`.
 
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>
@@ -266,41 +266,71 @@ Configure behavior using environment variables:
 | `SIGMA_CLIENT_SECRET` | *Required* | Your Sigma API client secret. |
 | `SIGMA_API_BASE_URL` | *Required* | Region-specific Sigma API host URL. Must be HTTPS and a host in `SIGMA_ALLOWED_HOSTS`. |
 | `SIGMA_ALLOWED_HOSTS` | official regional API hosts | Comma-separated hostname allowlist for `SIGMA_API_BASE_URL` and `X-Sigma-Base-Url`. Unset or empty uses the official Sigma regional API hosts. Loopback, private, link-local, and cloud-metadata targets are always rejected. |
-| `SIGMA_MCP_PROFILE` | `full` | Tool registration subset: `core` (38 tools), `admin` (56), `embed` (57), `full` (170). |
-| `SIGMA_MCP_READONLY` | `0` | Set `1` to register **only** read-only tools (90 tools). Models cannot alter org state. |
-| `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to enable bulk deactivate/remove operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) (172 total). |
+| `SIGMA_MCP_PROFILE` | `full` | Profile: `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin` (see [Profiles](#-profiles)). An unknown value fails at startup. |
+| `SIGMA_MCP_READONLY` | `0` | Set `1` to list **only** tools annotated `readOnlyHint=true` and refuse every other call (90 tools on `full`). Composes with any profile. |
+| `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to let the two listed bulk tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) execute. Without it they are refused at call time. |
+| `SIGMA_MCP_ENABLE_TOOL_SEARCH` | `0` | Set `1` (or `--enable-tool-search`) for Tool Search on `full` only. |
+| `SIGMA_MCP_TOOL_SEARCH_BACKEND` | `regex` | Tool Search backend: `regex` or `bm25` (or `--tool-search-backend`). |
+| `SIGMA_MCP_ENABLE_CODE_MODE` | `0` | Set `1` (or `--enable-code-mode`) for experimental Code Mode on `full` only; not with Tool Search. |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
 
 ---
 
+## 🧭 Profiles
+
+Pick a profile with `--profile` or `SIGMA_MCP_PROFILE` (default `full`). Every profile mounts all five domains (`workbooks`, `datasets`, `elements`, `workspace`, `admin`). Job profiles then expose only an explicit list of tool names for one job; prompts and resources stay available on every profile. Each listed name is checked against the full catalog when the server builds, so an unknown profile or a typo in a list fails at startup with `ValueError`.
+
+| Profile | Job it serves | Tools | With `SIGMA_MCP_READONLY=1` |
+| :--- | :--- | ---: | ---: |
+| `full` | Complete catalog, nothing omitted. Bulk tools are listed and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. Tool Search and Code Mode attach only here. | **172** | 90 |
+| `readonly` | Auditor / safe exploration: every tool annotated `readOnlyHint=true` across all mounts. | **90** | 90 |
+| `analyst` | Business user finds, reads, exports and schedules workbooks and reports, bookmarks views, and asks workbook agents. | **31** | 23 |
+| `author` | Workbook author builds, versions and verifies workbooks, reports and templates, and inspects elements while editing. | **40** | 28 |
+| `modeler` | Data modeler maintains connections and data models, swaps workbook/report/model sources and materializes elements. | **33** | 24 |
+| `embed` | Embedded-analytics engineer provisions tenants and tenant dashboards: templates, deployments, source swaps, embeds, tenant user attributes and connection syncs. | **50** | 27 |
+| `access_admin` | Org admin onboards and offboards members, manages teams, grants and user attributes, workspace/workbook/connection access, and org security settings. | **52** | 22 |
+
+Nine tools are in no job profile and are reachable only in `full`: `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`, `admin_api_capabilities`, and `admin_list_recent_webhooks`.
+
+### Read-only behavior
+
+* The MCP `readOnlyHint` annotation is the only thing that decides whether a tool is read-only. Every tool declares it explicitly: `true` on the 90 reads and `false` on the 82 writes. A tool with no annotation or no `readOnlyHint` counts as a write.
+* `--profile readonly` or `SIGMA_MCP_READONLY=1` (on any profile) lists only the read-only tools, and `ReadOnlyGateMiddleware` refuses any call to a real tool that is not read-only, including a write the filter hid. A refusal comes back as a tool result with `isError: true`.
+* A name that is not a tool on the server gets FastMCP's normal `Unknown tool` error, directly or through `call_tool`, so a typo is never reported as a blocked tool.
+* With Tool Search on, the gate checks the tool that `call_tool` wraps. Reads through `call_tool` work and writes are refused. Without Tool Search, `call_tool` is not a tool on the server, so a call to it gets `Unknown tool: 'call_tool'`.
+* If the gate cannot see the serving server, it refuses the call.
+
+### Bulk gate
+
+`admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are listed in `full`. The admin domain guard refuses them at call time (`isError: true`) unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`, and the handlers keep their own `confirm` / `dry_run` safeguards. Read-only mode hides and refuses them.
+
+### Tool Search and Code Mode
+
+`tools/list` is flat by default. Discovery is opt-in and attaches **only on `full`**:
+
+* `--enable-tool-search` / `SIGMA_MCP_ENABLE_TOOL_SEARCH=1` replaces `tools/list` with `search_tools` and `call_tool`. The backend is `regex` (default) or `bm25` (`--tool-search-backend` / `SIGMA_MCP_TOOL_SEARCH_BACKEND`).
+* `--enable-code-mode` / `SIGMA_MCP_ENABLE_CODE_MODE=1` attaches FastMCP's experimental Code Mode (`search`, `get_schema`, `execute`). It is skipped with a warning if the FastMCP build does not ship it.
+* Turning on both raises `ValueError`. Asking for either on another profile logs a warning and keeps the flat list.
+* `search_tools`, `search` and `get_schema` only read the catalog and are annotated `readOnlyHint=true`. Under read-only, Code Mode `execute` is refused.
+
+---
+
 ## 📊 Feature & Tool Summary
 
-The server registers **170 tools by default** across the following domain modules:
+The `full` profile lists **172 tools**. Every tool name starts with the domain it is mounted under:
 
-| Domain | Tools | Key Capabilities |
-|--------|-------|------------------|
-| **Workbooks** | 38 | CRUD, code representation (contents/spec), in-workbook agents, pages, elements, queries, exports, materializations, tags, grants, embeds |
-| **Reports** | 15 | CRUD, code representation (contents/spec), elements, queries, lineage, exports, schedules, sources, duplication |
-| **Admin & Org Settings** | 18 | Members, teams, org settings (aiChatHistory, auditLogging, emailBranding, etc.), AI config, IP allowlists, org workbook agents |
-| **Data Models** | 10 | CRUD, JSON spec inspection & editing, elements, columns, sources, swap, lineage, tags |
-| **Members** | 10 | List, get, create, update, deactivate, teams, bulk deactivate, email change, onboarding |
-| **Teams** | 10 | List, get, create, delete, members, bulk assign/remove, user attributes |
-| **Connections** | 7 | List, get, schema sync, connectivity test, columns, grants |
-| **Multi-Tenant** | 6 | List tenants, tenant info, capabilities, cross-tenant connection sync |
-| **Deployments** | 6 | List, get, create, add documents, archive |
-| **Templates** | 6 | List, get, instantiate, save from workbook, swap sources, shared templates |
-| **Workspaces** | 6 | List, get, create, delete, grants |
-| **User Attributes** | 9 | CRUD, user/team/tenant value assignments |
-| **Webhooks** | 6 | Webhook subscription management, payload signature validation, event history |
-| **Grants** | 5 | Access control lists, workbook/workspace/connection grants |
-| **Files & Folders** | 4 | Inode search, create folder, update, delete |
-| **Tags** | 4 | List, create, tag workbook, tag data model |
-| **Reference** | 4 | `admin_api_capabilities`, `elements_formula_pitfalls`, `elements_search_docs`, `elements_get_doc_page` |
-| **Composite Recipes** | 14 | High-level multi-step workflow recipes |
+| Domain | Tools | Covers |
+|--------|------:|--------|
+| `workbooks` | 54 | Workbooks, reports and templates: contents/spec, pages, versions, bookmarks, schedules, exports, tags, grants, embeds, workbook agents, template deployment |
+| `datasets` | 22 | Connections and data models: connection grants, tests and schema syncs, cross-tenant connection sync, data model specs, columns, lineage and source swaps |
+| `elements` | 21 | Workbook elements, columns, controls, queries and sources; materializations; source-swap policies; Sigma docs search and formula reference |
+| `workspace` | 15 | Workspaces and their grants, files and folders, tags |
+| `admin` | 60 | Members, teams, user attributes, tenants, deployments, grants, org settings, AI config, IP allowlists, API connectors, recent webhook events |
+| **Total** | **172** | |
 
-*Note: Domain categories overlap slightly. The 2 bulk-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are excluded by default and bring the total to 172 when enabled.*
+`scripts/check_tool_contract.py` fails CI if these counts drift from the live registry. The 2 bulk-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are in the `admin` count and are refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
 
 ---
 
@@ -332,9 +362,9 @@ Every tool includes structured MCP hints to assist AI clients with user permissi
 | Annotation | Count | Meaning |
 |------------|-------|---------|
 | `readOnlyHint=true` | 90 | Indicates intended non-mutation; clients may still require explicit user approval |
-| `destructiveHint=true` | 18 | Deletes, deactivates, or revokes; clients should prompt |
+| `destructiveHint=true` | 20 | Deletes, deactivates, or revokes; clients should prompt |
 | `idempotentHint=true` | 8 | Safe to retry; same input = same outcome |
-| `openWorldHint=true` | 170 | All tools hit an external API |
+| `openWorldHint=true` | 172 | All tools hit an external API |
 
 ---
 

@@ -81,26 +81,49 @@ while True:
     offset += limit
 ```
 
-## Profile-Based Tool Registration
+## Profiles and Build Order
 
-Four profiles control which tools are registered:
+`create_server()` builds a fresh root gateway per call and never mutates the shared
+domain sub-servers. Build order:
 
-| Profile | Env value | Tools |
-|---------|-----------|-------|
-| `core` | `SIGMA_MCP_PROFILE=core` | 36 — connections, workbooks, data models |
-| `admin` | `SIGMA_MCP_PROFILE=admin` | 52 — core + members, teams, deployments |
-| `embed` | `SIGMA_MCP_PROFILE=embed` | 55 — core + embeds, multi-tenant |
-| `full` | `SIGMA_MCP_PROFILE=full` (default) | 152 — all tools |
+1. **Domain mounts** — `workbooks`, `datasets`, `elements`, `workspace`, `admin`, each
+   mounted with its namespace (wire names are `<domain>_<tool>`).
+2. **Job allowlist** — job profiles hide every tool, then re-enable their allowlist
+   (`root.disable(components={"tool"})` then `root.enable(names=..., components={"tool"})`).
+   Prompts and resources are untouched. An allowlisted name missing from the catalog
+   raises `ValueError` at build.
+3. **Read-only filter** — under `profile=readonly` or `SIGMA_MCP_READONLY=1`, only tools
+   annotated `readOnlyHint=True` stay listed. A missing hint counts as a write.
+4. **Discovery** — Tool Search (`search_tools` + `call_tool`, regex or BM25) or
+   experimental Code Mode, on `full` only and never both. Other profiles log a warning
+   and stay flat.
 
-Additional env-var filters compose on top of the profile:
+| Profile | Job | Tools | Read-only |
+|---------|-----|------:|----------:|
+| `full` (default) | Every tool, including the 9 in `FULL_ONLY_TOOLS` | 172 | 90 |
+| `readonly` | Every `readOnlyHint=True` tool | 90 | 90 |
+| `analyst` | Consume workbooks and reports | 31 | 23 |
+| `author` | Build workbooks and reports | 40 | 28 |
+| `modeler` | Build data models and manage connections | 33 | 24 |
+| `embed` | Embedded analytics and multi-tenant | 50 | 27 |
+| `access_admin` | Users, teams, grants, and access | 52 | 22 |
 
-- **`SIGMA_MCP_READONLY=1`** — removes every tool whose MCP annotation does
-  not set `readOnlyHint=true`. Results in 80 read-only tools (at `full`).
-- **`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`** — registers the bulk-destructive
-  tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`).
-  Without this, they are not present. Adds 2 tools (154 total at `full`).
+The authoritative lists live in `src/sigma_mcp/profiles.py`; the expected counts live
+in `scripts/check_tool_contract.py`.
 
-**Filter application order:** profile → readonly → bulk-destructive gating.
+Call-time gates (root and admin middleware):
+
+- **`ReadOnlyGateMiddleware`** — in read-only mode refuses any real tool not annotated
+  `readOnlyHint=True`, looking the tool up with the public `get_tool`. It unwraps the
+  Tool Search `call_tool` proxy and judges the proxied tool, so reads through search work
+  and writes through search are refused. Unknown names pass through to FastMCP's
+  `Unknown tool` error. With no server context the call is refused (fail closed).
+- **`AdminDomainGuardMiddleware`** — `admin_bulk_deactivate_members` and
+  `admin_bulk_remove_team_members` are listed in `full` and refused at call time unless
+  `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
+
+Refusals raise `SafetyViolationError`, a FastMCP `ToolError`, so clients receive a
+`tools/call` result with `isError: true`.
 
 All tools are registered via `@mcp.tool()` decorators. The `@sigma_tool`
 decorator provides:

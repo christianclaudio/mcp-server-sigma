@@ -1,3 +1,15 @@
+---
+vcs:
+  system: github
+  remote: https://github.com/christianclaudio/mcp-server-sigma
+  owner: christianclaudio
+  repo: mcp-server-sigma
+  default_branch: main
+  branch_policy: pr_only
+  merge_method: squash
+  delete_branch_on_merge: true
+---
+
 # AGENTS.md
 
 Instructions for AI coding agents (Antigravity, Claude Code, Copilot, Cursor, Windsurf) working on this repository or integrating Sigma Computing cloud analytics capabilities.
@@ -6,7 +18,7 @@ Instructions for AI coding agents (Antigravity, Claude Code, Copilot, Cursor, Wi
 
 ## 🎯 Project Overview
 
-This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server covering the entire REST API surface (v2 and v3alpha) for **Sigma Computing**. Bulk-destructive tools register only when enabled; the expected default and bulk tool counts live in `scripts/check_tool_contract.py`.
+This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server covering the entire REST API surface (v2 and v3alpha) for **Sigma Computing**. Bulk-destructive tools are listed in `full` and refused at call time unless enabled; the expected per-profile tool counts live in `scripts/check_tool_contract.py`.
 
 **Primary Purpose**:
 Expose deep cloud business intelligence, embedded analytics, workbook lineage, SQL data modeling, user/team administration, and tenant token exchange to AI agents with strict enterprise safety gates, offline testing, and multi-tenant token isolation.
@@ -15,12 +27,13 @@ Expose deep cloud business intelligence, embedded analytics, workbook lineage, S
 
 ## 🏗️ Key Paths
 
-- `src/sigma_mcp/server.py` — root gateway: `create_server` mounts the domain sub-servers (`workbooks`, `datasets`, `elements`, `workspace`, `admin`) with matching namespaces; profiles, prompts, resources.
+- `src/sigma_mcp/server.py` — root gateway: `create_server` mounts the domain sub-servers (`workbooks`, `datasets`, `elements`, `workspace`, `admin`) with matching namespaces, then applies the job allowlist, the read-only filter, and (on `full` only) Tool Search or Code Mode; prompts, resources.
+- `src/sigma_mcp/profiles.py` — `PROFILES` (`full`, `readonly`, and the job profiles `analyst`, `author`, `modeler`, `embed`, `access_admin`), their tool allowlists, `FULL_ONLY_TOOLS`, `BULK_DESTRUCTIVE_TOOLS`, and the `readOnlyHint` filter.
 - `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds the `ANNOTATION_*` constants and shared helpers.
-- `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `errors.py` — exceptions and secret redaction. `webhooks.py` — HMAC verification. `middleware.py` — read-only and bulk-destructive gates. `config.py` — settings.
+- `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `errors.py` — exceptions and secret redaction. `webhooks.py` — HMAC verification. `middleware.py` — read-only gate (`readOnlyHint` only, unwraps the Tool Search `call_tool` proxy) and the admin bulk-destructive gate. `config.py` — settings.
 - `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. Do not hard-code tool counts elsewhere.
 - `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create-and-teardown against a Sigma org; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`, `scripts/determine_bump.py`.
-- `tests/` — unit tests are offline; live network tests live in `tests/test_e2e_live.py` (marked `pytest.mark.e2e`, deselected by default pytest `addopts` `-m 'not e2e'`, run with `-m e2e`). That test sets no skip and no env check; tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` skips unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID` are set. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`.
+- `tests/` — unit tests are offline; live network tests live in `tests/test_e2e_live.py` (marked `pytest.mark.e2e`, deselected by default pytest `addopts` `-m 'not e2e'`, run with `-m e2e`). That test sets no skip and no env check; tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` skips unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID` are set. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`. Profile, read-only, and composition tests are `tests/test_profiles.py` and `tests/test_layered.py`.
 - `.github/workflows/` — `ci.yml`, `release.yml`, `sigma-drift-monitor.yml`, `dependabot-automerge.yml`.
 - `server.json` (MCP Registry metadata), `Dockerfile`, `pyproject.toml`.
 
@@ -43,19 +56,19 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 
 ### 3. Tool Annotations & Gating
 - Pass MCP `ToolAnnotations` at registration with the `ANNOTATION_*` constants from `tools/common.py`:
-  - `readOnlyHint`: `True` for inspection/GET; `False` for mutations.
+  - `readOnlyHint`: `True` for inspection/GET; `False` for mutations. Every tool sets it explicitly; the read-only gate reads nothing else (a missing hint is treated as a write).
   - `destructiveHint`: `True` for delete/archive/deactivate actions; `False` otherwise.
   - `idempotentHint`: `True` only on `ANNOTATION_IDEMPOTENT`. `ANNOTATION_READ_ONLY` (GET) and `ANNOTATION_WRITE_SAFE` leave it unset.
   - `openWorldHint`: `True` when interacting with external networks/APIs.
 - Gating:
-  - Support `READONLY` mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) to filter out mutating tools.
-  - Support bulk protection (`SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`) for mass-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`).
-  - Support profile filtering (`SIGMA_MCP_PROFILE` or `--profile`: `core`, `admin`, `embed`, `full`, `readonly`).
+  - Read-only mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) keeps only tools annotated `readOnlyHint=True` and refuses every other call, directly or through `call_tool`, with a `SafetyViolationError` (a FastMCP `ToolError`, so `isError: true`).
+  - Bulk protection: `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are listed in `full` and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
+  - Profiles (`SIGMA_MCP_PROFILE` or `--profile`): `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin`. A new tool goes into the job profiles in `profiles.py` or into `FULL_ONLY_TOOLS`; unknown names fail at build. Tool Search and Code Mode attach on `full` only and never together.
 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
 - **Zero live network calls in the default suite.** Tests must run 100% offline in CI. Opt-in live modules are `tests/test_e2e_live.py` (`-m e2e`) and `tests/test_integration_live.py` (`SIGMA_LIVE_TESTS=1` plus `SIGMA_CLIENT_ID`).
-- Update expected tool count in `scripts/check_tool_contract.py` and `README.md`.
+- Update expected tool counts (per profile) in `scripts/check_tool_contract.py` and `README.md`.
 - Ensure test statement coverage remains at **100.0%** (`--cov-fail-under=100`). Branch coverage is not enabled.
 
 ---
