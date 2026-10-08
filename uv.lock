@@ -1363,7 +1363,6 @@ wheels = [
 
 [[package]]
 name = "mcp-server-sigma"
-version = "2.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },
