@@ -16,7 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
@@ -25,7 +28,7 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: '3.11'
 
@@ -36,13 +39,17 @@ jobs:
         id: drift-check
         run: |
           # We capture the output and write it to a file so we can include it in the issue if it fails
+          # Capture the exit code explicitly: under the default `bash -e` a failing
+          # command would end the step before DRIFT_STATUS is written.
+          set +e
           uv run python scripts/check_openapi_drift.py > drift_results.txt 2>&1
-          echo "DRIFT_STATUS=$?" >> $GITHUB_ENV
-        continue-on-error: true
+          status=$?
+          set -e
+          echo "DRIFT_STATUS=${status}" >> "$GITHUB_ENV"
 
       - name: Create Issue on Failure
         if: env.DRIFT_STATUS != '0'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
           script: |
             const fs = require('fs');
@@ -53,22 +60,34 @@ jobs:
               console.error(err);
             }
             
-            const issueTitle = "⚠️ Alert: Sigma API Drift Detected";
-            const issueBody = `### Sigma API Drift Monitor Alert
-            
-            The scheduled weekly OpenAPI drift scan detected mismatching, deleted, or new endpoints in the Sigma Computing REST specification.
-            
-            #### Scan Output:
-            \`\`\`text
-            ${driftOutput}
-            \`\`\`
-            
-            Please inspect the changes, update the \`client.py\` methods or the \`drift_allowlist.txt\` file, and release an update.`;
-            
+            const status = process.env.DRIFT_STATUS;
+            // Exit 1 is also an uncaught Python exception, so drift needs the script's own summary line.
+            const drift = status === '1' && driftOutput.includes('❌ Drift detected');
+            const issueTitle = drift
+              ? "Sigma API drift: client calls endpoints missing from the spec"
+              : `Sigma API drift monitor failed (exit ${status})`;
+            const summary = drift
+              ? "The OpenAPI drift scan found client endpoints that are not in the Sigma Computing REST specification (possibly wrong or removed paths)."
+              : "The OpenAPI drift scan could not finish (spec fetch failure, or an error in the script or its environment), so there is no drift result.";
+            const issueBody = [
+              "### Sigma API Drift Monitor",
+              "",
+              summary,
+              "",
+              "#### Scan Output",
+              "```text",
+              driftOutput,
+              "```",
+              "",
+              drift
+                ? "Please inspect the output, then fix the `src/sigma_mcp/client.py` methods or add the endpoint to `scripts/drift_allowlist.txt`."
+                : "Fix the failing step shown in the output, then re-run the workflow.",
+            ].join("\n");
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: issueTitle,
               body: issueBody,
-              labels: ["bug", "dependencies"]
+              labels: ["bug", "dependencies", "forge-todo"]
             });

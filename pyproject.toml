@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-sigma"
-version = "2.0.1"
+dynamic = ["version"]
 description = "Enterprise Model Context Protocol (MCP) server for Sigma Computing — provision dashboards, construct data models, and automate cloud analytics."
 readme = "README.md"
 license = "Apache-2.0"
@@ -52,11 +52,23 @@ Homepage = "https://github.com/christianclaudio/mcp-server-sigma"
 Repository = "https://github.com/christianclaudio/mcp-server-sigma"
 Issues = "https://github.com/christianclaudio/mcp-server-sigma/issues"
 Documentation = "https://github.com/christianclaudio/mcp-server-sigma#readme"
-Changelog = "https://github.com/christianclaudio/mcp-server-sigma/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/christianclaudio/mcp-server-sigma/releases"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.32.4,<2", "uv-dynamic-versioning>=0.14.1,<0.15"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+fallback-version = "0.0.0"
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sigma_mcp"]

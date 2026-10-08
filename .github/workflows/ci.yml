@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  actions: read
 
 jobs:
   lint:
@@ -17,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
@@ -45,6 +46,9 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
@@ -63,6 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
@@ -73,8 +80,9 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: uv sync --locked --extra dev --python 3.12
-      # Guards the counts published in README against silent drift, and proves
-      # the safety env vars actually change what gets registered.
+      # Guards the tool, annotation and profile counts published in README, and checks
+      # the safety gates: SIGMA_MCP_READONLY=1 keeps only readOnlyHint=True tools, and the
+      # bulk-destructive tools stay listed but are refused without SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
       - name: Assert tool counts and safety gating
         run: uv run python scripts/check_tool_contract.py
 
@@ -83,6 +91,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
@@ -114,6 +125,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         with:
@@ -126,10 +140,12 @@ jobs:
         run: uv sync --locked --extra dev --python 3.12
       - name: Build
         run: uv run python -m build
+      - name: Reject fallback and untagged versions
+        run: uv run python scripts/check_version.py
       - name: Twine check
         run: uv run twine check dist/*
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: dist-${{ github.sha }}
           path: dist/
@@ -140,6 +156,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build Docker image
         run: docker build -t mcp-server-sigma:ci-${{ github.sha }} .
       - name: Verify entrypoint
@@ -149,16 +167,14 @@ jobs:
     name: CodeQL
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
+      actions: read          # CodeQL reads workflow run metadata
       contents: read
+      security-events: write # upload the SARIF results
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: github/codeql-action/init@v4
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3
         with:
           languages: python
-      - uses: github/codeql-action/analyze@v4
-        # SARIF upload may fail with "Resource not accessible by integration" on
-        # repos where the default GITHUB_TOKEN lacks security-events write access.
-        # The scan itself still runs; this only affects result visibility in the
-        # Security tab. Safe to suppress until GitHub fixes token propagation.
-        continue-on-error: true
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4.38.3
