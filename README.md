@@ -319,30 +319,18 @@ Nine tools are in no job profile and are reachable only in `full`: `workspace_de
 
 ## 📊 Feature & Tool Summary
 
-The `full` profile lists **172 tools** across the following domain modules:
+The `full` profile lists **172 tools**. Every tool name starts with the domain it is mounted under:
 
-| Domain | Tools | Key Capabilities |
-|--------|-------|------------------|
-| **Workbooks** | 38 | CRUD, code representation (contents/spec), in-workbook agents, pages, elements, queries, exports, materializations, tags, grants, embeds |
-| **Reports** | 15 | CRUD, code representation (contents/spec), elements, queries, lineage, exports, schedules, sources, duplication |
-| **Admin & Org Settings** | 18 | Members, teams, org settings (aiChatHistory, auditLogging, emailBranding, etc.), AI config, IP allowlists, org workbook agents |
-| **Data Models** | 10 | CRUD, JSON spec inspection & editing, elements, columns, sources, swap, lineage, tags |
-| **Members** | 10 | List, get, create, update, deactivate, teams, bulk deactivate, email change, onboarding |
-| **Teams** | 10 | List, get, create, delete, members, bulk assign/remove, user attributes |
-| **Connections** | 7 | List, get, schema sync, connectivity test, columns, grants |
-| **Multi-Tenant** | 6 | List tenants, tenant info, capabilities, cross-tenant connection sync |
-| **Deployments** | 6 | List, get, create, add documents, archive |
-| **Templates** | 6 | List, get, instantiate, save from workbook, swap sources, shared templates |
-| **Workspaces** | 6 | List, get, create, delete, grants |
-| **User Attributes** | 9 | CRUD, user/team/tenant value assignments |
-| **Webhooks** | 6 | Webhook subscription management, payload signature validation, event history |
-| **Grants** | 5 | Access control lists, workbook/workspace/connection grants |
-| **Files & Folders** | 4 | Inode search, create folder, update, delete |
-| **Tags** | 4 | List, create, tag workbook, tag data model |
-| **Reference** | 4 | `admin_api_capabilities`, `elements_formula_pitfalls`, `elements_search_docs`, `elements_get_doc_page` |
-| **Composite Recipes** | 14 | High-level multi-step workflow recipes |
+| Domain | Tools | Covers |
+|--------|------:|--------|
+| `workbooks` | 54 | Workbooks, reports and templates: contents/spec, pages, versions, bookmarks, schedules, exports, tags, grants, embeds, workbook agents, template deployment |
+| `datasets` | 22 | Connections and data models: connection grants, tests and schema syncs, cross-tenant connection sync, data model specs, columns, lineage and source swaps |
+| `elements` | 21 | Workbook elements, columns, controls, queries and sources; materializations; source-swap policies; Sigma docs search and formula reference |
+| `workspace` | 15 | Workspaces and their grants, files and folders, tags |
+| `admin` | 60 | Members, teams, user attributes, tenants, deployments, grants, org settings, AI config, IP allowlists, API connectors, recent webhook events |
+| **Total** | **172** | |
 
-*Note: Domain categories overlap slightly. The 2 bulk-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are included in the 172 and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.*
+`scripts/check_tool_contract.py` fails CI if these counts drift from the live registry. The 2 bulk-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are in the `admin` count and are refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
 
 ---
 

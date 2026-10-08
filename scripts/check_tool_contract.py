@@ -35,6 +35,15 @@ EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
 }
 JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
 
+# Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
+EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
+    "workbooks": 54,
+    "datasets": 22,
+    "elements": 21,
+    "workspace": 15,
+    "admin": 60,
+}
+
 # Expected annotation split on ``full``.
 EXPECTED_DEFAULT = EXPECTED_PROFILE_COUNTS["full"][0]
 EXPECTED_READONLY = EXPECTED_PROFILE_COUNTS["readonly"][0]
@@ -147,6 +156,11 @@ def parse_readme_counts() -> dict[str, Any]:
         results[key] = int(m.group(1))
     rows = re.findall(r"^\| `([a-z_]+)` \| [^|]+ \| \*\*(\d+)\*\* \| (\d+) \|$", readme, flags=re.M)
     results["profiles"] = {name: (int(total), int(ro)) for name, total, ro in rows}
+    domain_alt = "|".join(EXPECTED_DOMAIN_COUNTS)
+    domain_rows = re.findall(rf"^\| `({domain_alt})` \| (\d+) \|", readme, flags=re.M)
+    results["domains"] = {name: int(count) for name, count in domain_rows}
+    total = re.search(r"^\| \*\*Total\*\* \| \*\*(\d+)\*\* \|", readme, flags=re.M)
+    results["domain_total"] = int(total.group(1)) if total else None
     return results
 
 
@@ -164,6 +178,8 @@ def main() -> int:
     check("README default_total", readme_counts["default_total"], EXPECTED_DEFAULT)
     check("README readonly", readme_counts["readonly"], EXPECTED_READONLY)
     check("README profile table", readme_counts["profiles"], EXPECTED_PROFILE_COUNTS)
+    check("README domain table", readme_counts["domains"], EXPECTED_DOMAIN_COUNTS)
+    check("README domain table total", readme_counts["domain_total"], EXPECTED_DEFAULT)
 
     print("\nDefault registration (profile=full):")
     base = probe()
@@ -178,7 +194,9 @@ def main() -> int:
         check(f"{name} listed in full (gated at call time)", name in default["names"], True)
     check("FULL_ONLY_TOOLS", set(base["full_only"]), EXPECTED_FULL_ONLY)
 
-    domains = ("workbooks", "datasets", "elements", "workspace", "admin")
+    domains = tuple(EXPECTED_DOMAIN_COUNTS)
+    live_domains = {domain: sum(1 for n in default["names"] if n.startswith(f"{domain}_")) for domain in domains}
+    check("tools per domain", live_domains, EXPECTED_DOMAIN_COUNTS)
     sigma_names = [n for n in default["names"] if n.startswith("sigma_")]
     doubled = [
         n
@@ -228,7 +246,7 @@ def main() -> int:
     combined = probe(SIGMA_MCP_READONLY="1", SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE="1")
     check("combined: every tool is read-only", combined["default"]["all_read_only"], True)
     for name in BULK_TOOLS:
-        check(f"combined: {name} absent", name in combined["default"]["names"], False)
+        check(f"combined: {name} listed", name in combined["default"]["names"], False)
 
     if failures:
         print(f"\nFAILED — {len(failures)} contract violation(s):", file=sys.stderr)

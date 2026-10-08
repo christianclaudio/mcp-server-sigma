@@ -133,6 +133,14 @@ class Settings(BaseSettings):
                 return True
         return bool(v)
 
+    @field_validator("MCP_TOOL_SEARCH_BACKEND", mode="before")
+    @classmethod
+    def _normalize_search_backend(cls, v: Any) -> Any:
+        """Strip and lowercase env strings (``BM25``, ``" bm25"``); unknown values still fail the Literal."""
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
 
 settings = Settings()
 

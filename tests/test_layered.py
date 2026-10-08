@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastmcp import FastMCP
 from fastmcp.server.middleware import MiddlewareContext
+from pydantic import ValidationError
 
 from sigma_mcp import server
 from sigma_mcp.config import Settings, settings
@@ -380,3 +381,17 @@ def test_sigma_settings_discovery_defaults(monkeypatch: pytest.MonkeyPatch) -> N
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.MCP_ENABLE_CODE_MODE is True
     assert s.MCP_TOOL_SEARCH_BACKEND == "bm25"
+
+
+def test_sigma_settings_search_backend_case_insensitive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An env value set before Settings() is stripped and lowercased; unknown values still fail."""
+    monkeypatch.setenv("SIGMA_MCP_TOOL_SEARCH_BACKEND", " BM25 ")
+    assert Settings(_env_file=None).MCP_TOOL_SEARCH_BACKEND == "bm25"  # type: ignore[call-arg]
+    monkeypatch.setenv("SIGMA_MCP_TOOL_SEARCH_BACKEND", "Regex")
+    assert Settings(_env_file=None).MCP_TOOL_SEARCH_BACKEND == "regex"  # type: ignore[call-arg]
+    monkeypatch.setenv("SIGMA_MCP_TOOL_SEARCH_BACKEND", "fuzzy")
+    with pytest.raises(ValidationError, match="literal_error"):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+    monkeypatch.delenv("SIGMA_MCP_TOOL_SEARCH_BACKEND")
+    with pytest.raises(ValidationError, match="literal_error"):
+        Settings(_env_file=None, MCP_TOOL_SEARCH_BACKEND=25)  # type: ignore[call-arg, arg-type]
