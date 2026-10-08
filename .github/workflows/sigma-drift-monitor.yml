@@ -48,7 +48,7 @@ jobs:
 
       - name: Create Issue on Failure
         if: env.DRIFT_STATUS != '0'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
           script: |
             const fs = require('fs');
@@ -59,18 +59,29 @@ jobs:
               console.error(err);
             }
             
-            const issueTitle = "⚠️ Alert: Sigma API Drift Detected";
-            const issueBody = `### Sigma API Drift Monitor Alert
-            
-            The scheduled weekly OpenAPI drift scan detected mismatching, deleted, or new endpoints in the Sigma Computing REST specification.
-            
-            #### Scan Output:
-            \`\`\`text
-            ${driftOutput}
-            \`\`\`
-            
-            Please inspect the changes, update the \`client.py\` methods or the \`drift_allowlist.txt\` file, and release an update.`;
-            
+            const status = process.env.DRIFT_STATUS;
+            const drift = status === '1';
+            const issueTitle = drift
+              ? "Sigma API drift: client calls endpoints missing from the spec"
+              : `Sigma API drift monitor failed (exit ${status})`;
+            const summary = drift
+              ? "The scheduled weekly OpenAPI drift scan found client endpoints that are not in the Sigma Computing REST specification (possibly wrong or removed paths)."
+              : "The scheduled weekly OpenAPI drift scan could not finish (spec fetch or script error), so there is no drift result.";
+            const issueBody = [
+              "### Sigma API Drift Monitor",
+              "",
+              summary,
+              "",
+              "#### Scan Output",
+              "```text",
+              driftOutput,
+              "```",
+              "",
+              drift
+                ? "Please inspect the output, then fix the `src/sigma_mcp/client.py` methods or add the endpoint to `scripts/drift_allowlist.txt`."
+                : "Fix the failing step shown in the output, then re-run the workflow.",
+            ].join("\n");
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
