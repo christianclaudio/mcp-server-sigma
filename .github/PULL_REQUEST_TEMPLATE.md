@@ -11,7 +11,6 @@
 - [ ] If tools were added/removed: tool-count and annotation assertions updated
 - [ ] If a tool writes or deletes: correct annotation (`destructiveHint`) and, where relevant, `dry_run`/`confirm` gating
 - [ ] If behavior changed: README / `docs/` updated
-- [ ] `CHANGELOG.md` updated
 - [ ] No secrets, tokens, or real org IDs committed
 
 ## Verification
