@@ -75,14 +75,14 @@ python scripts/check_openapi_drift.py
 ```
 
 ### 2. Tool Contract Validation
-Asserts registered tool counts, MCP 2.0 annotations (`readOnlyHint`, `destructiveHint`), and profile gating:
+Asserts tool counts per profile and per domain (and the matching README tables), `ToolAnnotations` counts (`readOnlyHint`, `destructiveHint`, `idempotentHint`), an explicit `readOnlyHint` on every tool, the read-only and bulk-destructive gates, and domain-prefixed names:
 ```bash
 python scripts/check_tool_contract.py
 ```
 
 ### 3. Code Formatting & Static Analysis
 ```bash
-ruff check src/ tests/
+ruff check .
 ruff format --check .
 mypy --strict src/
 ```
@@ -96,8 +96,8 @@ Adding a tool takes just 3 simple steps:
 1. **Add Client Method** (`src/sigma_mcp/client.py`):
    ```python
    async def get_something(self, resource_id: str) -> JSONValue:
-       path = f"/v2/resource/{urllib.parse.quote(resource_id, safe='')}"
-       return (await self._request("GET", path)).json()
+       # _request() encodes every path segment with _encode_segment(); pass the raw ID.
+       return await self.get(f"/v2/resource/{resource_id}")
    ```
 
 2. **Register Server Tool** on the domain sub-server (wire name is `{domain}_get_something`, for example `admin_get_something`):
@@ -159,6 +159,12 @@ To maintain a clean, linear, and readable commit history on the default branch:
 *   **Branch Synchronization**: Always keep your feature branch updated with `main`. You can safely merge `main` back into your branch or use GitHub's "Update branch" feature. Ensure all tests and lint checks pass on the synchronized state before merging.
 *   **Squash Merging**: This repository enforces **Squash Merging only**. When your PR is merged, all commits on your branch will be squashed into a single commit on `main`.
 *   **PR Title Convention**: Because the Pull Request title is used to generate the default squash commit title on `main`, please ensure it follows the **Conventional Commits** specification (e.g., `feat: add user attribute tools`, `fix: sanitize path inputs`).
+
+---
+
+## 🔀 Pull Requests & Versions
+
+Merges are performed via **Squash Merge** with Conventional Commit titles (`feat:`, `fix:`, `docs:`, `chore:`). Do not edit version numbers or `CHANGELOG.md`: the git tag is the version, and GitHub Releases are the changelog. The squash commit message is the PR body, so every breaking PR (any `type!:` title, such as `feat!:` or `fix!:`) carries a `BREAKING CHANGE:` footer, with the migration steps, as the final paragraph of the PR body before CodeRabbit's generated summary. `scripts/release_notes.py` stops at the CodeRabbit marker line and ignores everything after it, so a footer inside that summary never reaches the release notes.
 
 ---
 

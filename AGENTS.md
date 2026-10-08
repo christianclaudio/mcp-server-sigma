@@ -32,9 +32,10 @@ Expose deep cloud business intelligence, embedded analytics, workbook lineage, S
 - `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds the `ANNOTATION_*` constants and shared helpers.
 - `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `errors.py` — exceptions and secret redaction. `webhooks.py` — HMAC verification. `middleware.py` — read-only gate (`readOnlyHint` only, unwraps the Tool Search `call_tool` proxy) and the admin bulk-destructive gate. `config.py` — settings.
 - `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. Do not hard-code tool counts elsewhere.
-- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create-and-teardown against a Sigma org; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`, `scripts/determine_bump.py`.
-- `tests/` — unit tests are offline; live network tests live in `tests/test_e2e_live.py` (marked `pytest.mark.e2e`, deselected by default pytest `addopts` `-m 'not e2e'`, run with `-m e2e`). That test sets no skip and no env check; tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` skips unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID` are set. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`. Profile, read-only, and composition tests are `tests/test_profiles.py` and `tests/test_layered.py`.
-- `.github/workflows/` — `ci.yml`, `release.yml`, `sigma-drift-monitor.yml`, `dependabot-automerge.yml`.
+- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create-and-teardown against a Sigma org; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`.
+- `scripts/release_notes.py` — release body from squash commits since the previous `v*` tag. `scripts/check_version.py` — runs after the build and reads the version from the single wheel in `dist/` (the file that ships, as release.yml's tag check does); fails on `0.0.0` (no git metadata) or `0.0.1.devN` (no reachable tag, a shallow checkout).
+- `tests/` — unit tests are offline; live network tests live in `tests/test_e2e_live.py` (marked `pytest.mark.e2e`, deselected by default pytest `addopts` `-m 'not e2e'`, run with `-m e2e`). That test sets no skip and no env check; tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` skips unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID` are set. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`. Profile, read-only, and composition tests are `tests/test_profiles.py` and `tests/test_layered.py`. Version and release-tooling tests are `tests/test_version.py`, `tests/test_release_notes.py`, and `tests/test_check_version.py`.
+- `.github/workflows/` — `ci.yml`, `release.yml` (on a `v*` tag: build with full history, check the wheel version matches the tag, build the release notes, publish to PyPI, create the GitHub Release from `scripts/release_notes.py`, stamp the tag version into `server.json` and publish to the MCP Registry, then push the Docker image only after the publish job succeeds), `sigma-drift-monitor.yml`, `dependabot-automerge.yml`.
 - `server.json` (MCP Registry metadata), `Dockerfile`, `pyproject.toml`.
 
 ---
@@ -46,7 +47,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 ### 1. Client Method (`client.py`)
 - Implement a dedicated `async def` method on `SigmaClient`.
 - Type all arguments strictly. Never use bare `dict` or `Any` when a concrete schema or literal is known.
-- URL path parameters **must** be safely quoted using `_encode_segment()` preserving colons on custom methods (e.g. `{id}:materialize`) while eliminating path traversal vulnerabilities (`..` $\rightarrow$ `%2E%2E`).
+- URL path parameters are encoded per segment by `_encode_segment()` inside `_request()`, preserving colons on custom methods (e.g. `{id}:materialize`) while eliminating path traversal vulnerabilities (`..` $\rightarrow$ `%2E%2E`). Pass raw IDs in the path; do not pre-quote them, or they are encoded twice.
 - Call `await self._request("METHOD", path, params=..., json_data=...)`.
 
 ### 2. Tool Handler (`tools/<domain>.py`)
@@ -90,8 +91,14 @@ When translating an API documentation page or OpenAPI specification into an MCP 
    - Webhook payloads must be verified using `hmac.compare_digest` to prevent timing attacks.
 7. **Registry Metadata Constraint**:
    - In `server.json`, the root `description` must be **strictly $\le$ 100 characters** to pass MCP Registry schema validation (longer strings trigger HTTP 422).
-8. **Git Safety**:
+8. **Git Safety & Releases**:
    - Never commit API secrets or tenant credentials. All changes proceed via feature branches and PRs.
+   - **The git tag is the version.** `uv-dynamic-versioning` reads the `vX.Y.Z` tag at build time; `pyproject.toml` declares `dynamic = ["version"]`, `__version__` comes from `importlib.metadata`, and `server.json` commits `0.0.0` (the release workflow stamps the tag version into it). PRs never edit a version: no bump in `pyproject.toml`, `src/sigma_mcp/__init__.py`, `server.json`, `uv.lock`, or `CHANGELOG.md`. Untagged builds report `X.Y.(Z+1).devN+<sha>`; a build with no git metadata reports the fallback `0.0.0`, which `scripts/check_version.py` rejects when run on the built wheel after the build.
+   - **Breaking changes:** every `feat!` / `fix!` PR (any `type!:` title) carries a `BREAKING CHANGE:` footer as the final paragraph of the PR body, and the footer text must include the migration steps. `BREAKING CHANGE:` (or its synonym `BREAKING-CHANGE:`) is the only footer token; do not add a separate migration token. `scripts/release_notes.py` stops at the CodeRabbit marker line (outside a code fence) `<!-- This is an auto-generated comment: release notes by coderabbit.ai -->` and ignores everything after it, so the footer goes before CodeRabbit's generated summary, never inside it.
+   - **Squash merges use the PR body as the commit message** (repo settings: PR title as squash title, PR body as squash message). Keep the PR body accurate up to the merge, because `scripts/release_notes.py` reads it from the squash commit.
+   - **`CHANGELOG.md` is frozen** as of 1.2.2. GitHub Releases are the changelog: `scripts/release_notes.py` builds each release body from the squash commits since the previous tag (every `BREAKING CHANGE:` footer verbatim, then the commit subjects). Do not add CHANGELOG entries.
+   - `skills/sigma-mcp/SKILL.md` carries no version: the [Agent Skills specification](https://agentskills.io/specification) has no top-level `version` field. Do not add one. Update the skill only when its operator guidance changes.
+   - **README is outside the release version ceremony.** Do not add or chase `README.md` `==X.Y.Z` install pins. Update `README.md` only when project behavior, install method, config, or commands actually change. Prefer unpinned install examples (`uvx --from mcp-server-sigma sigma-mcp`) or point readers to GitHub Releases.
 
 ---
 
@@ -119,6 +126,9 @@ uv run python scripts/check_openapi_drift.py
 # Protocol integration tests (stdio handshake & stateless streamable HTTP)
 uv run pytest tests/test_protocol.py
 
+# Build version guard (reads the single wheel in dist/; rejects 0.0.0 and the untagged 0.0.1.devN)
+rm -rf dist && uv build && uv run python scripts/check_version.py
+
 # Local pre-commit CodeRabbit CLI review
 coderabbit review --agent --uncommitted
 ```
@@ -127,6 +137,16 @@ coderabbit review --agent --uncommitted
 
 ## 🔄 CI & Releases
 
-CI is defined in `.github/workflows/ci.yml` (jobs: lint and types, tests on Python 3.10–3.13 at 100% coverage, tool contract and env gating, OpenAPI drift and conformance, build + `twine check`, Docker build, CodeQL). Run the commands above before opening a PR. Scheduled upstream drift runs in `sigma-drift-monitor.yml`.
+CI is defined in `.github/workflows/ci.yml` (jobs: lint and types, tests on Python 3.10–3.13 at 100% coverage, tool contract and env gating, OpenAPI drift and conformance, build + `scripts/check_version.py` + `twine check`, Docker build, CodeQL). Jobs that install or build the package check out with `fetch-depth: 0`, because a shallow checkout has no reachable tag and reports `0.0.1.devN`. The Docker build context has no `.git`: the CI Docker build is an entrypoint check that keeps the `0.0.0` fallback, and `release.yml` passes the tag version as `UV_DYNAMIC_VERSIONING_BYPASS`. Run the commands above before opening a PR. Scheduled upstream drift runs in `sigma-drift-monitor.yml`.
 
-Do not create tags or releases unless the maintainer asks.
+Do not create tags or releases unless the maintainer asks. There is no release PR: merged commits accumulate on `main`, and releases go out on any weekday on the maintainer's go; no fixed release day. Before the tag:
+
+- The release owner previews the release body on an up-to-date `main` with full history and tags (`git fetch --tags && python3 scripts/release_notes.py`) and posts it with the release Ask.
+- The reviewer checks the proposed version against the commit types since the last tag (`!` / `BREAKING CHANGE:` → major, `feat` → minor, otherwise patch), that every breaking commit carries its footer with migration steps, and that the version is unused in all three places it could already exist:
+  ```bash
+  git ls-remote --tags origin vX.Y.Z                                                    # prints nothing
+  curl -s -o /dev/null -w '%{http_code}\n' https://pypi.org/pypi/mcp-server-sigma/X.Y.Z/json   # prints 404
+  curl -s -o /dev/null -w '%{http_code}\n' https://registry.modelcontextprotocol.io/v0.1/servers/io.github.christianclaudio%2Fsigma/versions/X.Y.Z   # prints 404
+  ```
+  In a throwaway clone, the reviewer tags the release commit locally, runs `rm -rf dist && uv build`, and confirms the wheel is `mcp_server_sigma-X.Y.Z-py3-none-any.whl` and `scripts/check_version.py` passes; then discards the clone without pushing.
+- Only the maintainer's go creates the tag. PyPI never accepts the same version twice: if a release fails after the PyPI upload, do not re-run it; merge a fix and tag the next patch.

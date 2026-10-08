@@ -1,6 +1,13 @@
 # Changelog
 
+> **This file is frozen as of 1.2.2. Release notes now live on [GitHub Releases](https://github.com/christianclaudio/mcp-server-sigma/releases).**
+> Each release body is generated from the squash commits since the previous tag by `scripts/release_notes.py`, including every `BREAKING CHANGE:` footer and its migration steps. Do not add entries here; the history below is kept for reference.
+
+All notable changes through 1.2.2 are documented in this file. The `[Unreleased]`, `2.0.1` and `2.0.0` entries were pending at the freeze: 2.0.0 and 2.0.1 were never tagged or published, so all three ship in the first release after 1.2.2.
+
 ## [Unreleased]
+
+*Frozen: these entries were pending at the freeze. They are carried into the first GitHub Release after 1.2.2; later changes are listed on [GitHub Releases](https://github.com/christianclaudio/mcp-server-sigma/releases).*
 
 ### Breaking Changes
 - **Read-only fails closed on `readOnlyHint` alone**: `ReadOnlyGateMiddleware` no longer matches tool-name prefixes or the `_RO_NAMES` list (`middleware.is_read_only_tool(name)` is removed; `profiles.is_read_only_tool(tool)` reads the annotation). Under `--profile readonly` or `SIGMA_MCP_READONLY=1` it refuses any real tool not annotated `readOnlyHint=True` (a missing annotation counts as a write), including writes the read-only filter hid. The read-only listing now filters on the annotation instead of the `mutation`/`destructive`/`idempotent` tags. A gate with no serving server context refuses. Names that are not tools on the server get FastMCP's `Unknown tool`, directly or through `call_tool`.
@@ -30,6 +37,8 @@
 
 ## 2.0.1 (2026-10-05)
 
+*Never tagged or published. These changes ship in the first release after 1.2.2.*
+
 ### Security
 - **FastMCP floor**: Raised the dependency floor from `fastmcp>=4.0.10` to `fastmcp>=4.0.11` and refreshed `uv.lock` (also `fastmcp.json`). This picks up the 4.0.11 security release. No server code changes.
 - **SSE Host/Origin (#5427)**: Applies here. `--transport sse` is still accepted, and `main()` already passes `host_origin_protection`, `allowed_hosts`, and optional `allowed_origins` into `mcp.run()`. On 4.0.10 those settings configured Streamable HTTP only; 4.0.11 applies the same policy to the legacy SSE connection and message endpoints. The default transport remains stdio.
@@ -38,6 +47,8 @@
 - **Hashed tool lookups (#5415)**: Does not apply to the published surface. Enable/disable gates (profiles, read-only, bulk-destructive) and the optional `RegexSearchTransform` run on public tool names. This server does not register FastMCP apps, which are the callers that invoke tools by hashed name.
 
 ## 2.0.0 (2026-10-03)
+
+*Never tagged or published. These changes ship in the first release after 1.2.2.*
 
 ### Breaking
 - **Wire names**: Tools, prompts, and resources no longer use a product-wide `sigma_` prefix. Domain FastMCP mounts expose `{domain}_{name}` (for example `sigma_list_workbooks` is now `workbooks_list_workbooks`). Server identity is unchanged (`mcp-server-sigma`, package `sigma_mcp`). This release is not tagged.
