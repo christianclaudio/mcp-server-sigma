@@ -18,7 +18,7 @@ Instructions for AI coding agents (Antigravity, Claude Code, Copilot, Cursor, Wi
 
 ## 🎯 Project Overview
 
-This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server covering the entire REST API surface (v2 and v3alpha) for **Sigma Computing**. Bulk-destructive tools are listed in `full` and refused at call time unless enabled; the expected per-profile tool counts live in `scripts/check_tool_contract.py`.
+This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server for **Sigma Computing**, built on its public REST API (v2 and v3alpha); `scripts/check_openapi_drift.py` lists the spec endpoints the client does not cover. Bulk-destructive tools are listed in `full` and refused at call time unless enabled; the expected per-profile tool counts live in `scripts/check_tool_contract.py`.
 
 **Primary Purpose**:
 Expose deep cloud business intelligence, embedded analytics, workbook lineage, SQL data modeling, user/team administration, and tenant token exchange to AI agents with strict enterprise safety gates, offline testing, and multi-tenant token isolation.
@@ -59,7 +59,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 - Pass MCP `ToolAnnotations` at registration with the `ANNOTATION_*` constants from `tools/common.py`:
   - `readOnlyHint`: `True` for inspection/GET; `False` for mutations. Every tool sets it explicitly; the read-only gate reads nothing else (a missing hint is treated as a write).
   - `destructiveHint`: `True` for delete/archive/deactivate actions; `False` otherwise.
-  - `idempotentHint`: `True` only on `ANNOTATION_IDEMPOTENT`. `ANNOTATION_READ_ONLY` (GET) and `ANNOTATION_WRITE_SAFE` leave it unset.
+  - `idempotentHint`: among the constants, `True` only on `ANNOTATION_IDEMPOTENT`; `ANNOTATION_READ_ONLY`, `ANNOTATION_WRITE_SAFE` and `ANNOTATION_DESTRUCTIVE` leave it unset. The Tool Search and Code Mode discovery tools get `READ_ONLY_ANNOTATIONS` from `profiles.py` (`readOnlyHint` and `idempotentHint` `True`, `openWorldHint` `False`).
   - `openWorldHint`: `True` when interacting with external networks/APIs.
 - Gating:
   - Read-only mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) keeps only tools annotated `readOnlyHint=True` and refuses every other call, directly or through `call_tool`, with a `SafetyViolationError` (a FastMCP `ToolError`, so `isError: true`).

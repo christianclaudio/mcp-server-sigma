@@ -38,9 +38,13 @@ jobs:
         id: drift-check
         run: |
           # We capture the output and write it to a file so we can include it in the issue if it fails
+          # Capture the exit code explicitly: under the default `bash -e` a failing
+          # command would end the step before DRIFT_STATUS is written.
+          set +e
           uv run python scripts/check_openapi_drift.py > drift_results.txt 2>&1
-          echo "DRIFT_STATUS=$?" >> $GITHUB_ENV
-        continue-on-error: true
+          status=$?
+          set -e
+          echo "DRIFT_STATUS=${status}" >> "$GITHUB_ENV"
 
       - name: Create Issue on Failure
         if: env.DRIFT_STATUS != '0'
@@ -72,5 +76,5 @@ jobs:
               repo: context.repo.repo,
               title: issueTitle,
               body: issueBody,
-              labels: ["bug", "dependencies"]
+              labels: ["bug", "dependencies", "forge-todo"]
             });
