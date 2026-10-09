@@ -51,6 +51,7 @@ from typing import Any
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import FastMCPTransport
+from fastmcp.resources.template import match_uri_template
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from mcp.types import (
@@ -245,6 +246,8 @@ async def test_every_resource_reads_through_the_client(surface_client: SurfaceCl
             fixture = RESOURCE_TEMPLATE_URIS.get(template.uri_template)
             if fixture is None:
                 failures.append(f"{template.uri_template}: no RESOURCE_TEMPLATE_URIS entry")
+            elif match_uri_template(fixture, template.uri_template) is None:
+                failures.append(f"{template.uri_template}: fixture {fixture} does not match")
             else:
                 uris.append(fixture)
         for uri in uris:
