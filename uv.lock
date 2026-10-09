@@ -1376,6 +1376,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "build" },
+    { name = "jsonschema" },
     { name = "mypy" },
     { name = "pip-licenses" },
     { name = "pytest" },
@@ -1392,6 +1393,7 @@ requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.0" },
     { name = "fastmcp", specifier = ">=4.0.11" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.26.0" },
     { name = "mcp", specifier = ">=2.2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
     { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=5.0.0" },

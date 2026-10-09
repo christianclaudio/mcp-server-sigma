@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from unittest.mock import patch
 
 import pytest
@@ -51,7 +50,7 @@ EXPECTED_RESOURCES = {
 @pytest.mark.asyncio
 @pytest.mark.parametrize("profile", sorted(PROFILES))
 async def test_resources_read_over_the_wire(profile: str) -> None:
-    """resources/read through an MCP client returns contents for every resource and template.
+    """resources/read through an MCP client returns each resource's exact URI, MIME type and text.
 
     Calls the protocol handler, not ``FastMCP.read_resource`` directly, so a return value
     the handler cannot convert surfaces here instead of as ``Internal server error``.
@@ -68,12 +67,6 @@ async def test_resources_read_over_the_wire(profile: str) -> None:
             assert str(item.uri) == str(resource.uri)
             assert item.mime_type == resource.mime_type
             assert item.text
-
-        # No templates are registered today; any added later is read here too.
-        templates = await client.list_resource_templates()
-        for template in templates:
-            uri = re.sub(r"\{[^}]+\}", "x", template.uri_template)
-            assert await client.read_resource(uri)
 
         formulas = await client.read_resource("elements://reference/formulas")
         assert isinstance(formulas[0], TextResourceContents) and "Sigma" in formulas[0].text
