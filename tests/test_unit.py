@@ -12,6 +12,12 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from scripts.check_tool_contract import (
+    EXPECTED_DEFAULT,
+    EXPECTED_DESTRUCTIVE,
+    EXPECTED_IDEMPOTENT,
+    EXPECTED_READ_ONLY,
+)
 
 sys.path.insert(0, "src")
 
@@ -483,8 +489,9 @@ def test_all_tools_are_annotated():
 def test_annotation_counts_match_readme():
     """Guard the counts published in README against silent drift.
 
-    The default full profile lists all 172 tools; the two bulk-destructive tools are
+    The default full profile lists every tool; the two bulk-destructive tools are
     listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
+    Expected counts come from ``scripts/check_tool_contract.py``.
     """
     import asyncio
 
@@ -496,11 +503,11 @@ def test_annotation_counts_match_readme():
     idempotent = sum(1 for t in tools if t.annotations.idempotent_hint)
     open_world = sum(1 for t in tools if t.annotations.open_world_hint)
 
-    assert len(tools) == 172, f"tool count changed: {len(tools)} (expected 172 in full)"
-    assert ro == 90, f"read-only count changed: {ro}"
-    assert destructive == 20, f"destructive count changed: {destructive}"
-    assert idempotent == 8, f"idempotent count changed: {idempotent}"
-    assert open_world == 172, f"open_world count changed: {open_world}"
+    assert len(tools) == EXPECTED_DEFAULT, f"tool count changed: {len(tools)} (expected {EXPECTED_DEFAULT} in full)"
+    assert ro == EXPECTED_READ_ONLY, f"read-only count changed: {ro}"
+    assert destructive == EXPECTED_DESTRUCTIVE, f"destructive count changed: {destructive}"
+    assert idempotent == EXPECTED_IDEMPOTENT, f"idempotent count changed: {idempotent}"
+    assert open_world == EXPECTED_DEFAULT, f"open_world count changed: {open_world}"
 
 
 def test_destructive_tools_are_not_marked_read_only():

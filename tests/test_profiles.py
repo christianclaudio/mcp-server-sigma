@@ -14,7 +14,13 @@ from fastmcp.exceptions import NotFoundError, ToolError
 from fastmcp.server.middleware import MiddlewareContext
 from fastmcp.server.transforms.search import RegexSearchTransform
 from mcp.types import ToolAnnotations
-from scripts.check_tool_contract import EXPECTED_FULL_ONLY, EXPECTED_PROFILE_COUNTS
+from scripts.check_tool_contract import (
+    EXPECTED_DEFAULT,
+    EXPECTED_FULL_ONLY,
+    EXPECTED_PROFILE_COUNTS,
+    EXPECTED_READ_ONLY,
+    SHARED_TOOL_COUNT,
+)
 
 from sigma_mcp import middleware, profiles, server
 from sigma_mcp.config import settings
@@ -32,17 +38,6 @@ from sigma_mcp.server import create_server
 
 JOB_PROFILES = [p for p in PROFILES.values() if p.is_allowlist]
 ANALYST = PROFILES["analyst"]
-
-# Signed-off counts (total tools, read-only tools); Nexus gates on these.
-SIGNED_OFF = {
-    "full": (172, 90),
-    "readonly": (90, 90),
-    "analyst": (31, 23),
-    "author": (40, 28),
-    "modeler": (33, 24),
-    "embed": (50, 27),
-    "access_admin": (52, 22),
-}
 
 READ = "workbooks_list_workbooks"
 WRITE = "workbooks_create_workbook"
@@ -92,12 +87,14 @@ async def _read_only_names(app: FastMCP) -> set[str]:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("profile", "expected"), sorted(SIGNED_OFF.items()))
+@pytest.mark.parametrize(("profile", "expected"), sorted(EXPECTED_PROFILE_COUNTS.items()))
 async def test_profile_counts_match_signed_off(profile: str, expected: tuple[int, int]) -> None:
-    """Every signed-off profile builds with exactly its total and read-only tool counts."""
+    """Every signed-off profile builds with exactly its total and read-only tool counts.
+
+    The signed-off counts live in ``scripts/check_tool_contract.py`` (``EXPECTED_PROFILE_COUNTS``).
+    """
     app = create_server(profile=profile)
     assert (len(await _tool_names(app)), len(await _read_only_names(app))) == expected
-    assert EXPECTED_PROFILE_COUNTS[profile] == expected
 
 
 @pytest.mark.asyncio
@@ -121,9 +118,8 @@ async def test_full_is_exhaustive_and_every_tool_is_placed() -> None:
 
 
 def test_full_only_tools() -> None:
-    """The nine full-only tools: both bulk tools, four workspace file/tag mutators, three admin lookups."""
+    """The full-only tools: both bulk tools, four workspace file/tag mutators, three admin lookups."""
     assert FULL_ONLY_TOOLS == EXPECTED_FULL_ONLY
-    assert len(FULL_ONLY_TOOLS) == 9
     assert BULK_DESTRUCTIVE_TOOLS <= FULL_ONLY_TOOLS
     assert server.FULL_ONLY_TOOLS is FULL_ONLY_TOOLS
 
@@ -131,7 +127,7 @@ def test_full_only_tools() -> None:
 def test_job_profiles_are_the_signed_off_five() -> None:
     """builder is split into author and modeler; the old core/admin profiles are gone."""
     assert {p.name for p in JOB_PROFILES} == {"analyst", "author", "modeler", "embed", "access_admin"}
-    assert set(PROFILES) == set(SIGNED_OFF)
+    assert set(PROFILES) == set(EXPECTED_PROFILE_COUNTS)
     for removed in ("core", "admin", "builder"):
         assert removed not in PROFILES
 
@@ -151,17 +147,17 @@ async def test_every_tool_has_explicit_read_only_hint() -> None:
     assert missing == []
     reads = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is True}
     writes = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is False}
-    assert len(reads) == 90
-    assert len(writes) == 82
+    assert len(reads) == EXPECTED_READ_ONLY
+    assert len(writes) == EXPECTED_DEFAULT - EXPECTED_READ_ONLY
 
 
 @pytest.mark.asyncio
 async def test_author_and_modeler_split_overlap_on_lookups_only() -> None:
-    """The former builder job is split: author and modeler share 10 read-only lookups."""
+    """The former builder job is split: author and modeler share only read-only lookups."""
     author = await _tool_names(create_server(profile="author"))
     modeler = await _tool_names(create_server(profile="modeler"))
     shared = author & modeler
-    assert len(shared) == 10
+    assert len(shared) == SHARED_TOOL_COUNT
     full = {t.name: t for t in await create_server(profile="full").list_tools()}
     assert all(is_read_only_tool(full[name]) for name in shared)
     assert "workbooks_promote_workbook" not in author | modeler
@@ -356,7 +352,7 @@ async def test_readonly_enforced_under_allowlist_profile(monkeypatch: pytest.Mon
     """SIGMA_MCP_READONLY=1 on an allowlist profile hides and refuses its write tools."""
     monkeypatch.setattr(settings, "MCP_READONLY", True)
     app = create_server(profile="author")
-    assert len(await _tool_names(app)) == 28
+    assert len(await _tool_names(app)) == EXPECTED_PROFILE_COUNTS["author"][1]
     with pytest.raises(SafetyViolationError, match=WRITE):
         await app.call_tool(WRITE, WRITE_ARGS)
     res = await app.call_tool(READ, {})
