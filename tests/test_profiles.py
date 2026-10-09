@@ -291,8 +291,9 @@ async def test_bulk_tool_runs_with_gate_and_still_needs_confirm(monkeypatch: pyt
         "admin_bulk_remove_team_members", {"team_id": "t-1", "member_emails": ["a@b.co"], "confirm": False}
     )
     assert not res.is_error
-    message = json.loads(res.content[0].text)["error"]["message"]  # type: ignore[union-attr]
-    assert "confirm=True" in message
+    payload = json.loads(res.content[0].text)  # type: ignore[union-attr]
+    assert payload["status"] == "confirmation_required"
+    assert "confirm=true" in payload["message"]
 
 
 @pytest.mark.asyncio
@@ -510,11 +511,6 @@ async def test_code_mode_discovery_read_only_and_execute_refused_under_readonly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Code Mode search/get_schema are annotated read-only; execute is refused under readonly."""
-    try:
-        from fastmcp.experimental.transforms.code_mode import CodeMode  # noqa: F401
-    except ImportError:  # pragma: no cover - depends on FastMCP build
-        pytest.skip("CodeMode not available in this FastMCP build")
-
     monkeypatch.setattr(settings, "MCP_READONLY", True)
     app = create_server(profile="full", enable_code_mode=True)
     listed = {t.name: t for t in await app.list_tools()}

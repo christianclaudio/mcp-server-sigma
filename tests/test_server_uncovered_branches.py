@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import importlib
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastmcp.exceptions import ToolError
 from httpx import Response
 
 from sigma_mcp import server as srv
@@ -25,7 +27,8 @@ async def test_tenant_info_and_export_branches(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_get_tenant_scoped_info empty check
-    assert "tenant_org_id is required" in await srv.sigma_get_tenant_scoped_info("")
+    with pytest.raises(ToolError, match="tenant_org_id is required"):
+        await srv.sigma_get_tenant_scoped_info("")
 
     # sigma_get_tenant_scoped_info success
     tc = MagicMock(spec=SigmaClient)
@@ -41,12 +44,13 @@ async def test_tenant_info_and_export_branches(monkeypatch: pytest.MonkeyPatch) 
     assert "wb_tmpl" in res_deploy
 
     # sigma_promote_workbook tag_name empty & tag creation failure
-    assert "tag_name is required" in await srv.sigma_promote_workbook("wb1", "")
+    with pytest.raises(ToolError, match="tag_name is required"):
+        await srv.sigma_promote_workbook("wb1", "")
 
     c.list_tags = AsyncMock(return_value={"entries": []})
     c.create_tag = AsyncMock(return_value={})
-    res_tag_fail = await srv.sigma_promote_workbook("wb1", "NewTag")
-    assert "Could not resolve or create tag" in res_tag_fail
+    with pytest.raises(ToolError, match="Could not resolve or create tag"):
+        await srv.sigma_promote_workbook("wb1", "NewTag")
 
     # Success via create_tag — versionTagId returned
     c.list_tags = AsyncMock(return_value={"entries": []})
@@ -63,8 +67,8 @@ async def test_tenant_info_and_export_branches(monkeypatch: pytest.MonkeyPatch) 
     assert "truncated" in res_pdf_trunc
 
     c.export_workbook = AsyncMock(return_value={})
-    res_no_query = await srv.sigma_export_and_download("wb1")
-    assert "No queryId in export response" in res_no_query
+    with pytest.raises(ToolError, match="No queryId in export response"):
+        await srv.sigma_export_and_download("wb1")
 
 
 @pytest.mark.asyncio
@@ -73,33 +77,37 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(srv, "_client", c)
 
     # bulk assign team members validation
-    assert "team_id is required" in await srv.sigma_bulk_assign_team_members("", ["m1"])
-    assert "member_ids must be a non-empty list" in await srv.sigma_bulk_assign_team_members("t1", [])
+    with pytest.raises(ToolError, match="team_id is required"):
+        await srv.sigma_bulk_assign_team_members("", ["m1"])
+    with pytest.raises(ToolError, match="member_ids must be a non-empty list"):
+        await srv.sigma_bulk_assign_team_members("t1", [])
 
     c.update_team_members = AsyncMock(return_value={"status": "assigned"})
     assert "assigned" in await srv.sigma_bulk_assign_team_members("t1", ["m1"])
 
     # change member email validation
-    assert "member_id is required" in await srv.sigma_change_member_email("", "new@ex.com")
-    assert "new_email is required" in await srv.sigma_change_member_email("m1", "")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_change_member_email("", "new@ex.com")
+    with pytest.raises(ToolError, match="new_email is required"):
+        await srv.sigma_change_member_email("m1", "")
 
     c.update_member = AsyncMock(return_value={"memberId": "m1", "email": "new@ex.com"})
     assert "new@ex.com" in await srv.sigma_change_member_email("m1", "new@ex.com")
 
     # bulk remove team members validation & no valid members return
-    assert "Destructive operation requires" in await srv.sigma_bulk_remove_team_members(
-        "t1", ["a@b.com"], confirm=False
-    )
-    assert "team_id is required" in await srv.sigma_bulk_remove_team_members("", ["a@b.com"], confirm=True)
-    assert "member_emails must be a non-empty list" in await srv.sigma_bulk_remove_team_members("t1", [], confirm=True)
+    assert "confirmation_required" in await srv.sigma_bulk_remove_team_members("t1", ["a@b.com"], confirm=False)
+    with pytest.raises(ToolError, match="team_id is required"):
+        await srv.sigma_bulk_remove_team_members("", ["a@b.com"], confirm=True)
+    with pytest.raises(ToolError, match="member_emails must be a non-empty list"):
+        await srv.sigma_bulk_remove_team_members("t1", [], confirm=True)
 
     c.search_members = AsyncMock(return_value={"entries": []})
-    res_no_m = await srv.sigma_bulk_remove_team_members("t1", ["unknown@ex.com"], confirm=True)
-    assert "No valid members found" in res_no_m
+    with pytest.raises(ToolError, match="No valid members found"):
+        await srv.sigma_bulk_remove_team_members("t1", ["unknown@ex.com"], confirm=True)
 
     # bulk deactivate empty string matching pattern
-    res_empty_match = await srv.sigma_bulk_deactivate_members("a*", confirm=True)
-    assert "matches empty string and is too broad" in res_empty_match
+    with pytest.raises(ToolError, match="matches empty string and is too broad"):
+        await srv.sigma_bulk_deactivate_members("a*", confirm=True)
 
     c.auto_paginate = AsyncMock(
         return_value=[
@@ -112,12 +120,16 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
     c.deactivate_member = AsyncMock(side_effect=[200, Exception("Deactivate error")])
 
     # bulk deactivate invalid regex
-    res_bad_regex = await srv.sigma_bulk_deactivate_members("[invalid_regex", confirm=True)
-    assert "Invalid regex pattern" in res_bad_regex
+    with pytest.raises(ToolError, match="Invalid regex pattern"):
+        await srv.sigma_bulk_deactivate_members("[invalid_regex", confirm=True)
 
     res_exec = await srv.sigma_bulk_deactivate_members("Jones|Fail", dry_run=False, confirm=True)
-    assert "Bob Jones" in res_exec
-    assert "Deactivate error" in res_exec
+    data = json.loads(res_exec)
+    # As on main, results lists every member; the failed one is also in errors.
+    assert [(r["id"], r["status"]) for r in data["results"]] == [("m2", "deactivated"), ("m3", "failed")]
+    assert data["results"][1]["error"] == "Deactivate error"
+    assert [e["id"] for e in data["errors"]] == ["m3"]
+    assert data["errors"][0]["error"]["message"] == "Deactivate error"
 
 
 @pytest.mark.asyncio
@@ -131,15 +143,15 @@ async def test_bulk_sync_tenant_connections_branches(monkeypatch: pytest.MonkeyP
     tc.aclose = AsyncMock()
     c.for_tenant = AsyncMock(side_effect=Exception("Tenant auth error"))
 
-    res_err = await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
-    assert "Tenant auth error" in res_err
+    with pytest.raises(ToolError, match="Tenant auth error"):
+        await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
 
     # Missing for_tenant method
     c_no_ft = MagicMock()
     del c_no_ft.for_tenant
     monkeypatch.setattr(srv, "_client", c_no_ft)
-    res_no_ft = await srv.sigma_bulk_sync_tenant_connections(dry_run=True)
-    assert "Multi-tenant auth" in res_no_ft
+    with pytest.raises(ToolError, match="Multi-tenant auth"):
+        await srv.sigma_bulk_sync_tenant_connections(dry_run=True)
 
 
 def test_server_profile_and_readonly_filtering(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -178,8 +190,8 @@ async def test_add_connection_grant_invalid_grant_type(monkeypatch: pytest.Monke
     """Covers the invalid grant_type validation branch."""
     c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
-    res = await srv.sigma_add_connection_grant("conn1", "invalid_type", "grantee1", "usage")
-    assert "grant_type must be" in res
+    with pytest.raises(ToolError, match="grant_type must be"):
+        await srv.sigma_add_connection_grant("conn1", "invalid_type", "grantee1", "usage")
 
 
 @pytest.mark.asyncio
@@ -199,8 +211,8 @@ async def test_create_workbook_embed_missing_source_id(monkeypatch: pytest.Monke
     """Covers the source_id validation for page/element embeds."""
     c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
-    res = await srv.sigma_create_workbook_embed("wb1", source_type="page")
-    assert "source_id is required" in res
+    with pytest.raises(ToolError, match="source_id is required"):
+        await srv.sigma_create_workbook_embed("wb1", source_type="page")
 
 
 @pytest.mark.asyncio
@@ -229,11 +241,11 @@ async def test_export_workbook_auto_discover(monkeypatch: pytest.MonkeyPatch) ->
 
     # No pages error
     c.list_workbook_pages = AsyncMock(return_value={"entries": []})
-    res3 = await srv.sigma_export_workbook("wb1")
-    assert "no pages" in res3.lower()
+    with pytest.raises(ToolError, match="no pages"):
+        await srv.sigma_export_workbook("wb1")
 
     # No elements error
     c.list_workbook_pages = AsyncMock(return_value={"entries": [{"pageId": "p1"}]})
     c.list_workbook_page_elements = AsyncMock(return_value={"entries": []})
-    res4 = await srv.sigma_export_workbook("wb1")
-    assert "no elements" in res4.lower()
+    with pytest.raises(ToolError, match="no elements"):
+        await srv.sigma_export_workbook("wb1")

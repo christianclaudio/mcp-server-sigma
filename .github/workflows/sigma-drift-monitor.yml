@@ -2,7 +2,7 @@ name: Sigma API Drift Monitor
 
 on:
   schedule:
-    # Run every Sunday at 04:00 UTC (12:00 AM EDT)
+    # Run every Sunday at 04:00 UTC
     - cron: '0 4 * * 0'
   workflow_dispatch:
     # Allow manual triggering from the Actions tab

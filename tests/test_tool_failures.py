@@ -1,0 +1,1008 @@
+"""Tool failures in admin, elements and workbooks are tool execution errors (``isError: true``).
+
+MCP spec 2026-07-28, server/tools, Error Handling: a call that fails reports it in the tool
+result with ``isError: true``. These calls used to return an ``{"error": ...}`` dict as a
+normal result; each now raises a redacted ``ToolError`` ``from None``. Each test here fails
+if its site goes back to returning the dict.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from fastmcp import Client
+from fastmcp.exceptions import ToolError
+
+from sigma_mcp import server
+from sigma_mcp.errors import SigmaAPIError
+from sigma_mcp.server import create_server
+from sigma_mcp.tools.common import _item_error, _tool_failure, sigma_tool
+
+_SECRET = "s3cr3t-client-secret-value-for-redaction-test"
+
+
+@pytest.fixture
+def api(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    client = AsyncMock()
+    monkeypatch.setattr(server, "get_client", AsyncMock(return_value=client))
+    monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
+    monkeypatch.setenv("SIGMA_CLIENT_SECRET", _SECRET)
+    return client
+
+
+async def _call_error(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Call a tool over an in-memory Client; assert isError true and return the error object."""
+    async with Client(create_server(profile="full")) as client:
+        res = await client.call_tool(name, args, raise_on_error=False)
+    assert res.is_error is True, res
+    payload = json.loads(res.content[0].text)  # type: ignore[union-attr]
+    assert set(payload) == {"error"}
+    err: dict[str, Any] = payload["error"]
+    return err
+
+
+def _members(n: int) -> list[dict[str, Any]]:
+    return [
+        {"memberId": f"m-{i}", "firstName": f"Test{i}", "lastName": "User", "isActive": True, "isInactive": False}
+        for i in range(n)
+    ]
+
+
+# ─── admin: bulk-deactivate pattern checks ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_admin_catchall_pattern_is_error_true(api: AsyncMock) -> None:
+    err = await _call_error("admin_bulk_deactivate_members", {"name_pattern": ".*", "dry_run": False, "confirm": True})
+    assert err == {
+        "type": "invalid_request",
+        "message": "Catch-all pattern '.*' is rejected for safety. "
+        "Use a specific name pattern to target individual members.",
+    }
+    api.auto_paginate.assert_not_called()
+    api.deactivate_member.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_admin_empty_match_pattern_is_error_true(api: AsyncMock) -> None:
+    err = await _call_error("admin_bulk_deactivate_members", {"name_pattern": "a*", "dry_run": False, "confirm": True})
+    assert err["type"] == "invalid_request"
+    assert err["message"] == "Pattern 'a*' matches empty string and is too broad. Use a specific name pattern."
+    api.deactivate_member.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_admin_invalid_regex_is_error_true_without_chain(api: AsyncMock) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(1))
+    err = await _call_error(
+        "admin_bulk_deactivate_members", {"name_pattern": "[bad", "dry_run": False, "confirm": True}
+    )
+    assert err["type"] == "invalid_request"
+    assert err["message"].startswith("Invalid regex pattern: unterminated character set")
+    # Raised after ``except re.error`` ends: no cause and no context.
+    with pytest.raises(ToolError) as exc_info:
+        await server.sigma_bulk_deactivate_members("[bad", dry_run=False, confirm=True)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert exc_info.value.__suppress_context__ is True
+    api.deactivate_member.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_admin_safety_cap_is_error_true(api: AsyncMock) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(15))
+    err = await _call_error(
+        "admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True}
+    )
+    assert err["type"] == "invalid_request"
+    assert err["message"] == (
+        "Pattern matches 15 active members, exceeding the safety cap of 10. Use a narrower pattern."
+    )
+    assert err["count"] == 15
+    assert err["first_10"] == [f"Test{i} User" for i in range(10)]
+    api.deactivate_member.assert_not_called()
+
+
+# ─── elements: doc page slug check ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_elements_rejected_slug_is_error_true_without_chain(api: AsyncMock) -> None:
+    http = AsyncMock()
+    http.__aenter__ = AsyncMock(return_value=http)
+    http.__aexit__ = AsyncMock(return_value=False)
+    with patch("httpx.AsyncClient", return_value=http):
+        err = await _call_error("elements_get_doc_page", {"page_slug": "https://169.254.169.254/latest/meta-data"})
+        assert err == {
+            "type": "invalid_request",
+            "message": "Documentation fetches are limited to https://help.sigmacomputing.com.",
+        }
+        # Raised after ``except ValueError`` ends: no cause and no context.
+        with pytest.raises(ToolError) as exc_info:
+            await server.sigma_get_doc_page("docs/%2e%2e/secret")
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert exc_info.value.__suppress_context__ is True
+    assert json.loads(str(exc_info.value))["error"]["message"] == "Invalid documentation page slug."
+    http.get.assert_not_called()
+
+
+# ─── workbooks: not-found, timeout, missing ID ────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_workbooks_member_not_found_is_error_true(api: AsyncMock) -> None:
+    api.search_members = AsyncMock(return_value={"entries": []})
+    err = await _call_error(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com"},
+    )
+    assert err == {"type": "not_found", "message": "No member found for email: old@example.com"}
+    api.update_file.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_workbooks_member_without_home_folder_is_error_true(api: AsyncMock) -> None:
+    api.get_member = AsyncMock(return_value={"memberId": "m1"})
+    err = await _call_error("workbooks_copy_workbook_to_member", {"workbook_id": "wb1", "member_id": "m1"})
+    assert err == {"type": "not_found", "message": "Member has no homeFolderId", "member_id": "m1"}
+    api.duplicate_workbook.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_workbooks_export_timeout_is_error_true(api: AsyncMock) -> None:
+    api.export_workbook = AsyncMock(return_value={"queryId": "q-1"})
+    pending = MagicMock()
+    pending.status_code = 204
+    api.download_query_raw = AsyncMock(return_value=pending)
+    with patch("sigma_mcp.server.asyncio.sleep", new_callable=AsyncMock):
+        err = await _call_error("workbooks_export_and_download", {"workbook_id": "wb1", "timeout_seconds": 0})
+    assert err == {
+        "type": "timeout",
+        "message": "Export did not finish within timeout_seconds=0",
+        "query_id": "q-1",
+        "timeout_seconds": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_workbooks_export_missing_query_id_is_error_true_without_raw_body(api: AsyncMock) -> None:
+    api.export_workbook = AsyncMock(return_value={"detail": f"upstream body with {_SECRET}"})
+    err = await _call_error("workbooks_export_and_download", {"workbook_id": "wb1"})
+    assert err == {"type": "upstream_response", "message": "No queryId in export response"}
+    assert _SECRET not in json.dumps(err)
+    api.download_query_raw.assert_not_called()
+
+
+# ─── the shared helper ────────────────────────────────────────────────────────
+
+
+def test_tool_failure_redacts_message_and_string_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIGMA_CLIENT_SECRET", _SECRET)
+    with pytest.raises(ToolError) as exc_info:
+        _tool_failure("not_found", f"missing {_SECRET}", slug=f"x-{_SECRET}", status=404)
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert exc_info.value.__suppress_context__ is True
+    assert json.loads(str(exc_info.value)) == {
+        "error": {
+            "type": "not_found",
+            "message": "missing ***REDACTED***",
+            "slug": "x-***REDACTED***",
+            "status": 404,
+        }
+    }
+
+
+# ─── batch tools: every item failed is an error; a partial success is not ─────
+
+# Per-entry field names from main that the batch tools keep alongside the fleet keys.
+_LEGACY_ENTRY_KEYS = {"memberId", "name", "workbookId", "workbookName", "pageId", "stage", "orgId", "connectionId"}
+_LEGACY_ENTRY_KEYS |= {"connections_synced", "errors", "error", "reason", "error_detail"}
+
+
+async def _call_ok(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Call a tool over an in-memory Client; assert isError false and return the parsed result."""
+    async with Client(create_server(profile="full")) as client:
+        res = await client.call_tool(name, args, raise_on_error=False)
+    assert res.is_error is False, res
+    data: dict[str, Any] = json.loads(res.content[0].text)  # type: ignore[union-attr]
+    return data
+
+
+def _assert_item_errors(items: list[dict[str, Any]]) -> None:
+    """Every failed item's ``error`` is an object with a non-empty, redacted ``message``."""
+    assert items
+    for item in items:
+        err = item["error"]
+        assert isinstance(err, dict), item
+        assert isinstance(err["message"], str) and err["message"], item
+        assert _SECRET not in json.dumps(err)
+        assert {"id", "status", "error"} <= set(item) <= {"id", "status", "error"} | _LEGACY_ENTRY_KEYS, item
+        assert item["status"] == "failed", item
+        for nested in err.get("pages", []) + err.get("connections", []):
+            _assert_item_errors([nested])
+
+
+def _assert_batch_shape(data: dict[str, Any], verb: str) -> None:
+    """The one fleet batch shape: top-level status/<verb>_count/failed_count/results/errors."""
+    assert data["status"] in {"success", "partial_success"}
+    done = [e for e in data["results"] if e["status"] == verb]
+    assert data[f"{verb}_count"] == len(done)
+    for entry in done:
+        assert {"id", "status", "result"} <= set(entry) <= {"id", "status", "result"} | _LEGACY_ENTRY_KEYS, entry
+    # As on main, a failed item can also stay in results, with the redacted message as a string.
+    for entry in data["results"]:
+        assert entry["status"] in {verb, "failed", "skipped"}, entry
+        if entry["status"] == "failed" and "error" in entry:
+            assert isinstance(entry["error"], str) and _SECRET not in entry["error"], entry
+    if data["errors"] and "error_detail" in data["errors"][0]:
+        # list_all_input_tables keeps main's errors list (one entry per failed stage).
+        for e in data["errors"]:
+            assert e["error"] == e["error_detail"]["message"], e
+        return
+    assert data["failed_count"] == len(data["errors"])
+    if data["errors"]:
+        _assert_item_errors(data["errors"])
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_all_failed_is_error_true(api: AsyncMock) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=Exception(f"denied {_SECRET}"))
+    err = await _call_error(
+        "admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True}
+    )
+    assert err["type"] == "batch_failed"
+    assert err["message"] == "All 2 member deactivations failed; nothing was deactivated."
+    assert err["pattern"] == "Test"
+    assert err["failed_count"] == 2
+    assert [e["id"] for e in err["errors"]] == ["m-0", "m-1"]
+    _assert_item_errors(err["errors"])
+    assert err["errors"][0]["error"]["message"] == "denied ***REDACTED***"
+    assert all(e["status"] == "failed" for e in err["errors"])
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_partial_is_normal_result(api: AsyncMock) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=[200, Exception(f"denied {_SECRET}")])
+    data = await _call_ok("admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True})
+    assert data["status"] == "partial_success"
+    assert data["deactivated_count"] == 1
+    assert data["failed_count"] == 1
+    _assert_batch_shape(data, "deactivated")
+    # As on main, results lists every member; the failed one is also in errors.
+    assert [(r["id"], r["status"]) for r in data["results"]] == [("m-0", "deactivated"), ("m-1", "failed")]
+    assert data["results"][1]["error"] == "denied ***REDACTED***"
+    assert [e["id"] for e in data["errors"]] == ["m-1"]
+    _assert_item_errors(data["errors"])
+    # Field names from main stay alongside the fleet keys.
+    assert data["pattern"] == "Test"
+    assert data["deactivated"] == 1
+    assert data["failed"] == 1
+    assert data["results"][0]["memberId"] == "m-0"
+    assert data["results"][0]["name"] == "Test0 User"
+    assert data["errors"][0]["memberId"] == "m-1"
+    assert data["errors"][0]["name"] == "Test1 User"
+
+
+def _owned_files(n: int) -> dict[str, Any]:
+    return {"entries": [{"id": f"f{i}", "ownerId": "old-id", "name": f"WB {i}"} for i in range(n)]}
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_all_failed_is_error_true(api: AsyncMock) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=Exception(f"forbidden {_SECRET}"))
+    err = await _call_error(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    assert err["type"] == "batch_failed"
+    assert err["message"] == "All 2 workbook transfers failed; nothing was transferred."
+    assert err["old_owner"] == {"email": "old@example.com", "memberId": "old-id"}
+    assert err["new_owner"] == {"email": "new@example.com", "memberId": "new-id"}
+    assert err["failed_count"] == 2
+    assert [e["id"] for e in err["errors"]] == ["f0", "f1"]
+    _assert_item_errors(err["errors"])
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_partial_is_normal_result(api: AsyncMock) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=[{}, Exception(f"forbidden {_SECRET}")])
+    data = await _call_ok(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    assert data["status"] == "partial_success"
+    assert data["transferred_count"] == 1
+    assert data["failed_count"] == 1
+    _assert_batch_shape(data, "transferred")
+    # As on main, results lists every file; the failed one is also in errors.
+    assert [(r["id"], r["status"]) for r in data["results"]] == [("f0", "transferred"), ("f1", "failed")]
+    assert data["results"][1]["error"] == "forbidden ***REDACTED***"
+    assert [e["id"] for e in data["errors"]] == ["f1"]
+    _assert_item_errors(data["errors"])
+    # Field names from main stay alongside the fleet keys.
+    assert data["transferred"] == 1
+    assert data["failed"] == 1
+    assert data["results"][0]["name"] == "WB 0"
+    assert data["errors"][0]["name"] == "WB 1"
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_all_failed_is_error_true(api: AsyncMock) -> None:
+    api.list_all_workbooks = AsyncMock(
+        return_value=[{"workbookId": "wb1", "name": "A"}, {"workbookId": "wb2", "name": "B"}]
+    )
+
+    async def pages(wb_id: str) -> dict[str, Any]:
+        if wb_id == "wb1":
+            raise Exception(f"pages down {_SECRET}")
+        return {"entries": [{"pageId": "p1", "name": "P1"}]}
+
+    api.list_workbook_pages = AsyncMock(side_effect=pages)
+    api.list_workbook_page_elements = AsyncMock(side_effect=Exception(f"elements down {_SECRET}"))
+    err = await _call_error("elements_list_all_input_tables", {})
+    assert err["type"] == "batch_failed"
+    assert err["message"] == "All 2 workbook scans failed; nothing was scanned."
+    assert err["failed_count"] == 2
+    assert sorted(e["error"]["stage"] for e in err["errors"]) == ["elements", "pages"]
+    assert [e["id"] for e in err["errors"]] == ["wb1", "wb2"]
+    assert [e["stage"] for e in err["errors"]] == ["pages", "elements"]
+    page = err["errors"][1]["error"]["pages"][0]
+    assert (page["workbookId"], page["pageId"], page["stage"]) == ("wb2", "p1", "elements")
+    _assert_item_errors(err["errors"])
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_partial_is_normal_result(api: AsyncMock) -> None:
+    api.list_all_workbooks = AsyncMock(
+        return_value=[{"workbookId": "wb1", "name": "A"}, {"workbookId": "wb2", "name": "B"}]
+    )
+
+    async def pages(wb_id: str) -> dict[str, Any]:
+        if wb_id == "wb1":
+            raise Exception(f"pages down {_SECRET}")
+        return {"entries": [{"pageId": "p1", "name": "P1"}]}
+
+    api.list_workbook_pages = AsyncMock(side_effect=pages)
+    api.list_workbook_page_elements = AsyncMock(
+        return_value={"entries": [{"type": "input-table", "elementId": "e1", "name": "Input"}]}
+    )
+    data = await _call_ok("elements_list_all_input_tables", {})
+    assert data["status"] == "partial_success"
+    assert data["failed_count"] == 1
+    assert data["total_input_tables"] == 1
+    assert len(data["errors"]) == 1
+    _assert_batch_shape(data, "scanned")
+    # Field names from main stay alongside the fleet keys.
+    assert data["workbooks_scanned"] == 2
+    assert data["results"][0]["workbookId"] == "wb2"
+    assert data["results"][0]["workbookName"] == "B"
+    err = data["errors"][0]
+    assert (err["workbookId"], err["workbookName"], err["stage"]) == ("wb1", "A", "pages")
+
+
+def _tenant_client(sync_side_effect: Any) -> AsyncMock:
+    tc = AsyncMock()
+    tc.list_connections = AsyncMock(return_value={"entries": [{"connectionId": "c1"}]})
+    tc.sync_connection = AsyncMock(side_effect=sync_side_effect, return_value={"status": "queued"})
+    return tc
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_all_failed_is_error_true(api: AsyncMock) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+
+    async def for_tenant(org_id: str) -> AsyncMock:
+        if org_id == "t1":
+            raise Exception(f"token exchange refused {_SECRET}")
+        return _tenant_client(Exception(f"sync failed {_SECRET}"))
+
+    api.for_tenant = AsyncMock(side_effect=for_tenant)
+    err = await _call_error("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    assert err["type"] == "batch_failed"
+    assert err["message"] == "All 2 tenant syncs failed; nothing was synced."
+    assert err["failed_count"] == 2
+    assert sorted(e["id"] for e in err["errors"]) == ["t1", "t2"]
+    _assert_item_errors(err["errors"])
+    by_org = {e["id"]: e for e in err["errors"]}
+    assert by_org["t2"]["error"]["type"] == "batch_failed"
+    assert by_org["t2"]["error"]["message"] == "All 1 connection syncs failed."
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_partial_is_normal_result(api: AsyncMock) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+
+    async def for_tenant(org_id: str) -> AsyncMock:
+        if org_id == "t1":
+            raise Exception(f"token exchange refused {_SECRET}")
+        return _tenant_client(None)
+
+    api.for_tenant = AsyncMock(side_effect=for_tenant)
+    data = await _call_ok("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    assert data["status"] == "partial_success"
+    assert data["synced_count"] == 1
+    assert data["failed_count"] == 1
+    # As on main, results lists every tenant; the failed one is also in errors.
+    by_org = {r["id"]: r for r in data["results"]}
+    assert sorted(by_org) == ["t1", "t2"]
+    assert by_org["t1"]["status"] == "failed"
+    assert by_org["t1"]["error"] == "token exchange refused ***REDACTED***"
+    assert [e["id"] for e in data["errors"]] == ["t1"]
+    _assert_batch_shape(data, "synced")
+    _assert_batch_shape(by_org["t2"]["result"], "synced")
+    # Field names from main stay alongside the fleet keys.
+    assert data["tenants_processed"] == 2
+    ok = by_org["t2"]
+    assert (ok["orgId"], ok["name"], ok["connections_synced"]) == ("t2", "T2", 1)
+    assert "errors" not in ok
+    assert ok["result"]["results"][0]["connectionId"] == "c1"
+    assert (data["errors"][0]["orgId"], data["errors"][0]["name"]) == ("t1", "T1")
+
+
+def test_tool_failure_redacts_nested_batch_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIGMA_CLIENT_SECRET", _SECRET)
+    with pytest.raises(ToolError) as exc_info:
+        _tool_failure("batch_failed", "All 1 failed", errors=[{"id": "x", "error": f"denied {_SECRET}"}])
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert exc_info.value.__suppress_context__ is True
+    assert _SECRET not in str(exc_info.value)
+    assert json.loads(str(exc_info.value))["error"]["errors"] == [{"id": "x", "error": "denied ***REDACTED***"}]
+
+
+def test_item_error_always_has_a_redacted_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIGMA_CLIENT_SECRET", _SECRET)
+    api_err = _item_error(SigmaAPIError(403, "/v2/files/f1", "PATCH", f"no {_SECRET}", "req-1"), index=0)
+    assert api_err["type"] == "sigma_api_error"
+    assert api_err["message"] == "Sigma API PATCH /v2/files/f1 returned 403"
+    assert api_err["status_code"] == 403
+    assert _SECRET not in json.dumps(api_err)
+    assert _item_error(ValueError(""), index=0) == {"type": "internal", "message": "ValueError"}
+    assert _item_error("missing file ID", "invalid_item", index=0) == {
+        "type": "invalid_item",
+        "message": "missing file ID",
+    }
+    assert _item_error(RuntimeError(f"x {_SECRET}"), index=0)["message"] == "x ***REDACTED***"
+
+
+def test_item_error_logs_only_index_and_error_type(caplog: pytest.LogCaptureFixture) -> None:
+    """The batch item warning names the item index and the error type, never the message text.
+
+    The redacted message stays in the returned error; the log record carries none of it, redacted
+    or not, so no message text (and no secret in it) reaches the logs.
+    """
+    message = "upload failed Authorization: Bearer sk-live-abc123 api_key=AKIAFAKEKEY1234 for joe@example.com"
+    with caplog.at_level(logging.WARNING, logger="sigma_mcp"):
+        err = _item_error(RuntimeError(message), index=7)
+        reason = _item_error("missing file ID", "invalid_item", index=3)
+    assert err["message"] == "upload failed Authorization: ***REDACTED*** api_key=***REDACTED*** for joe@example.com"
+    assert reason["message"] == "missing file ID"
+    records = [r for r in caplog.records if r.getMessage().startswith("Batch item ")]
+    assert [r.getMessage() for r in records] == [
+        "Batch item 7 failed: RuntimeError",
+        "Batch item 3 failed: invalid_item",
+    ]
+    assert all(r.levelno == logging.WARNING and r.exc_info is None for r in records)
+    for fragment in (
+        "upload failed",
+        "sk-live-abc123",
+        "AKIAFAKEKEY1234",
+        "joe@example.com",
+        "REDACTED",
+        "missing file ID",
+    ):
+        assert fragment not in caplog.text, fragment
+
+
+# ─── batch items: a non-API exception is recorded, redacted, and the batch continues ──
+
+_BEARER = "sk-live-abc123"
+_LEAK = f"Authorization: Bearer {_BEARER}"
+
+
+def _no_leak(data: Any, caplog: pytest.LogCaptureFixture) -> None:
+    assert _BEARER not in json.dumps(data)
+    assert _BEARER not in caplog.text
+    assert "Traceback" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_runtime_error_is_redacted(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), 200])
+    data = await _call_ok("admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True})
+    assert data["status"] == "partial_success"
+    assert data["errors"][0]["error"] == {"type": "internal", "message": "boom Authorization: ***REDACTED***"}
+    _no_leak(data, caplog)
+    assert "Batch item 0 failed: RuntimeError" in caplog.text
+    assert "boom" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_non_api_exception_does_not_stop_batch(api: AsyncMock) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(3))
+    api.deactivate_member = AsyncMock(side_effect=[KeyError("x"), 200, 200])
+    data = await _call_ok("admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True})
+    assert api.deactivate_member.await_count == 3
+    assert data["deactivated_count"] == 2
+    assert data["failed_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_runtime_error_is_redacted(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), {}])
+    data = await _call_ok(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    assert data["status"] == "partial_success"
+    assert data["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    _no_leak(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_non_api_exception_does_not_stop_batch(api: AsyncMock) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(3))
+    api.update_file = AsyncMock(side_effect=[TypeError("bad"), {}, {}])
+    data = await _call_ok(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    assert api.update_file.await_count == 3
+    assert data["transferred_count"] == 2
+    assert data["failed_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_runtime_error_is_redacted(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_all_workbooks = AsyncMock(
+        return_value=[{"workbookId": "wb1", "name": "A"}, {"workbookId": "wb2", "name": "B"}]
+    )
+
+    async def pages(wb_id: str) -> dict[str, Any]:
+        if wb_id == "wb1":
+            raise RuntimeError(f"boom {_LEAK}")
+        return {"entries": [{"pageId": "p1", "name": "P1"}]}
+
+    api.list_workbook_pages = AsyncMock(side_effect=pages)
+    api.list_workbook_page_elements = AsyncMock(return_value={"entries": []})
+    data = await _call_ok("elements_list_all_input_tables", {})
+    assert data["status"] == "partial_success"
+    assert data["errors"][0]["error"] == "boom Authorization: ***REDACTED***"
+    assert data["errors"][0]["error_detail"]["message"] == "boom Authorization: ***REDACTED***"
+    _no_leak(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_non_api_exception_does_not_stop_batch(api: AsyncMock) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}])
+    api.list_workbook_pages = AsyncMock(return_value={"entries": [{"pageId": "p1"}, {"pageId": "p2"}]})
+    api.list_workbook_page_elements = AsyncMock(
+        side_effect=[ValueError("bad page"), {"entries": [{"type": "input-table", "elementId": "e2"}]}]
+    )
+    data = await _call_ok("elements_list_all_input_tables", {})
+    assert api.list_workbook_page_elements.await_count == 2
+    assert data["total_input_tables"] == 1
+    page_errors = data["results"][0]["result"]["page_errors"]
+    assert [e["id"] for e in page_errors] == ["p1"]
+    _assert_item_errors(page_errors)
+    # As on main, the failed page is also in the top-level errors list.
+    assert [(e["workbookId"], e["pageId"], e["stage"]) for e in data["errors"]] == [
+        (page_errors[0]["workbookId"], "p1", "elements")
+    ]
+    assert data["errors"][0]["error"] == page_errors[0]["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_runtime_error_is_redacted(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+
+    async def for_tenant(org_id: str) -> AsyncMock:
+        if org_id == "t1":
+            raise RuntimeError(f"boom {_LEAK}")
+        return _tenant_client(None)
+
+    api.for_tenant = AsyncMock(side_effect=for_tenant)
+    data = await _call_ok("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    assert data["status"] == "partial_success"
+    assert data["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    _no_leak(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_datasets_connection_non_api_exception_does_not_stop_batch(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "t1", "name": "T1"}]})
+    tc = AsyncMock()
+    tc.list_connections = AsyncMock(return_value={"entries": [{"connectionId": "c1"}, {"connectionId": "c2"}]})
+    tc.sync_connection = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), {}])
+    api.for_tenant = AsyncMock(return_value=tc)
+    data = await _call_ok("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    assert tc.sync_connection.await_count == 2
+    assert data["status"] == "success"
+    tenant = data["results"][0]["result"]
+    _assert_batch_shape(tenant, "synced")
+    assert tenant["synced_count"] == 1
+    assert tenant["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    # As on main, the tenant entry lists its failed connections with the message string.
+    assert data["results"][0]["errors"] == [{"connectionId": "c1", "error": "boom Authorization: ***REDACTED***"}]
+    _no_leak(data, caplog)
+
+
+# ─── partial results: failed items are redacted too, not only on batch_failed ─
+
+_API_TOKEN = "apitok-live-998877"
+
+
+_ACCESS_TOKEN = "acctok-live-112233"
+_REFRESH_TOKEN = "reftok-live-445566"
+_QUERY_TOKEN = "qtok-live-778899"
+_TOKENS = (_BEARER, _API_TOKEN, _ACCESS_TOKEN, _REFRESH_TOKEN, _QUERY_TOKEN)
+
+
+def _leaky_api_error(path: str) -> SigmaAPIError:
+    """An API error whose path, detail and message carry a bearer token and api/access/refresh/query tokens.
+
+    The tokens use every form the redaction covers: ``key=value``, ``key: value``, quoted JSON and a
+    bare ``token=`` query parameter.
+    """
+    return SigmaAPIError(
+        502,
+        f"{path}?api_token={_API_TOKEN}&token={_QUERY_TOKEN}",
+        "GET",
+        detail=(
+            f"echoed {_LEAK} access_token: {_ACCESS_TOKEN} refresh-token={_REFRESH_TOKEN} "
+            f'{{"api_token": "{_API_TOKEN}", "refresh_token": "{_REFRESH_TOKEN}"}}'
+        ),
+    )
+
+
+def _assert_no_tokens(text: str, caplog: pytest.LogCaptureFixture) -> None:
+    for token in _TOKENS:
+        assert token not in text, token
+        assert token not in caplog.text, token
+
+
+def _assert_partial_redacted(data: dict[str, Any], caplog: pytest.LogCaptureFixture) -> None:
+    assert data["status"] == "partial_success"
+    assert data["results"] and data["errors"]
+    _assert_no_tokens(json.dumps(data), caplog)
+    first = data["errors"][0]
+    err = first.get("error_detail", first["error"])
+    for key in ("message", "path", "detail"):
+        assert "***REDACTED***" in err[key], (key, err)
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_partial_redacts_failed_item(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=[200, _leaky_api_error("/v2/members/m-1")])
+    data = await _call_ok("admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True})
+    _assert_partial_redacted(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_partial_redacts_failed_item(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=[{}, _leaky_api_error("/v2/files/f1")])
+    data = await _call_ok(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    _assert_partial_redacted(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_partial_redacts_failed_item(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}, {"workbookId": "wb2"}])
+
+    async def pages(wb_id: str) -> dict[str, Any]:
+        if wb_id == "wb2":
+            raise _leaky_api_error("/v2/workbooks/wb2/pages")
+        return {"entries": [{"pageId": "p1"}]}
+
+    api.list_workbook_pages = AsyncMock(side_effect=pages)
+    api.list_workbook_page_elements = AsyncMock(return_value={"entries": []})
+    data = await _call_ok("elements_list_all_input_tables", {})
+    _assert_partial_redacted(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_partial_redacts_failed_item(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+
+    async def for_tenant(org_id: str) -> AsyncMock:
+        if org_id == "t1":
+            raise _leaky_api_error("/v2/tenants/t1/token")
+        return _tenant_client(None)
+
+    api.for_tenant = AsyncMock(side_effect=for_tenant)
+    data = await _call_ok("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    _assert_partial_redacted(data, caplog)
+
+
+async def _call_raw_error(name: str, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Call a tool over an in-memory Client; return the raw error text and its parsed error object."""
+    async with Client(create_server(profile="full")) as client:
+        res = await client.call_tool(name, args, raise_on_error=False)
+    assert res.is_error is True, res
+    text: str = res.content[0].text  # type: ignore[union-attr]
+    return text, json.loads(text)["error"]
+
+
+def _assert_all_failed_redacted(text: str, err: dict[str, Any], caplog: pytest.LogCaptureFixture) -> None:
+    assert err["type"] == "batch_failed"
+    _assert_no_tokens(text, caplog)
+    item_err = err["errors"][0]["error"]
+    for key in ("message", "path", "detail"):
+        assert "***REDACTED***" in item_err[key], (key, item_err)
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_all_failed_redacts_tokens(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=[_leaky_api_error("/v2/members/m-0"), _leaky_api_error("/v2/m")])
+    text, err = await _call_raw_error(
+        "admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True}
+    )
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=[_leaky_api_error("/v2/files/f0"), _leaky_api_error("/v2/files/f1")])
+    text, err = await _call_raw_error(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1"}, {"workbookId": "wb2"}])
+    api.list_workbook_pages = AsyncMock(side_effect=_leaky_api_error("/v2/workbooks/pages"))
+    text, err = await _call_raw_error("elements_list_all_input_tables", {})
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+    api.for_tenant = AsyncMock(side_effect=_leaky_api_error("/v2/tenants/token"))
+    text, err = await _call_raw_error("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+# ─── admin_onboard_member: failed team adds are redacted ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_onboard_member_team_add_error_is_redacted(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.create_member = AsyncMock(return_value={"memberId": "m-new", "email": "new@example.com"})
+    api.update_team_members = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), {"ok": True}, RuntimeError()])
+    data = await _call_ok(
+        "admin_onboard_member",
+        {"email": "new@example.com", "first_name": "New", "last_name": "User", "team_ids": ["t1", "t2", "t3"]},
+    )
+    assert set(data) == {"member", "teams_added"}
+    assert data["teams_added"] == [
+        "t1: FAILED (boom Authorization: ***REDACTED***)",
+        "t2",
+        "t3: FAILED (RuntimeError)",
+    ]
+    _no_leak(data, caplog)
+
+
+# ─── the redacted error is raised after the except block: no __context__ ──────
+
+
+def _chain_text(exc: BaseException) -> str:
+    """Everything reachable from ``exc`` through ``__cause__`` and ``__context__``."""
+    parts: list[str] = []
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        parts.append(repr(cur))
+        cur = cur.__cause__ or cur.__context__
+    return "\n".join(parts)
+
+
+@pytest.mark.asyncio
+async def test_decorator_bearer_runtime_error_is_not_on_context() -> None:
+    @sigma_tool
+    async def handler() -> str:
+        raise RuntimeError(f"boom {_LEAK}")
+
+    with pytest.raises(ToolError) as exc_info:
+        await handler()
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert _BEARER not in _chain_text(exc_info.value)
+    assert _BEARER not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_decorator_bearer_api_error_is_not_on_context() -> None:
+    @sigma_tool
+    async def handler() -> str:
+        raise SigmaAPIError(502, "/v2/members", "GET", detail=f"upstream echoed {_LEAK}")
+
+    with pytest.raises(ToolError) as exc_info:
+        await handler()
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert _BEARER not in _chain_text(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_batch_failed_bearer_runtime_error_is_not_on_context(api: AsyncMock) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=RuntimeError(f"boom {_LEAK}"))
+    with pytest.raises(ToolError) as exc_info:
+        await server.sigma_bulk_deactivate_members("Test", dry_run=False, confirm=True)
+    assert json.loads(str(exc_info.value))["error"]["type"] == "batch_failed"
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
+    assert _BEARER not in _chain_text(exc_info.value)
+    assert _BEARER not in str(exc_info.value)
+
+
+# ─── batch items: cancellation is not an item failure ─────────────────────────
+# One test per per-item catch: admin.py bulk_deactivate (sequential loop), workbooks.py reassign
+# (sequential loop), elements.py scan pages stage and elements stage (gathered tasks), datasets.py
+# tenant level and connection level (gathered tasks with a nested loop). Each catch is
+# ``except Exception``; widening it to ``BaseException`` would swallow CancelledError as a failed item.
+
+
+@pytest.fixture
+def item_errors(monkeypatch: pytest.MonkeyPatch) -> list[BaseException | str]:
+    """Record every argument passed to ``_item_error`` by the four batch tool modules."""
+    from sigma_mcp.tools import admin, datasets, elements, workbooks
+
+    seen: list[BaseException | str] = []
+
+    def spy(exc: BaseException | str, error_type: str = "internal", *, index: int) -> dict[str, Any]:
+        seen.append(exc)
+        return _item_error(exc, error_type, index=index)
+
+    for mod in (admin, datasets, elements, workbooks):
+        monkeypatch.setattr(mod, "_item_error", spy)
+    return seen
+
+
+def _assert_cancel_not_recorded(caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]) -> None:
+    """The cancellation never became a failed item: no item error was built for it, none logged."""
+    assert not any(isinstance(e, asyncio.CancelledError) for e in item_errors), item_errors
+    assert re.search(r"Batch item \d+ failed", caplog.text) is None
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(3))
+    api.deactivate_member = AsyncMock(side_effect=[200, asyncio.CancelledError(), 200])
+    with pytest.raises(asyncio.CancelledError):
+        await server.sigma_bulk_deactivate_members("Test", dry_run=False, confirm=True)
+    assert api.deactivate_member.await_count == 2  # the call stopped at the cancelled item
+    _assert_cancel_not_recorded(caplog, item_errors)
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(3))
+    api.update_file = AsyncMock(side_effect=[{}, asyncio.CancelledError(), {}])
+    with pytest.raises(asyncio.CancelledError):
+        await server.sigma_reassign_workbook_ownership("old@example.com", "new@example.com", dry_run=False)
+    assert api.update_file.await_count == 2
+    _assert_cancel_not_recorded(caplog, item_errors)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_pages_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}])
+    api.list_workbook_pages = AsyncMock(side_effect=asyncio.CancelledError())
+    with pytest.raises(asyncio.CancelledError):
+        await server.sigma_list_all_input_tables()
+    api.list_workbook_page_elements.assert_not_called()
+    _assert_cancel_not_recorded(caplog, item_errors)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_elements_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}])
+    api.list_workbook_pages = AsyncMock(return_value={"entries": [{"pageId": "p1"}, {"pageId": "p2"}]})
+    api.list_workbook_page_elements = AsyncMock(side_effect=[asyncio.CancelledError(), {"entries": []}])
+    with pytest.raises(asyncio.CancelledError):
+        await server.sigma_list_all_input_tables()
+    assert api.list_workbook_page_elements.await_count == 1
+    _assert_cancel_not_recorded(caplog, item_errors)
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
+    api.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "t1", "name": "T1"}]})
+    api.for_tenant = AsyncMock(side_effect=asyncio.CancelledError())
+    with pytest.raises(asyncio.CancelledError):
+        await server.sigma_bulk_sync_tenant_connections(dry_run=False)
+    _assert_cancel_not_recorded(caplog, item_errors)
+
+
+@pytest.mark.asyncio
+async def test_datasets_connection_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
+    api.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "t1", "name": "T1"}]})
+    tc = AsyncMock()
+    tc.list_connections = AsyncMock(return_value={"entries": [{"connectionId": "c1"}, {"connectionId": "c2"}]})
+    tc.sync_connection = AsyncMock(side_effect=[asyncio.CancelledError(), {}])
+    api.for_tenant = AsyncMock(return_value=tc)
+    with pytest.raises(asyncio.CancelledError):
+        await server.sigma_bulk_sync_tenant_connections(dry_run=False)
+    assert tc.sync_connection.await_count == 1
+    tc.aclose.assert_awaited()  # the finally still closes the tenant client
+    _assert_cancel_not_recorded(caplog, item_errors)

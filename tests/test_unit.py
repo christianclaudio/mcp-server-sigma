@@ -12,6 +12,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 sys.path.insert(0, "src")
 
@@ -103,6 +104,16 @@ class TestInputValidation:
         result = asyncio.run(mcp.call_tool(tool_name, args))
         return json.loads(result.content[0].text)
 
+    def _call_invalid(self, tool_name, args=None):
+        """Call a tool expected to fail input validation; it raises ToolError (isError: true)."""
+        from sigma_mcp.server import mcp
+
+        with pytest.raises(ToolError) as exc_info:
+            asyncio.run(mcp.call_tool(tool_name, args or {}))
+        data = json.loads(str(exc_info.value))
+        assert data["error"]["type"] == "invalid_request"
+        return data
+
     @staticmethod
     def _error_text(data: dict) -> str:
         """Extract error message text from either flat or nested error shape."""
@@ -112,67 +123,67 @@ class TestInputValidation:
         return str(err)
 
     def test_sync_all_tables_empty_connection_id(self):
-        data = self._call_tool(
+        data = self._call_invalid(
             "datasets_sync_all_tables_in_schema", {"connection_id": "", "database": "x", "schema": "x"}
         )
         assert "error" in data
         assert "connection_id" in self._error_text(data)
 
     def test_onboard_member_empty_email(self):
-        data = self._call_tool("admin_onboard_member", {"email": "", "first_name": "x", "last_name": "x"})
+        data = self._call_invalid("admin_onboard_member", {"email": "", "first_name": "x", "last_name": "x"})
         assert "error" in data
         assert "email" in self._error_text(data)
 
     def test_bulk_assign_empty_team_id(self):
-        data = self._call_tool("admin_bulk_assign_team_members", {"team_id": "", "member_ids": ["x"]})
+        data = self._call_invalid("admin_bulk_assign_team_members", {"team_id": "", "member_ids": ["x"]})
         assert "error" in data
         assert "team_id" in self._error_text(data)
 
     def test_deploy_template_empty_template_id(self):
-        data = self._call_tool(
+        data = self._call_invalid(
             "workbooks_deploy_template_to_folder", {"template_id": "", "folder_id": "x", "name": "x"}
         )
         assert "error" in data
         assert "template_id" in self._error_text(data)
 
     def test_promote_workbook_empty_workbook_id(self):
-        data = self._call_tool("workbooks_promote_workbook", {"workbook_id": "", "tag_name": "x"})
+        data = self._call_invalid("workbooks_promote_workbook", {"workbook_id": "", "tag_name": "x"})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_materialize_empty_workbook_id(self):
-        data = self._call_tool("elements_materialize_and_wait", {"workbook_id": "", "element_id": "x"})
+        data = self._call_invalid("elements_materialize_and_wait", {"workbook_id": "", "element_id": "x"})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_copy_workbook_empty_workbook_id(self):
-        data = self._call_tool("workbooks_copy_workbook_to_member", {"workbook_id": "", "member_id": "x"})
+        data = self._call_invalid("workbooks_copy_workbook_to_member", {"workbook_id": "", "member_id": "x"})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_onboard_member_invalid_member_type(self):
-        data = self._call_tool(
+        data = self._call_invalid(
             "admin_onboard_member", {"email": "a@b.com", "first_name": "x", "last_name": "x", "member_type": "invalid"}
         )
         assert "error" in data
         assert "member_type" in self._error_text(data)
 
     def test_duplicate_report_empty_name(self):
-        data = self._call_tool(
+        data = self._call_invalid(
             "workbooks_duplicate_report", {"report_id": "r1", "name": "", "destination_folder_id": "f1"}
         )
         assert "error" in data
         assert "name" in self._error_text(data)
 
     def test_duplicate_report_empty_folder(self):
-        data = self._call_tool(
+        data = self._call_invalid(
             "workbooks_duplicate_report", {"report_id": "r1", "name": "x", "destination_folder_id": ""}
         )
         assert "error" in data
         assert "destination_folder_id" in self._error_text(data)
 
     def test_grant_workspace_access_invalid_grant_type(self):
-        data = self._call_tool(
+        data = self._call_invalid(
             "workspace_grant_workspace_access",
             {"workspace_id": "ws1", "grant_type": "invalid", "grantee_id": "x", "permission": "view"},
         )
@@ -204,6 +215,14 @@ class TestDocsTools:
         result = asyncio.run(mcp.call_tool(tool_name, args))
         return json.loads(result.content[0].text)
 
+    def _call_failing(self, tool_name, args):
+        """Call a docs tool expected to fail; it raises ToolError (isError: true)."""
+        from sigma_mcp.server import mcp
+
+        with pytest.raises(ToolError) as exc_info:
+            asyncio.run(mcp.call_tool(tool_name, args))
+        return json.loads(str(exc_info.value))
+
     def test_search_docs_success(self):
         sse_body = (
             'event: message\ndata: {"result":{"content":[{"type":"text",'
@@ -234,9 +253,9 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("elements_search_docs", {"query": "test"})
-        assert "error" in data
+            data = self._call_failing("elements_search_docs", {"query": "test"})
         assert data["error"]["type"] == "docs_search_failed"
+        assert data["error"]["status"] == 500
 
     def test_get_doc_page_success(self):
         mock_resp = MagicMock()
@@ -265,9 +284,10 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("elements_get_doc_page", {"page_slug": "nonexistent-page"})
-        assert "error" in data
+            data = self._call_failing("elements_get_doc_page", {"page_slug": "nonexistent-page"})
         assert data["error"]["type"] == "page_not_found"
+        assert data["error"]["slug"] == "nonexistent-page"
+        assert data["error"]["status"] == 404
 
     def test_get_doc_page_strips_full_url(self):
         mock_resp = MagicMock()
@@ -300,8 +320,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("elements_search_docs", {"query": "nonexistent"})
-        assert "error" in data
+            data = self._call_failing("elements_search_docs", {"query": "nonexistent"})
         assert data["error"]["type"] == "docs_search_empty"
 
     def test_get_doc_page_strips_md_suffix(self):
@@ -338,7 +357,7 @@ class TestDocsTools:
                 "docs/%2e%2e/%2e%2e/secret",
                 "https://evil.example/docs/page",
             ):
-                data = self._call_tool("elements_get_doc_page", {"page_slug": slug})
+                data = self._call_failing("elements_get_doc_page", {"page_slug": slug})
                 assert data["error"]["type"] == "invalid_request", slug
         mock_client.get.assert_not_called()
 
@@ -533,16 +552,19 @@ def test_new_parity_operations_unit():
     )
 
     async def _run():
-        assert "confirm=True" in await sigma_update_workbook_contents("wb-1", {}, document_version=1, confirm=False)
-        assert "confirm=True" in await sigma_update_report_contents("rep-1", {}, document_version=1, confirm=False)
-        assert "name is required" in await sigma_verify_workbook_spec("", "f-1", {})
-        assert "name is required" in await sigma_verify_report_spec("", "f-1", {})
-        assert "confirm=True" in await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=False)
-        assert "query_id is required" in await sigma_download_query_export("")
-        assert "confirm=True" in await sigma_update_org_setting("timezone", {}, confirm=False)
-        assert "confirm=True" in await sigma_configure_org_ai({}, confirm=False)
-        assert "confirm=True" in await sigma_reset_org_email_branding(confirm=False)
-        assert "confirm=True" in await sigma_add_allowed_ips([], confirm=False)
-        assert "confirm=True" in await sigma_remove_allowed_ips([], confirm=False)
+        assert "confirm=true" in await sigma_update_workbook_contents("wb-1", {}, document_version=1, confirm=False)
+        assert "confirm=true" in await sigma_update_report_contents("rep-1", {}, document_version=1, confirm=False)
+        with pytest.raises(ToolError, match="name is required"):
+            await sigma_verify_workbook_spec("", "f-1", {})
+        with pytest.raises(ToolError, match="name is required"):
+            await sigma_verify_report_spec("", "f-1", {})
+        assert "confirm=true" in await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=False)
+        with pytest.raises(ToolError, match="query_id is required"):
+            await sigma_download_query_export("")
+        assert "confirm=true" in await sigma_update_org_setting("timezone", {}, confirm=False)
+        assert "confirm=true" in await sigma_configure_org_ai({}, confirm=False)
+        assert "confirm=true" in await sigma_reset_org_email_branding(confirm=False)
+        assert "confirm=true" in await sigma_add_allowed_ips([], confirm=False)
+        assert "confirm=true" in await sigma_remove_allowed_ips([], confirm=False)
 
     asyncio.run(_run())

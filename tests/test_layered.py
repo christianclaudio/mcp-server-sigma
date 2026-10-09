@@ -124,11 +124,6 @@ def test_tool_search_and_code_mode_are_mutually_exclusive() -> None:
 @pytest.mark.asyncio
 async def test_full_code_mode_attaches_when_available(caplog: pytest.LogCaptureFixture) -> None:
     """full + enable_code_mode attaches experimental meta-tools; job profiles refuse it."""
-    try:
-        from fastmcp.experimental.transforms.code_mode import CodeMode  # noqa: F401
-    except ImportError:  # pragma: no cover - depends on FastMCP build
-        pytest.skip("CodeMode not available in this FastMCP build")
-
     app = create_server(profile="full", enable_code_mode=True, enable_tool_search=False)
     names = {t.name for t in await app.list_tools()}
     assert "execute" in names
@@ -144,26 +139,28 @@ async def test_full_code_mode_attaches_when_available(caplog: pytest.LogCaptureF
 
 
 @pytest.mark.asyncio
-async def test_code_mode_skips_attach_on_import_error(
+async def test_code_mode_skips_attach_without_sandbox(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """When CodeMode cannot be imported, create_server logs and keeps the flat catalog."""
-    import builtins
+    """Without pydantic-monty (no fastmcp[code-mode]), Code Mode is skipped with a warning.
 
-    real_import = builtins.__import__
+    The CodeMode import itself succeeds on a plain install; only the sandbox is missing.
+    """
+    real_find_spec = server.importlib.util.find_spec
 
-    def fake_import(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == "fastmcp.experimental.transforms.code_mode":
-            raise ImportError("simulated missing CodeMode")
-        return real_import(name, *args, **kwargs)
+    def fake_find_spec(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "pydantic_monty":
+            return None
+        return real_find_spec(name, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(server.importlib.util, "find_spec", fake_find_spec)
     with caplog.at_level(logging.WARNING):
         app = create_server(profile="full", enable_code_mode=True, enable_tool_search=False)
     names = {t.name for t in await app.list_tools()}
     assert "execute" not in names
+    assert "search" not in names
     assert "workbooks_list_workbooks" in names
-    assert any("Code Mode requested but" in r.message for r in caplog.records)
+    assert any("pydantic-monty" in r.message and "fastmcp[code-mode]" in r.message for r in caplog.records)
 
 
 @pytest.mark.asyncio

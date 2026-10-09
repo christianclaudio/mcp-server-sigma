@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastmcp.exceptions import ToolError
 from httpx import Response
 
 from sigma_mcp import server as srv
@@ -28,31 +30,49 @@ async def test_recipe_validation_errors(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(srv, "_client", c)
 
     # Validation errors on empty/invalid params
-    assert "template_id is required" in await srv.sigma_deploy_template_to_folder("", "f1", "name")
-    assert "folder_id is required" in await srv.sigma_deploy_template_to_folder("t1", "", "name")
-    assert "name is required" in await srv.sigma_deploy_template_to_folder("t1", "f1", "")
+    with pytest.raises(ToolError, match="template_id is required"):
+        await srv.sigma_deploy_template_to_folder("", "f1", "name")
+    with pytest.raises(ToolError, match="folder_id is required"):
+        await srv.sigma_deploy_template_to_folder("t1", "", "name")
+    with pytest.raises(ToolError, match="name is required"):
+        await srv.sigma_deploy_template_to_folder("t1", "f1", "")
 
-    assert "workbook_id is required" in await srv.sigma_materialize_and_wait("", "e1")
-    assert "element_id is required" in await srv.sigma_materialize_and_wait("wb1", "")
+    with pytest.raises(ToolError, match="workbook_id is required"):
+        await srv.sigma_materialize_and_wait("", "e1")
+    with pytest.raises(ToolError, match="element_id is required"):
+        await srv.sigma_materialize_and_wait("wb1", "")
 
-    assert "new_owner_email is required" in await srv.sigma_reassign_workbook_ownership("old@ex.com", "")
-    assert "old_owner_email is required" in await srv.sigma_reassign_workbook_ownership("", "new@ex.com")
+    with pytest.raises(ToolError, match="new_owner_email is required"):
+        await srv.sigma_reassign_workbook_ownership("old@ex.com", "")
+    with pytest.raises(ToolError, match="old_owner_email is required"):
+        await srv.sigma_reassign_workbook_ownership("", "new@ex.com")
 
-    assert "member_id is required" in await srv.sigma_list_workbooks_shared_with_member("")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_list_workbooks_shared_with_member("")
 
-    assert "email is required" in await srv.sigma_onboard_member("", "A", "B")
-    assert "first_name is required" in await srv.sigma_onboard_member("a@b.com", "", "B")
-    assert "last_name is required" in await srv.sigma_onboard_member("a@b.com", "A", "")
+    with pytest.raises(ToolError, match="email is required"):
+        await srv.sigma_onboard_member("", "A", "B")
+    with pytest.raises(ToolError, match="first_name is required"):
+        await srv.sigma_onboard_member("a@b.com", "", "B")
+    with pytest.raises(ToolError, match="last_name is required"):
+        await srv.sigma_onboard_member("a@b.com", "A", "")
 
-    assert "team_id is required" in await srv.sigma_bulk_assign_team_members("", ["a@b.com"])
-    assert "member_ids must be a non-empty list" in await srv.sigma_bulk_assign_team_members("t1", [])
+    with pytest.raises(ToolError, match="team_id is required"):
+        await srv.sigma_bulk_assign_team_members("", ["a@b.com"])
+    with pytest.raises(ToolError, match="member_ids must be a non-empty list"):
+        await srv.sigma_bulk_assign_team_members("t1", [])
 
-    assert "name_pattern is required" in await srv.sigma_bulk_deactivate_members("", confirm=True)
-    assert "is rejected for safety" in await srv.sigma_bulk_deactivate_members(".*", confirm=True)
-    assert "is rejected for safety" in await srv.sigma_bulk_deactivate_members(".+", confirm=True)
+    with pytest.raises(ToolError, match="name_pattern is required"):
+        await srv.sigma_bulk_deactivate_members("", confirm=True)
+    with pytest.raises(ToolError, match="is rejected for safety"):
+        await srv.sigma_bulk_deactivate_members(".*", confirm=True)
+    with pytest.raises(ToolError, match="is rejected for safety"):
+        await srv.sigma_bulk_deactivate_members(".+", confirm=True)
 
-    assert "member_id is required" in await srv.sigma_change_member_email("", "a@b.com")
-    assert "new_email is required" in await srv.sigma_change_member_email("m1", "")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_change_member_email("", "a@b.com")
+    with pytest.raises(ToolError, match="new_email is required"):
+        await srv.sigma_change_member_email("m1", "")
 
 
 @pytest.mark.asyncio
@@ -96,7 +116,7 @@ async def test_composite_recipes_execution(monkeypatch: pytest.MonkeyPatch) -> N
     c.for_tenant = AsyncMock(return_value=tenant_client)
 
     res_exec = await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
-    assert "connections_synced" in res_exec
+    assert json.loads(res_exec)["results"][0]["result"]["synced_count"] >= 1
 
 
 @pytest.mark.asyncio
@@ -112,6 +132,6 @@ async def test_bulk_deactivate_member_cap(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(srv, "_client", c)
 
     # Should refuse due to >10 cap
-    res = await srv.sigma_bulk_deactivate_members("Viewer", dry_run=False, confirm=True)
-    assert "exceeding the safety cap of 10" in res
+    with pytest.raises(ToolError, match="exceeding the safety cap of 10"):
+        await srv.sigma_bulk_deactivate_members("Viewer", dry_run=False, confirm=True)
     c.deactivate_member.assert_not_awaited()

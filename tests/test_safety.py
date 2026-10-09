@@ -9,6 +9,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 # ─── admin_bulk_deactivate_members safety ─────────────────────────────────────
 
@@ -41,10 +42,10 @@ class TestBulkDeactivateSafety:
         members = [{"memberId": "m-0", "firstName": "A", "lastName": "B", "isActive": True, "isInactive": False}]
         mc = _mock_client_with_members(members)
         with patch("sigma_mcp.server.get_client", AsyncMock(return_value=mc)):
-            result_str = await sigma_bulk_deactivate_members(pattern, dry_run=False, confirm=True)
-
-        result = json.loads(result_str)
-        assert "error" in result
+            # Every rejection is an input validation failure: ToolError, isError: true.
+            expected = "is rejected for safety" if pattern else "name_pattern is required"
+            with pytest.raises(ToolError, match=expected):
+                await sigma_bulk_deactivate_members(pattern, dry_run=False, confirm=True)
         mc.deactivate_member.assert_not_called()
         mc.delete.assert_not_called()
 
@@ -81,11 +82,14 @@ class TestBulkDeactivateSafety:
         members = _make_active_members(15)
         mc = _mock_client_with_members(members)
         with patch("sigma_mcp.server.get_client", AsyncMock(return_value=mc)):
-            result_str = await sigma_bulk_deactivate_members("Test", dry_run=False, confirm=True)
+            with pytest.raises(ToolError) as exc_info:
+                await sigma_bulk_deactivate_members("Test", dry_run=False, confirm=True)
 
-        result = json.loads(result_str)
-        assert "error" in result
-        assert result["count"] == 15
+        err = json.loads(str(exc_info.value))["error"]
+        assert err["type"] == "invalid_request"
+        assert "exceeding the safety cap of 10" in err["message"]
+        assert err["count"] == 15
+        assert len(err["first_10"]) == 10
         mc.deactivate_member.assert_not_called()
 
     async def test_happy_path_executes_deletes(self) -> None:
@@ -97,7 +101,9 @@ class TestBulkDeactivateSafety:
             result_str = await sigma_bulk_deactivate_members("Test", dry_run=False, confirm=True)
 
         result = json.loads(result_str)
-        assert result["deactivated"] == 3
+        assert result["status"] == "success"
+        assert result["deactivated_count"] == 3
+        assert result["failed_count"] == 0
         # Deactivation routes through the documented client method
         # (DELETE /v2/members/{id}), not a raw delete() path call.
         assert mc.deactivate_member.call_count == 3
@@ -106,10 +112,8 @@ class TestBulkDeactivateSafety:
         from sigma_mcp.server import sigma_bulk_remove_team_members
 
         too_many_emails = [f"user{i}@example.com" for i in range(51)]
-        result_str = await sigma_bulk_remove_team_members("t1", too_many_emails, confirm=True)
-        result = json.loads(result_str)
-        assert "error" in result
-        assert "Bulk removal cap exceeded" in result["error"]["message"]
+        with pytest.raises(ToolError, match="Bulk removal cap exceeded"):
+            await sigma_bulk_remove_team_members("t1", too_many_emails, confirm=True)
 
 
 # ─── sigma_reassign_workbook_ownership safety ─────────────────────────────────
