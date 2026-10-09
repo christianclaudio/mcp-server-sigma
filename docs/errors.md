@@ -1,28 +1,29 @@
 # Error Taxonomy
 
-Every tool in this MCP server returns JSON on both success and failure. Tools
-never raise unhandled exceptions to the caller.
+Every tool in this MCP server returns JSON text on both success and failure. Tools
+never pass an unhandled exception or stack trace to the caller.
 
 ## Guarantee
 
-The `@sigma_tool` decorator wraps all tool functions. On any `SigmaAPIError`,
-it catches the exception and returns a structured JSON error payload. This means:
+The `@sigma_tool` decorator wraps all tool functions. When a tool fails, it catches
+the exception and raises FastMCP `ToolError` whose text is a structured JSON error
+payload, so the client receives a `tools/call` result with `isError: true`. This means:
 
-- **Success**: JSON response from the Sigma API
-- **Failure**: JSON error object with diagnostic information
+- **Success**: JSON response from the Sigma API (`isError: false`)
+- **Failure**: JSON error object with diagnostic information (`isError: true`)
 
 The MCP client always receives valid JSON — never a stack trace or unstructured
 error message.
 
 ## Error Contract
 
-The `@sigma_tool` decorator guarantees that three possible error shapes are
-returned — never an unhandled exception or stack trace. Client secrets are
-redacted from all error messages before they reach the MCP client.
+The JSON text has one of three error shapes — never an unhandled exception or stack
+trace. Client secrets are redacted from all error messages before they reach the MCP
+client.
 
 ### 1. API errors (`SigmaAPIError`)
 
-Returned when the Sigma REST API responds with a non-2xx status:
+Returned with `isError: true` when the Sigma REST API responds with a non-2xx status:
 
 ```json
 {
@@ -39,7 +40,7 @@ Returned when the Sigma REST API responds with a non-2xx status:
 
 ### 2. Internal errors (unexpected exceptions)
 
-Returned when an unhandled exception occurs inside a tool function:
+Returned with `isError: true` when an unhandled exception occurs inside a tool function:
 
 ```json
 {
@@ -53,7 +54,8 @@ Returned when an unhandled exception occurs inside a tool function:
 ### 3. Validation errors (invalid request parameters)
 
 Returned early when a tool detects missing or invalid arguments before calling
-the API:
+the API. These are currently returned as a normal tool result (`isError: false`),
+not raised:
 
 ```json
 {

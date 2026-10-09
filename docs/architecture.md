@@ -96,7 +96,8 @@ domain sub-servers. Build order:
    annotated `readOnlyHint=True` stay listed. A missing hint counts as a write.
 4. **Discovery** — Tool Search (`search_tools` + `call_tool`, regex or BM25) or
    experimental Code Mode, on `full` only and never both. Other profiles log a warning
-   and stay flat.
+   and stay flat. Code Mode needs the `fastmcp[code-mode]` extra (its `pydantic-monty`
+   sandbox); without it, attach is skipped with a warning and the list stays flat.
 
 | Profile | Job | Tools | Read-only |
 |---------|-----|------:|----------:|

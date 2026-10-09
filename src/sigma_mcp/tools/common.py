@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from sigma_mcp.errors import SigmaAPIError, redact_secrets
@@ -42,7 +43,12 @@ def _summarize_list(data: Any, key_fields: list[str]) -> Any:
 
 
 def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator that wraps MCP tools with structured error handling and execution metrics."""
+    """Decorator that wraps MCP tools with structured error handling and execution metrics.
+
+    A failed call raises FastMCP ``ToolError`` carrying the redacted ``{"error": ...}`` JSON,
+    so the client receives a ``tools/call`` result with ``isError: true``. It is raised
+    ``from None`` so the unredacted original exception does not ride along as the cause.
+    """
 
     @functools.wraps(fn)
     async def wrapper(*args: Any, **kwargs: Any) -> str:
@@ -58,14 +64,14 @@ def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
             err = e.to_dict()
             if isinstance(err.get("detail"), str):
                 err["detail"] = redact_secrets(err["detail"])
-            return json.dumps({"error": err})
+            raise ToolError(json.dumps({"error": err})) from None
         except Exception as e:
             duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
             logger.error(
                 "Tool failed with internal error", extra={"tool_name": fn.__name__, "duration_ms": duration_ms}
             )
             msg = redact_secrets(str(e))
-            return json.dumps({"error": {"type": "internal", "message": msg}})
+            raise ToolError(json.dumps({"error": {"type": "internal", "message": msg}})) from None
 
     return wrapper
 

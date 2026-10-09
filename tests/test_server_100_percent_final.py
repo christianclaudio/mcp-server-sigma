@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 from sigma_mcp import server as srv
 from sigma_mcp.client import SigmaClient
@@ -38,8 +39,8 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
     assert "synced_path" in res_sync_ok
 
     c.sync_connection = AsyncMock(side_effect=Exception("Sync error"))
-    res_sync_err = await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
-    assert "Sync error" in res_sync_err
+    with pytest.raises(ToolError, match="Sync error"):
+        await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
 
     # sigma_copy_workbook_to_member validation & homeFolderId check & success & exception
     assert "workbook_id is required" in await srv.sigma_copy_workbook_to_member("", "m1")
@@ -72,8 +73,8 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
     c.get_member = AsyncMock(return_value={"memberId": "m1", "homeFolderId": "hf1"})
     c.get_workbook = AsyncMock(return_value={"name": "My Workbook"})
     c.duplicate_workbook = AsyncMock(side_effect=Exception("Duplicate failed"))
-    res_dup_err = await srv.sigma_copy_workbook_to_member("wb1", "m1")
-    assert "Duplicate failed" in res_dup_err
+    with pytest.raises(ToolError, match="Duplicate failed"):
+        await srv.sigma_copy_workbook_to_member("wb1", "m1")
 
     # sigma_duplicate_workbook validation branches
     assert "name is required" in await srv.sigma_duplicate_workbook("wb1", "", "folder1")
@@ -167,8 +168,8 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     # sigma_bulk_remove_team_members exception
     c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
     c.update_team_members = AsyncMock(side_effect=Exception("Team removal error"))
-    res_rem_err = await srv.sigma_bulk_remove_team_members("t1", ["a@b.com"], confirm=True)
-    assert "Team removal error" in res_rem_err
+    with pytest.raises(ToolError, match="Team removal error"):
+        await srv.sigma_bulk_remove_team_members("t1", ["a@b.com"], confirm=True)
 
     # list_tenants_paginated non-dict response
     c.get = AsyncMock(return_value=["non_dict_response"])

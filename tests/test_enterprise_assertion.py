@@ -1,8 +1,14 @@
-"""Enterprise assertion: no tool can raise a raw exception to the MCP caller."""
+"""Enterprise assertion: no tool can raise a raw exception to the MCP caller.
+
+A failure must surface as FastMCP ``ToolError`` (``isError: true`` on the wire) whose text is
+the redacted ``{"error": ...}`` JSON; any other exception type is a raw exception.
+"""
 
 import asyncio
 import inspect
 import json
+
+from fastmcp.exceptions import ToolError
 
 from sigma_mcp.server import DOMAIN_SERVERS
 
@@ -39,6 +45,17 @@ async def _test_all_tools():
                 kwargs[pname] = "bogus"
         try:
             result = await fn(**kwargs)
+        except ToolError as e:
+            text = str(e)
+            if "fake_secret_value_1234" in text:
+                failures.append(f"{name}: ToolError leaked the client secret")
+                continue
+            try:
+                if "error" not in json.loads(text):
+                    failures.append(f"{name}: ToolError text has no error object")
+            except ValueError as je:
+                failures.append(f"{name}: ToolError text is not JSON: {je}")
+            continue
         except Exception as e:
             failures.append(f"{name}: {type(e).__name__}: {e}")
             continue

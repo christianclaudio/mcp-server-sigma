@@ -36,6 +36,6 @@ Maps all 25 official [Sigma API recipes](https://help.sigmacomputing.com/recipes
 
 - **Batched team-member operations**: `admin_update_team_members` accepts `add` and `remove` lists in one call, vs the official recipe's one-member-at-a-time approach.
 - **Auto-pagination**: The `list_all_*` tools (`workbooks_list_all_workbooks`, `admin_list_all_members`, `admin_list_all_teams`, `workspace_list_all_files`, `workbooks_list_all_reports`, `datasets_list_all_data_models`) paginate automatically and return all records, vs hardcoded `limit` values that silently drop data beyond the first page.
-- **Collected error arrays**: The `@sigma_tool` decorator catches all `SigmaAPIError` exceptions and returns structured JSON — never raises unhandled.
+- **Collected error arrays**: The `@sigma_tool` decorator catches `SigmaAPIError` and unexpected exceptions and reports them as a structured JSON error with `isError: true` — never an unhandled exception.
 - **Bounded polling with timeouts**: Export operations poll with exponential backoff and a hard timeout, vs infinite polling loops in official examples.
 - **Dry-run gating on destructive operations**: `admin_bulk_deactivate_members`, `workbooks_reassign_workbook_ownership`, and `datasets_bulk_sync_tenant_connections` default to `dry_run=True`, reporting what would change without executing.
