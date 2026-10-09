@@ -125,7 +125,9 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
 
     res_exec = await srv.sigma_bulk_deactivate_members("Jones|Fail", dry_run=False, confirm=True)
     data = json.loads(res_exec)
-    assert [r["id"] for r in data["results"]] == ["m2"]
+    # As on main, results lists every member; the failed one is also in errors.
+    assert [(r["id"], r["status"]) for r in data["results"]] == [("m2", "deactivated"), ("m3", "failed")]
+    assert data["results"][1]["error"] == "Deactivate error"
     assert [e["id"] for e in data["errors"]] == ["m3"]
     assert data["errors"][0]["error"]["message"] == "Deactivate error"
 

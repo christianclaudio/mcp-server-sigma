@@ -102,7 +102,10 @@ def _batch_outcome(
     result. The raise happens outside any ``except`` block, so it carries no ``__context__``.
     """
     ctx = context or {}
-    if errors and not results:
+    # Failed items may also sit in ``results`` (the field layout from main); only entries whose
+    # status is ``verb`` count as done.
+    done = sum(1 for r in results if r.get("status") == verb)
+    if errors and not done:
         _tool_failure(
             "batch_failed",
             f"All {len(errors)} {items} failed; nothing was {verb}.",
@@ -113,7 +116,7 @@ def _batch_outcome(
     return json.dumps(
         {
             "status": "success" if not errors else "partial_success",
-            f"{verb}_count": len(results),
+            f"{verb}_count": done,
             "failed_count": len(errors),
             "results": results,
             "errors": errors,

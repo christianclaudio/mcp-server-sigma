@@ -204,7 +204,7 @@ def test_tool_failure_redacts_message_and_string_details(monkeypatch: pytest.Mon
 
 # Per-entry field names from main that the batch tools keep alongside the fleet keys.
 _LEGACY_ENTRY_KEYS = {"memberId", "name", "workbookId", "workbookName", "pageId", "stage", "orgId", "connectionId"}
-_LEGACY_ENTRY_KEYS |= {"connections_synced"}
+_LEGACY_ENTRY_KEYS |= {"connections_synced", "errors", "error", "reason", "error_detail"}
 
 
 async def _call_ok(name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -233,11 +233,21 @@ def _assert_item_errors(items: list[dict[str, Any]]) -> None:
 def _assert_batch_shape(data: dict[str, Any], verb: str) -> None:
     """The one fleet batch shape: top-level status/<verb>_count/failed_count/results/errors."""
     assert data["status"] in {"success", "partial_success"}
-    assert data[f"{verb}_count"] == len(data["results"])
-    assert data["failed_count"] == len(data["errors"])
-    for entry in data["results"]:
+    done = [e for e in data["results"] if e["status"] == verb]
+    assert data[f"{verb}_count"] == len(done)
+    for entry in done:
         assert {"id", "status", "result"} <= set(entry) <= {"id", "status", "result"} | _LEGACY_ENTRY_KEYS, entry
-        assert entry["status"] == verb, entry
+    # As on main, a failed item can also stay in results, with the redacted message as a string.
+    for entry in data["results"]:
+        assert entry["status"] in {verb, "failed", "skipped"}, entry
+        if entry["status"] == "failed" and "error" in entry:
+            assert isinstance(entry["error"], str) and _SECRET not in entry["error"], entry
+    if data["errors"] and "error_detail" in data["errors"][0]:
+        # list_all_input_tables keeps main's errors list (one entry per failed stage).
+        for e in data["errors"]:
+            assert e["error"] == e["error_detail"]["message"], e
+        return
+    assert data["failed_count"] == len(data["errors"])
     if data["errors"]:
         _assert_item_errors(data["errors"])
 
@@ -268,7 +278,9 @@ async def test_admin_bulk_deactivate_partial_is_normal_result(api: AsyncMock) ->
     assert data["deactivated_count"] == 1
     assert data["failed_count"] == 1
     _assert_batch_shape(data, "deactivated")
-    assert [r["id"] for r in data["results"]] == ["m-0"]
+    # As on main, results lists every member; the failed one is also in errors.
+    assert [(r["id"], r["status"]) for r in data["results"]] == [("m-0", "deactivated"), ("m-1", "failed")]
+    assert data["results"][1]["error"] == "denied ***REDACTED***"
     assert [e["id"] for e in data["errors"]] == ["m-1"]
     _assert_item_errors(data["errors"])
     # Field names from main stay alongside the fleet keys.
@@ -320,7 +332,9 @@ async def test_workbooks_reassign_partial_is_normal_result(api: AsyncMock) -> No
     assert data["transferred_count"] == 1
     assert data["failed_count"] == 1
     _assert_batch_shape(data, "transferred")
-    assert [r["id"] for r in data["results"]] == ["f0"]
+    # As on main, results lists every file; the failed one is also in errors.
+    assert [(r["id"], r["status"]) for r in data["results"]] == [("f0", "transferred"), ("f1", "failed")]
+    assert data["results"][1]["error"] == "forbidden ***REDACTED***"
     assert [e["id"] for e in data["errors"]] == ["f1"]
     _assert_item_errors(data["errors"])
     # Field names from main stay alongside the fleet keys.
@@ -430,14 +444,19 @@ async def test_datasets_tenant_sync_partial_is_normal_result(api: AsyncMock) -> 
     assert data["status"] == "partial_success"
     assert data["synced_count"] == 1
     assert data["failed_count"] == 1
-    assert [r["id"] for r in data["results"]] == ["t2"]
+    # As on main, results lists every tenant; the failed one is also in errors.
+    by_org = {r["id"]: r for r in data["results"]}
+    assert sorted(by_org) == ["t1", "t2"]
+    assert by_org["t1"]["status"] == "failed"
+    assert by_org["t1"]["error"] == "token exchange refused ***REDACTED***"
     assert [e["id"] for e in data["errors"]] == ["t1"]
     _assert_batch_shape(data, "synced")
-    _assert_batch_shape(data["results"][0]["result"], "synced")
+    _assert_batch_shape(by_org["t2"]["result"], "synced")
     # Field names from main stay alongside the fleet keys.
     assert data["tenants_processed"] == 2
-    ok = data["results"][0]
+    ok = by_org["t2"]
     assert (ok["orgId"], ok["name"], ok["connections_synced"]) == ("t2", "T2", 1)
+    assert "errors" not in ok
     assert ok["result"]["results"][0]["connectionId"] == "c1"
     assert (data["errors"][0]["orgId"], data["errors"][0]["name"]) == ("t1", "T1")
 
@@ -580,7 +599,8 @@ async def test_elements_scan_runtime_error_is_redacted(api: AsyncMock, caplog: p
     api.list_workbook_page_elements = AsyncMock(return_value={"entries": []})
     data = await _call_ok("elements_list_all_input_tables", {})
     assert data["status"] == "partial_success"
-    assert data["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    assert data["errors"][0]["error"] == "boom Authorization: ***REDACTED***"
+    assert data["errors"][0]["error_detail"]["message"] == "boom Authorization: ***REDACTED***"
     _no_leak(data, caplog)
 
 
@@ -597,6 +617,11 @@ async def test_elements_scan_non_api_exception_does_not_stop_batch(api: AsyncMoc
     page_errors = data["results"][0]["result"]["page_errors"]
     assert [e["id"] for e in page_errors] == ["p1"]
     _assert_item_errors(page_errors)
+    # As on main, the failed page is also in the top-level errors list.
+    assert [(e["workbookId"], e["pageId"], e["stage"]) for e in data["errors"]] == [
+        (page_errors[0]["workbookId"], "p1", "elements")
+    ]
+    assert data["errors"][0]["error"] == page_errors[0]["error"]["message"]
 
 
 @pytest.mark.asyncio
@@ -633,6 +658,8 @@ async def test_datasets_connection_non_api_exception_does_not_stop_batch(
     _assert_batch_shape(tenant, "synced")
     assert tenant["synced_count"] == 1
     assert tenant["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    # As on main, the tenant entry lists its failed connections with the message string.
+    assert data["results"][0]["errors"] == [{"connectionId": "c1", "error": "boom Authorization: ***REDACTED***"}]
     _no_leak(data, caplog)
 
 
@@ -674,7 +701,8 @@ def _assert_partial_redacted(data: dict[str, Any], caplog: pytest.LogCaptureFixt
     assert data["status"] == "partial_success"
     assert data["results"] and data["errors"]
     _assert_no_tokens(json.dumps(data), caplog)
-    err = data["errors"][0]["error"]
+    first = data["errors"][0]
+    err = first.get("error_detail", first["error"])
     for key in ("message", "path", "detail"):
         assert "***REDACTED***" in err[key], (key, err)
 

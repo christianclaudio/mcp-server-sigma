@@ -262,6 +262,9 @@ async def sigma_list_all_input_tables() -> str:
     input_tables: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
+    # main's top-level ``errors``: one entry per failed stage (pages or a page's elements), with the
+    # redacted message string; each entry also carries the error object as ``error_detail``.
+    stage_errors: list[dict[str, Any]] = []
     sem = asyncio.Semaphore(5)
 
     async def scan_workbook(index: int, wb: dict[str, Any]) -> None:
@@ -272,6 +275,7 @@ async def sigma_list_all_input_tables() -> str:
                 pages_data = await c.list_workbook_pages(wb_id)
                 pages = pages_data.get("entries", []) if isinstance(pages_data, dict) else []
             except Exception as e:
+                item_err = {**_item_error(e, index=index), "stage": "pages"}
                 errors.append(
                     {
                         "id": wb_id,
@@ -279,7 +283,16 @@ async def sigma_list_all_input_tables() -> str:
                         "workbookName": wb_name,
                         "stage": "pages",
                         "status": "failed",
-                        "error": {**_item_error(e, index=index), "stage": "pages"},
+                        "error": item_err,
+                    }
+                )
+                stage_errors.append(
+                    {
+                        "workbookId": wb_id,
+                        "workbookName": wb_name,
+                        "stage": "pages",
+                        "error": item_err["message"],
+                        "error_detail": item_err,
                     }
                 )
                 return
@@ -293,6 +306,7 @@ async def sigma_list_all_input_tables() -> str:
                     elements_data = await c.list_workbook_page_elements(wb_id, page_id)
                     elements = elements_data.get("entries", []) if isinstance(elements_data, dict) else []
                 except Exception as e:
+                    page_err = _item_error(e, index=page_index)
                     page_errors.append(
                         {
                             "id": page_id,
@@ -300,7 +314,16 @@ async def sigma_list_all_input_tables() -> str:
                             "pageId": page_id,
                             "stage": "elements",
                             "status": "failed",
-                            "error": _item_error(e, index=page_index),
+                            "error": page_err,
+                        }
+                    )
+                    stage_errors.append(
+                        {
+                            "workbookId": wb_id,
+                            "pageId": page_id,
+                            "stage": "elements",
+                            "error": page_err["message"],
+                            "error_detail": page_err,
                         }
                     )
                     continue
@@ -357,6 +380,8 @@ async def sigma_list_all_input_tables() -> str:
             "total_input_tables": len(input_tables),
             "input_tables": input_tables,
             "workbooks_scanned": len(all_workbooks),
+            # main's errors list stays; failed workbooks are counted in failed_count.
+            "errors": stage_errors,
         },
     )
 

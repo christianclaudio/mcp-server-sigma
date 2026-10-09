@@ -124,7 +124,14 @@ returned before keep their place alongside: entries keep `memberId` and `name`
 (deactivations), `name` (transfers), `workbookId`, `workbookName`, `pageId` and `stage`
 (scans), and `orgId`, `name`, `connections_synced` and `connectionId` (tenant syncs); the top
 level keeps `deactivated` and `failed`, `transferred` and `failed`, `workbooks_scanned`, and
-`tenants_processed`. When at least one item succeeds, the call is a normal result
+`tenants_processed`. As on earlier releases, `results` of the deactivate, transfer and
+tenant-sync tools lists every item: a failed item stays there with `"status": "failed"` and
+its redacted message as the string `error` (deactivations also keep `"status": "skipped"`
+with a `reason`), and is listed again in `errors` with the error object; `<verb>_count`
+counts only the items done. `elements_list_all_input_tables` keeps its earlier top-level
+`errors` list, one entry per failed stage (`pages`, or a page's `elements`) with the redacted
+message as the string `error` and the error object as `error_detail`; its `failed_count`
+counts failed workbooks. When at least one item succeeds, the call is a normal result
 (`isError: false`):
 
 ```json
@@ -134,7 +141,9 @@ level keeps `deactivated` and `failed`, `transferred` and `failed`, `workbooks_s
   "failed_count": 1,
   "results": [
     { "id": "f0", "name": "WB 0", "status": "transferred",
-      "result": { "id": "f0", "ownerId": "new-id" } }
+      "result": { "id": "f0", "ownerId": "new-id" } },
+    { "id": "f1", "name": "WB 1", "status": "failed",
+      "error": "Sigma API PATCH /v2/files/f1 returned 403" }
   ],
   "errors": [
     {

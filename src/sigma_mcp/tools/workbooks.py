@@ -788,6 +788,7 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
     for index, f in enumerate(owned):
         fid = f.get("id") or f.get("inodeId")
         if not isinstance(fid, str):
+            results.append({"id": fid, "name": f.get("name"), "status": "failed", "error": "missing file ID"})
             errors.append(
                 {
                     "id": fid,
@@ -801,7 +802,10 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
             res = await c.update_file(fid, {"ownerId": new_member_id})
             results.append({"id": fid, "name": f.get("name"), "status": "transferred", "result": res})
         except Exception as e:
-            errors.append({"id": fid, "name": f.get("name"), "status": "failed", "error": _item_error(e, index=index)})
+            item_err = _item_error(e, index=index)
+            # main's entry (redacted message string) stays in results; the error object is in errors.
+            results.append({"id": fid, "name": f.get("name"), "status": "failed", "error": item_err["message"]})
+            errors.append({"id": fid, "name": f.get("name"), "status": "failed", "error": item_err})
 
     return _batch_outcome(
         "workbook transfers",
@@ -812,7 +816,10 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
             "old_owner": {"email": old_owner_email, "memberId": old_member_id},
             "new_owner": {"email": new_owner_email, "memberId": new_member_id},
         },
-        extra={"transferred": len(results), "failed": len(errors)},
+        extra={
+            "transferred": sum(1 for r in results if r["status"] == "transferred"),
+            "failed": sum(1 for r in results if r["status"] == "failed"),
+        },
     )
 
 

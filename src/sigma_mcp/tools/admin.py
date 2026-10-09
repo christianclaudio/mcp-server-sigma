@@ -716,6 +716,9 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
         mid = m.get("memberId", "")
         name = f"{m.get('firstName', '')} {m.get('lastName', '')}"
         if not mid:  # pragma: no cover
+            results.append(
+                {"id": mid, "memberId": mid, "name": name, "status": "skipped", "reason": "missing memberId"}
+            )
             errors.append(
                 {
                     "id": mid,
@@ -730,9 +733,10 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
             res = await c.deactivate_member(mid)
             results.append({"id": mid, "memberId": mid, "name": name, "status": "deactivated", "result": res})
         except Exception as e:
-            errors.append(
-                {"id": mid, "memberId": mid, "name": name, "status": "failed", "error": _item_error(e, index=index)}
-            )
+            item_err = _item_error(e, index=index)
+            # main's entry (redacted message string) stays in results; the error object is in errors.
+            results.append({"id": mid, "memberId": mid, "name": name, "status": "failed", "error": item_err["message"]})
+            errors.append({"id": mid, "memberId": mid, "name": name, "status": "failed", "error": item_err})
 
     return _batch_outcome(
         "member deactivations",
@@ -740,7 +744,10 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
         results,
         errors,
         context={"pattern": name_pattern},
-        extra={"deactivated": len(results), "failed": len(errors)},
+        extra={
+            "deactivated": sum(1 for r in results if r["status"] == "deactivated"),
+            "failed": sum(1 for r in results if r["status"] == "failed"),
+        },
     )
 
 
