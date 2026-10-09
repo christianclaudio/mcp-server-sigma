@@ -416,7 +416,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](https://github.com/chri
 
 ## 📜 License
 
-[MIT License](https://github.com/christianclaudio/mcp-server-sigma/blob/main/LICENSE).  
+[Apache License 2.0](https://github.com/christianclaudio/mcp-server-sigma/blob/main/LICENSE).  
 Copyright (c) 2026 Christian Claudio.
 
 *Disclaimer: Not affiliated with, sponsored by, or endorsed by Sigma Computing, Inc.*
