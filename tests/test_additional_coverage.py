@@ -33,6 +33,8 @@ async def test_get_client_uninitialized(monkeypatch: pytest.MonkeyPatch) -> None
 def test_main_cli_variations(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sys.argv", ["sigma-mcp", "--transport", "stdio"])
     monkeypatch.setattr(srv.mcp, "run", lambda **kwargs: None)
+    # main() sets mcp.auth on HTTP transports; restore it so later tests run unauthenticated.
+    monkeypatch.setattr(srv.mcp, "auth", srv.mcp.auth)
     srv.main()
 
     monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", "secret-token")

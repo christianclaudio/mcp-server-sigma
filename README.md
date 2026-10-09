@@ -161,7 +161,7 @@ source .env
 sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
-Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`.
+Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`. When `SIGMA_MCP_AUTH_TOKEN` is set, the client must send `Authorization: Bearer <token>`; requests without it, or with a different token, get HTTP 401.
 
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>
@@ -272,6 +272,7 @@ Configure behavior using environment variables:
 | `SIGMA_MCP_ENABLE_TOOL_SEARCH` | `0` | Set `1` (or `--enable-tool-search`) for Tool Search on `full` only. |
 | `SIGMA_MCP_TOOL_SEARCH_BACKEND` | `regex` | Tool Search backend: `regex` or `bm25` (or `--tool-search-backend`). |
 | `SIGMA_MCP_ENABLE_CODE_MODE` | `0` | Set `1` (or `--enable-code-mode`) for experimental Code Mode on `full` only; not with Tool Search. |
+| `SIGMA_MCP_AUTH_TOKEN` | *(unset)* | On `streamable-http` and `sse`, requires `Authorization: Bearer <token>` on every MCP request (FastMCP server auth; a missing or wrong token gets HTTP 401). Unset: HTTP requests are not authenticated and the server logs a warning. Ignored on `stdio`. |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
