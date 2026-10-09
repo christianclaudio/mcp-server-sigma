@@ -595,7 +595,8 @@ async def sigma_onboard_member(
                 await c.update_team_members(tid, {"add": [member_id]})
                 teams_added.append(tid)
             except Exception as e:
-                teams_added.append(f"{tid}: FAILED ({e})")
+                # Same redaction and message fallback as batch items; no raw exception text.
+                teams_added.append(f"{tid}: FAILED ({_item_error(e)['message']})")
     return json.dumps({"member": member, "teams_added": teams_added}, indent=2)
 
 

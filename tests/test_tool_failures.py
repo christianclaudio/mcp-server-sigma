@@ -569,6 +569,187 @@ async def test_datasets_connection_non_api_exception_does_not_stop_batch(
     _no_leak(data, caplog)
 
 
+# ─── partial results: failed items are redacted too, not only on batch_failed ─
+
+_API_TOKEN = "apitok-live-998877"
+
+
+_ACCESS_TOKEN = "acctok-live-112233"
+_REFRESH_TOKEN = "reftok-live-445566"
+_QUERY_TOKEN = "qtok-live-778899"
+_TOKENS = (_BEARER, _API_TOKEN, _ACCESS_TOKEN, _REFRESH_TOKEN, _QUERY_TOKEN)
+
+
+def _leaky_api_error(path: str) -> SigmaAPIError:
+    """An API error whose path, detail and message carry a bearer token and api/access/refresh/query tokens.
+
+    The tokens use every form the redaction covers: ``key=value``, ``key: value``, quoted JSON and a
+    bare ``token=`` query parameter.
+    """
+    return SigmaAPIError(
+        502,
+        f"{path}?api_token={_API_TOKEN}&token={_QUERY_TOKEN}",
+        "GET",
+        detail=(
+            f"echoed {_LEAK} access_token: {_ACCESS_TOKEN} refresh-token={_REFRESH_TOKEN} "
+            f'{{"api_token": "{_API_TOKEN}", "refresh_token": "{_REFRESH_TOKEN}"}}'
+        ),
+    )
+
+
+def _assert_no_tokens(text: str, caplog: pytest.LogCaptureFixture) -> None:
+    for token in _TOKENS:
+        assert token not in text, token
+        assert token not in caplog.text, token
+
+
+def _assert_partial_redacted(data: dict[str, Any], caplog: pytest.LogCaptureFixture) -> None:
+    assert data["status"] == "partial_success"
+    assert data["results"] and data["errors"]
+    _assert_no_tokens(json.dumps(data), caplog)
+    err = data["errors"][0]["error"]
+    for key in ("message", "path", "detail"):
+        assert "***REDACTED***" in err[key], (key, err)
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_partial_redacts_failed_item(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=[200, _leaky_api_error("/v2/members/m-1")])
+    data = await _call_ok("admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True})
+    _assert_partial_redacted(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_partial_redacts_failed_item(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=[{}, _leaky_api_error("/v2/files/f1")])
+    data = await _call_ok(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    _assert_partial_redacted(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_partial_redacts_failed_item(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}, {"workbookId": "wb2"}])
+
+    async def pages(wb_id: str) -> dict[str, Any]:
+        if wb_id == "wb2":
+            raise _leaky_api_error("/v2/workbooks/wb2/pages")
+        return {"entries": [{"pageId": "p1"}]}
+
+    api.list_workbook_pages = AsyncMock(side_effect=pages)
+    api.list_workbook_page_elements = AsyncMock(return_value={"entries": []})
+    data = await _call_ok("elements_list_all_input_tables", {})
+    _assert_partial_redacted(data, caplog)
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_partial_redacts_failed_item(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+
+    async def for_tenant(org_id: str) -> AsyncMock:
+        if org_id == "t1":
+            raise _leaky_api_error("/v2/tenants/t1/token")
+        return _tenant_client(None)
+
+    api.for_tenant = AsyncMock(side_effect=for_tenant)
+    data = await _call_ok("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    _assert_partial_redacted(data, caplog)
+
+
+async def _call_raw_error(name: str, args: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Call a tool over an in-memory Client; return the raw error text and its parsed error object."""
+    async with Client(create_server(profile="full")) as client:
+        res = await client.call_tool(name, args, raise_on_error=False)
+    assert res.is_error is True, res
+    text: str = res.content[0].text  # type: ignore[union-attr]
+    return text, json.loads(text)["error"]
+
+
+def _assert_all_failed_redacted(text: str, err: dict[str, Any], caplog: pytest.LogCaptureFixture) -> None:
+    assert err["type"] == "batch_failed"
+    _assert_no_tokens(text, caplog)
+    item_err = err["errors"][0]["error"]
+    for key in ("message", "path", "detail"):
+        assert "***REDACTED***" in item_err[key], (key, item_err)
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_deactivate_all_failed_redacts_tokens(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture
+) -> None:
+    api.auto_paginate = AsyncMock(return_value=_members(2))
+    api.deactivate_member = AsyncMock(side_effect=[_leaky_api_error("/v2/members/m-0"), _leaky_api_error("/v2/m")])
+    text, err = await _call_raw_error(
+        "admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True}
+    )
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+@pytest.mark.asyncio
+async def test_workbooks_reassign_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+    )
+    api.get = AsyncMock(return_value=_owned_files(2))
+    api.update_file = AsyncMock(side_effect=[_leaky_api_error("/v2/files/f0"), _leaky_api_error("/v2/files/f1")])
+    text, err = await _call_raw_error(
+        "workbooks_reassign_workbook_ownership",
+        {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
+    )
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+@pytest.mark.asyncio
+async def test_elements_scan_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1"}, {"workbookId": "wb2"}])
+    api.list_workbook_pages = AsyncMock(side_effect=_leaky_api_error("/v2/workbooks/pages"))
+    text, err = await _call_raw_error("elements_list_all_input_tables", {})
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+@pytest.mark.asyncio
+async def test_datasets_tenant_sync_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.list_tenants = AsyncMock(
+        return_value={"entries": [{"orgId": "t1", "name": "T1"}, {"orgId": "t2", "name": "T2"}]}
+    )
+    api.for_tenant = AsyncMock(side_effect=_leaky_api_error("/v2/tenants/token"))
+    text, err = await _call_raw_error("datasets_bulk_sync_tenant_connections", {"dry_run": False})
+    _assert_all_failed_redacted(text, err, caplog)
+
+
+# ─── admin_onboard_member: failed team adds are redacted ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_onboard_member_team_add_error_is_redacted(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+    api.create_member = AsyncMock(return_value={"memberId": "m-new", "email": "new@example.com"})
+    api.update_team_members = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), {"ok": True}, RuntimeError()])
+    data = await _call_ok(
+        "admin_onboard_member",
+        {"email": "new@example.com", "first_name": "New", "last_name": "User", "team_ids": ["t1", "t2", "t3"]},
+    )
+    assert set(data) == {"member", "teams_added"}
+    assert data["teams_added"] == [
+        "t1: FAILED (boom Authorization: ***REDACTED***)",
+        "t2",
+        "t3: FAILED (RuntimeError)",
+    ]
+    _no_leak(data, caplog)
+
+
 # ─── the redacted error is raised after the except block: no __context__ ──────
 
 
@@ -631,22 +812,44 @@ async def test_batch_failed_bearer_runtime_error_is_not_on_context(api: AsyncMoc
 # ``except Exception``; widening it to ``BaseException`` would swallow CancelledError as a failed item.
 
 
-def _assert_cancel_not_recorded(caplog: pytest.LogCaptureFixture) -> None:
+@pytest.fixture
+def item_errors(monkeypatch: pytest.MonkeyPatch) -> list[BaseException | str]:
+    """Record every argument passed to ``_item_error`` by the four batch tool modules."""
+    from sigma_mcp.tools import admin, datasets, elements, workbooks
+
+    seen: list[BaseException | str] = []
+
+    def spy(exc: BaseException | str, error_type: str = "internal") -> dict[str, Any]:
+        seen.append(exc)
+        return _item_error(exc, error_type)
+
+    for mod in (admin, datasets, elements, workbooks):
+        monkeypatch.setattr(mod, "_item_error", spy)
+    return seen
+
+
+def _assert_cancel_not_recorded(caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]) -> None:
+    """The cancellation never became a failed item: no item error was built for it, none logged."""
+    assert not any(isinstance(e, asyncio.CancelledError) for e in item_errors), item_errors
     assert "Batch item failed" not in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_admin_bulk_deactivate_cancellation_propagates(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+async def test_admin_bulk_deactivate_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
     api.auto_paginate = AsyncMock(return_value=_members(3))
     api.deactivate_member = AsyncMock(side_effect=[200, asyncio.CancelledError(), 200])
     with pytest.raises(asyncio.CancelledError):
         await server.sigma_bulk_deactivate_members("Test", dry_run=False, confirm=True)
     assert api.deactivate_member.await_count == 2  # the call stopped at the cancelled item
-    _assert_cancel_not_recorded(caplog)
+    _assert_cancel_not_recorded(caplog, item_errors)
 
 
 @pytest.mark.asyncio
-async def test_workbooks_reassign_cancellation_propagates(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+async def test_workbooks_reassign_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
     api.search_members = AsyncMock(
         side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
     )
@@ -655,41 +858,49 @@ async def test_workbooks_reassign_cancellation_propagates(api: AsyncMock, caplog
     with pytest.raises(asyncio.CancelledError):
         await server.sigma_reassign_workbook_ownership("old@example.com", "new@example.com", dry_run=False)
     assert api.update_file.await_count == 2
-    _assert_cancel_not_recorded(caplog)
+    _assert_cancel_not_recorded(caplog, item_errors)
 
 
 @pytest.mark.asyncio
-async def test_elements_scan_pages_cancellation_propagates(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+async def test_elements_scan_pages_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
     api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}])
     api.list_workbook_pages = AsyncMock(side_effect=asyncio.CancelledError())
     with pytest.raises(asyncio.CancelledError):
         await server.sigma_list_all_input_tables()
     api.list_workbook_page_elements.assert_not_called()
-    _assert_cancel_not_recorded(caplog)
+    _assert_cancel_not_recorded(caplog, item_errors)
 
 
 @pytest.mark.asyncio
-async def test_elements_scan_elements_cancellation_propagates(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+async def test_elements_scan_elements_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
     api.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "A"}])
     api.list_workbook_pages = AsyncMock(return_value={"entries": [{"pageId": "p1"}, {"pageId": "p2"}]})
     api.list_workbook_page_elements = AsyncMock(side_effect=[asyncio.CancelledError(), {"entries": []}])
     with pytest.raises(asyncio.CancelledError):
         await server.sigma_list_all_input_tables()
     assert api.list_workbook_page_elements.await_count == 1
-    _assert_cancel_not_recorded(caplog)
+    _assert_cancel_not_recorded(caplog, item_errors)
 
 
 @pytest.mark.asyncio
-async def test_datasets_tenant_cancellation_propagates(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+async def test_datasets_tenant_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
     api.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "t1", "name": "T1"}]})
     api.for_tenant = AsyncMock(side_effect=asyncio.CancelledError())
     with pytest.raises(asyncio.CancelledError):
         await server.sigma_bulk_sync_tenant_connections(dry_run=False)
-    _assert_cancel_not_recorded(caplog)
+    _assert_cancel_not_recorded(caplog, item_errors)
 
 
 @pytest.mark.asyncio
-async def test_datasets_connection_cancellation_propagates(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
+async def test_datasets_connection_cancellation_propagates(
+    api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
+) -> None:
     api.list_tenants = AsyncMock(return_value={"entries": [{"orgId": "t1", "name": "T1"}]})
     tc = AsyncMock()
     tc.list_connections = AsyncMock(return_value={"entries": [{"connectionId": "c1"}, {"connectionId": "c2"}]})
@@ -699,4 +910,4 @@ async def test_datasets_connection_cancellation_propagates(api: AsyncMock, caplo
         await server.sigma_bulk_sync_tenant_connections(dry_run=False)
     assert tc.sync_connection.await_count == 1
     tc.aclose.assert_awaited()  # the finally still closes the tenant client
-    _assert_cancel_not_recorded(caplog)
+    _assert_cancel_not_recorded(caplog, item_errors)

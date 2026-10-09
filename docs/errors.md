@@ -180,8 +180,8 @@ be reached or every connection sync fails (its `error` has `"type": "batch_faile
 attempted on its own: any `Exception` from one item is recorded and the batch continues. Each
 failed item's `error` is an object with at least a non-empty `message`; an API failure also
 keeps the `sigma_api_error` fields, and anything else has `type` (`internal`, or
-`invalid_item` for a workbook with no file ID). Secrets are redacted in every string of the
-per-item errors, and only the redacted message is logged, without a traceback. A cancelled call
+`invalid_item` for a workbook with no file ID). Secrets (including bearer tokens; API, access, refresh, auth, id and session tokens; `X-Auth-Token` and `Authorization: Token` values; JSON `"token"` values; and a bare `token=` query parameter) are redacted in every string of the
+per-item errors, in a partial result as well as in `batch_failed`, and only the redacted message is logged, without a traceback. A cancelled call
 (`asyncio.CancelledError`) is not an item failure: it stops the call and propagates.
 
 Every tool error is raised after the `except` block that caught the original exception has
