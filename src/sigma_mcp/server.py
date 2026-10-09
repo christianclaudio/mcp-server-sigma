@@ -762,7 +762,7 @@ def main() -> None:
             tool_search_backend=backend,
         )
 
-    auth_token = os.environ.get(AUTH_TOKEN_ENV, "")
+    auth_token = os.environ.get(AUTH_TOKEN_ENV, "").strip()
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8000)
     stateless = getattr(args, "stateless", False)

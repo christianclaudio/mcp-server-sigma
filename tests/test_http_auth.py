@@ -96,6 +96,8 @@ async def test_verifier_constant_time_and_redacted() -> None:
     assert TOKEN not in repr(verifier)
     with pytest.raises(ValueError, match="must be non-empty") as exc:
         SharedTokenVerifier("")
+    with pytest.raises(ValueError, match="must be non-empty"):
+        SharedTokenVerifier(" \t\n ")
     assert TOKEN not in str(exc.value)
 
 
@@ -122,6 +124,14 @@ def test_main_wires_auth_on_http(
 
 def test_main_http_without_token_warns(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     monkeypatch.delenv("SIGMA_MCP_AUTH_TOKEN", raising=False)
+    with caplog.at_level(logging.WARNING):
+        server = _run_main(monkeypatch, ["--transport", "streamable-http"])
+    assert server.auth is None
+    assert "SIGMA_MCP_AUTH_TOKEN is not set" in caplog.text
+
+
+def test_main_http_whitespace_token_is_unset(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", "   ")
     with caplog.at_level(logging.WARNING):
         server = _run_main(monkeypatch, ["--transport", "streamable-http"])
     assert server.auth is None

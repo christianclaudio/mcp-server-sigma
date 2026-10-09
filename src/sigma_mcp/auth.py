@@ -20,10 +20,11 @@ class SharedTokenVerifier(TokenVerifier):
     """Accept exactly one shared bearer token, compared in constant time."""
 
     def __init__(self, expected_token: str) -> None:
-        if not expected_token:
+        stripped = expected_token.strip()
+        if not stripped:
             raise ValueError(f"{AUTH_TOKEN_ENV} must be non-empty to enable authentication")
         super().__init__()
-        self._expected = expected_token.encode("utf-8")
+        self._expected = stripped.encode("utf-8")
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(expected_token=***REDACTED***)"
