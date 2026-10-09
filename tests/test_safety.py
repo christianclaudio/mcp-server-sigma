@@ -9,6 +9,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from scripts.check_tool_contract import EXPECTED_PROFILE_COUNTS, JOB_PROFILES
 
 # ─── admin_bulk_deactivate_members safety ─────────────────────────────────────
 
@@ -317,9 +318,8 @@ class TestProfileFiltering:
         return json.loads(out.stdout.strip())
 
     def test_profile_counts(self) -> None:
-        expected = {"analyst": 31, "author": 40, "modeler": 33, "embed": 50, "access_admin": 52}
-        for profile, count in expected.items():
-            assert self._probe_profile(profile)["count"] == count, profile
+        for profile in JOB_PROFILES:
+            assert self._probe_profile(profile)["count"] == EXPECTED_PROFILE_COUNTS[profile][0], profile
 
     def test_author_and_modeler_share_only_lookups(self) -> None:
         """The former builder profile is split; author and modeler overlap on 10 lookups."""
