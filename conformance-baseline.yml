@@ -1,15 +1,20 @@
 # MCP Conformance Test Suite - Expected Failures Baseline
 # Reference: https://github.com/modelcontextprotocol/conformance
 #
-# These scenarios represent either:
-# 1. Deprecated protocol features removed per SEP-2577 / Protocol 2026-07-28
-#    (in-protocol logging/setLevel, server-initiated sampling)
-# 2. Synthetic test fixtures defined by the conformance suite specification
-#    (e.g. test_audio_content, test://static-text, test_simple_prompt)
-#    which are not part of this production server domain schema.
+# An entry may only cover a gap in the conformance suite itself, never a bug in this
+# server. Every entry below fails for one of two reasons (checked against
+# @modelcontextprotocol/conformance 0.1.16, the version scripts/check_conformance.sh pins):
+# 1. The scenario calls a fixed suite fixture (test_* tools and prompts, test:// URIs)
+#    that is not part of this server's catalog.
+# 2. The scenario exercises an optional capability this server does not declare
+#    (completions; resources.subscribe is false).
+# The suite never reads this server's own resources, so resources/read on them is covered
+# by the in-memory client test in tests/test_mcp_features.py, not by this suite.
 
 server:
+  # Optional capability not declared (completions); the request names a fixture prompt.
   - completion-complete
+  # Fixture tools (test_image_content, test_audio_content, ...).
   - tools-call-image
   - tools-call-audio
   - tools-call-embedded-resource
@@ -20,11 +25,14 @@ server:
   - tools-call-elicitation
   - elicitation-sep1034-defaults
   - elicitation-sep1330-enums
+  # Fixture URIs test://static-text, test://static-binary, test://template/123/data.
   - resources-read-text
   - resources-read-binary
   - resources-templates-read
+  # Optional capability not declared (resources.subscribe is false); fixture URI.
   - resources-subscribe
   - resources-unsubscribe
+  # Fixture prompts (test_simple_prompt, test_prompt_with_arguments, ...).
   - prompts-get-simple
   - prompts-get-with-args
   - prompts-get-embedded-resource
