@@ -15,7 +15,7 @@ from sigma_mcp import server as srv
 from sigma_mcp import webhooks
 from sigma_mcp.webhooks import (
     MAX_WEBHOOK_BODY_BYTES,
-    MIN_WEBHOOK_SECRET_LENGTH,
+    MIN_WEBHOOK_TOKEN_CHARS,
     WEBHOOK_BUFFER_SIZE,
     WEBHOOK_ROUTE_PREFIX,
     clear_webhook_buffer,
@@ -24,9 +24,11 @@ from sigma_mcp.webhooks import (
     register_webhook_route,
 )
 
-SECRET = "rT7-Lq2_xZ9vB4nM8kJ3hG6fD1sA0pWy5eUc"
-URL = f"{WEBHOOK_ROUTE_PREFIX}/{SECRET}"
-WRONG_URL = f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(SECRET)}"
+# A dummy value passed as SIGMA_WEBHOOK_SECRET. It is named for its role in the URL so the
+# log-redaction tests below never hand a logging call a value from a secret-named variable.
+ROUTE_TOKEN = "rT7-Lq2_xZ9vB4nM8kJ3hG6fD1sA0pWy5eUc"
+URL = f"{WEBHOOK_ROUTE_PREFIX}/{ROUTE_TOKEN}"
+WRONG_URL = f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(ROUTE_TOKEN)}"
 JSON = {"Content-Type": "application/json"}
 
 
@@ -42,7 +44,7 @@ def _http_client(server: FastMCP) -> httpx.AsyncClient:
 
 def _server_with_route() -> FastMCP:
     server = srv.create_server()
-    assert register_webhook_route(server, SECRET) is True
+    assert register_webhook_route(server, ROUTE_TOKEN) is True
     return server
 
 
@@ -76,12 +78,12 @@ async def test_event_at_secret_path_reaches_buffer_tool_and_resource() -> None:
     [
         WEBHOOK_ROUTE_PREFIX,
         WEBHOOK_ROUTE_PREFIX + "/",
-        f"{WEBHOOK_ROUTE_PREFIX}/{SECRET[:-1]}",
-        f"{WEBHOOK_ROUTE_PREFIX}/{SECRET}x",
-        f"{WEBHOOK_ROUTE_PREFIX}/{SECRET.swapcase()}",
-        f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(SECRET)}",
-        f"{WEBHOOK_ROUTE_PREFIX}/{SECRET}/extra",
-        f"/webhooks/{SECRET}",
+        f"{WEBHOOK_ROUTE_PREFIX}/{ROUTE_TOKEN[:-1]}",
+        f"{WEBHOOK_ROUTE_PREFIX}/{ROUTE_TOKEN}x",
+        f"{WEBHOOK_ROUTE_PREFIX}/{ROUTE_TOKEN.swapcase()}",
+        f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(ROUTE_TOKEN)}",
+        f"{WEBHOOK_ROUTE_PREFIX}/{ROUTE_TOKEN}/extra",
+        f"/webhooks/{ROUTE_TOKEN}",
     ],
 )
 async def test_wrong_or_missing_secret_is_404_and_buffers_nothing(path: str) -> None:
@@ -94,7 +96,7 @@ async def test_wrong_or_missing_secret_is_404_and_buffers_nothing(path: str) -> 
 @pytest.mark.asyncio
 async def test_wrong_secret_is_indistinguishable_from_unknown_path() -> None:
     async with _http_client(_server_with_route()) as http:
-        wrong = await http.post(f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(SECRET)}", content=b"{}")
+        wrong = await http.post(f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(ROUTE_TOKEN)}", content=b"{}")
         unknown = await http.post("/no/such/path", content=b"{}")
     assert (wrong.status_code, wrong.text) == (unknown.status_code, unknown.text) == (404, "Not Found")
 
@@ -106,7 +108,7 @@ async def test_signature_headers_are_not_required_or_honoured() -> None:
         res = await http.post(
             WEBHOOK_ROUTE_PREFIX,
             content=b"{}",
-            headers={"X-Sigma-Signature": "sha256=" + "0" * 64, "Authorization": f"Bearer {SECRET}"},
+            headers={"X-Sigma-Signature": "sha256=" + "0" * 64, "Authorization": f"Bearer {ROUTE_TOKEN}"},
         )
         ok = await http.post(URL, content=b'{"type": "plain"}', headers=JSON)
     assert res.status_code == 404
@@ -148,7 +150,7 @@ async def test_oversized_body_with_wrong_secret_is_404() -> None:
     """The secret is checked before any of the body is read."""
     body = b"{" + b" " * MAX_WEBHOOK_BODY_BYTES + b"}"
     async with _http_client(_server_with_route()) as http:
-        res = await http.post(f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(SECRET)}", content=body)
+        res = await http.post(f"{WEBHOOK_ROUTE_PREFIX}/{'0' * len(ROUTE_TOKEN)}", content=body)
     assert res.status_code == 404
 
 
@@ -301,7 +303,7 @@ async def test_no_secret_registers_no_route(caplog: pytest.LogCaptureFixture) ->
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "weak",
-    ["a" * (MIN_WEBHOOK_SECRET_LENGTH - 1), "has/slash-" + "a" * MIN_WEBHOOK_SECRET_LENGTH, "sp ace" + "a" * 40],
+    ["a" * (MIN_WEBHOOK_TOKEN_CHARS - 1), "has/slash-" + "a" * MIN_WEBHOOK_TOKEN_CHARS, "sp ace" + "a" * 40],
 )
 async def test_weak_secret_registers_no_route(caplog: pytest.LogCaptureFixture, weak: str) -> None:
     server = srv.create_server()
@@ -314,18 +316,161 @@ async def test_weak_secret_registers_no_route(caplog: pytest.LogCaptureFixture, 
     assert res.status_code == 404
 
 
-def test_access_log_redacts_secret(caplog: pytest.LogCaptureFixture) -> None:
-    _server_with_route()
-    _server_with_route()  # registering twice adds no second filter
+# Near misses of the configured value: one character short, case-swapped, one extra character.
+NEAR_MISSES = {
+    "one_short": ROUTE_TOKEN[:-1],
+    "case_swapped": ROUTE_TOKEN.swapcase(),
+    "one_extra": ROUTE_TOKEN + "x",
+}
+PLACEHOLDER_PATH = f"{WEBHOOK_ROUTE_PREFIX}/{webhooks.WEBHOOK_PATH_PLACEHOLDER}"
+
+
+def _assert_no_token_fragment(text: str) -> None:
+    """No 8+ character run of the route token appears in ``text``, in any letter case."""
+    folded = text.lower()
+    token = ROUTE_TOKEN.lower()
+    leaks = {token[i : i + 8] for i in range(len(token) - 7)} & {folded[i : i + 8] for i in range(len(folded) - 7)}
+    assert not leaks, f"route token fragments in logs: {sorted(leaks)}"
+
+
+def _access_record(path: str) -> logging.LogRecord:
+    """A record shaped like uvicorn's access log line, built without a logging call."""
+    return logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        ("127.0.0.1:5000", "POST", path, "1.1", 404),
+        None,
+    )
+
+
+@pytest.mark.parametrize("presented", [ROUTE_TOKEN, *NEAR_MISSES.values()], ids=["exact", *NEAR_MISSES])
+def test_redaction_hides_the_whole_segment_whatever_its_value(presented: str) -> None:
+    """The filter replaces everything after /webhooks/sigma/, not just an exact copy of the secret."""
+    path = f"{WEBHOOK_ROUTE_PREFIX}/{presented}"
+    access = _access_record(path + "?a=1")
+    assert webhooks._WebhookPathRedactingFilter().filter(access) is True
+    assert access.getMessage() == f'127.0.0.1:5000 - "POST {PLACEHOLDER_PATH}?a=1 HTTP/1.1" 404'
+    assert isinstance(access.args, tuple) and len(access.args) == 5  # uvicorn unpacks the args by position
+    for variant in (path, f"//webhooks//sigma/{presented}/extra", f"/Webhooks%2Fsigma/{presented}"):
+        plain = logging.LogRecord("app", logging.INFO, __file__, 0, "saw " + variant, None, None)
+        mapped = logging.LogRecord("app", logging.INFO, __file__, 0, "saw %(p)s", ({"p": variant, "n": 3},), None)
+        for record in (plain, mapped):
+            webhooks.redact_webhook_record(record)
+            assert webhooks.WEBHOOK_PATH_PLACEHOLDER in record.getMessage()
+            _assert_no_token_fragment(record.getMessage())
+    as_object = logging.LogRecord("app", logging.INFO, __file__, 0, "url %s", (httpx.URL(f"http://h{path}"),), None)
+    assert webhooks.redact_webhook_record(as_object).getMessage() == f"url http://h{PLACEHOLDER_PATH}"
+
+
+class _Unprintable:
+    def __str__(self) -> str:
+        raise RuntimeError("no text")
+
+
+def test_redaction_leaves_other_arguments_alone() -> None:
+    unprintable = _Unprintable()
+    args = (5, 2.5, None, "/webhooks/sigma", httpx.URL("http://h/other"), unprintable)
+    record = logging.LogRecord("app", logging.INFO, __file__, 0, "%d %s %s %s %s %r", args, None)
+    webhooks.redact_webhook_record(record)
+    assert record.args == args
+    assert record.args[5] is unprintable
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("presented", NEAR_MISSES.values(), ids=NEAR_MISSES.keys())
+async def test_near_miss_path_never_reaches_access_or_app_logs(
+    caplog: pytest.LogCaptureFixture, presented: str
+) -> None:
+    """A mistyped endpoint (truncated or case-swapped) is not logged, even in part."""
+    server = _server_with_route()
+    _server_with_route()  # registering twice installs the redaction once (checked last)
+    request_path = f"{WEBHOOK_ROUTE_PREFIX}/{presented}"
+    # uvicorn and fastmcp may not propagate to the root logger, so capture them directly.
+    direct = [logging.getLogger(name) for name in ("uvicorn.access", "uvicorn.error", "fastmcp")]
+    for target in direct:
+        target.addHandler(caplog.handler)
+    try:
+        await _log_near_miss_request(server, request_path, caplog)
+    finally:
+        for target in direct:
+            target.removeHandler(caplog.handler)
+    _assert_no_token_fragment(caplog.text)
+    assert caplog.text.count(PLACEHOLDER_PATH) >= 5
     access = logging.getLogger("uvicorn.access")
-    assert sum(isinstance(f, webhooks._SecretRedactingFilter) and f.secret == SECRET for f in access.filters) == 1
-    with caplog.at_level(logging.INFO, logger="uvicorn.access"):
-        access.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:5000", "POST", URL, "1.1", 200)
-        access.info(f"plain message for {URL}")
-        access.info("args %s", 5)
-    assert SECRET not in caplog.text
-    assert f"{WEBHOOK_ROUTE_PREFIX}/***REDACTED***" in caplog.text
-    assert "args 5" in caplog.text
+    assert sum(isinstance(f, webhooks._WebhookPathRedactingFilter) for f in access.filters) == 1
+
+
+async def _log_near_miss_request(server: FastMCP, request_path: str, caplog: pytest.LogCaptureFixture) -> None:
+    access = logging.getLogger("uvicorn.access")
+    with caplog.at_level(logging.DEBUG), caplog.at_level(logging.DEBUG, logger="fastmcp"):
+        async with _http_client(server) as http:  # httpx logs each request URL at INFO
+            res = await http.post(request_path, content=b"{}", headers=JSON)
+        # uvicorn's access line for that request, and app loggers (one is a child logger,
+        # whose records a filter on its parent would never see)
+        access.info('%s - "%s %s HTTP/%s" %d', "127.0.0.1:5000", "POST", request_path, "1.1", res.status_code)
+        logging.getLogger("uvicorn.error").warning("bad request line for %s", request_path)
+        logging.getLogger("sigma_mcp.webhooks.child").info(f"app line {request_path}")
+        logging.getLogger("fastmcp").debug("app line %s", request_path)
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_client_disconnect_mid_body_is_logged_without_traceback(caplog: pytest.LogCaptureFixture) -> None:
+    """An authorized client that drops mid-body ends the request quietly and buffers nothing."""
+    app = _server_with_route().streamable_http_app(allowed_hosts=["testserver"])  # type: ignore[attr-defined]
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": URL,
+        "raw_path": URL.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [(b"host", b"testserver"), (b"content-type", b"application/json"), (b"content-length", b"5000000")],
+        "client": ("127.0.0.1", 5000),
+        "server": ("testserver", 80),
+    }
+    incoming: list[dict[str, Any]] = [
+        {"type": "http.request", "body": b'{"event_type": "partial", "x": "', "more_body": True},
+        {"type": "http.disconnect"},
+    ]
+    sent: list[dict[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return incoming.pop(0)
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+
+    with caplog.at_level(logging.DEBUG):
+        await app(scope, receive, send)
+    assert get_recent_webhooks() == []
+    assert [
+        r.getMessage() for r in caplog.records if r.name == "sigma_mcp.webhooks" and r.levelno >= logging.WARNING
+    ] == ["Webhook client disconnected before the request body ended; nothing recorded"]
+    assert all(r.exc_info is None and r.exc_text is None for r in caplog.records)
+    assert "Traceback" not in caplog.text
+    _assert_no_token_fragment(caplog.text)
+    assert sent[0]["type"] == "http.response.start" and sent[0]["status"] == 400
+
+
+@pytest.mark.asyncio
+async def test_webhooks_resource_has_wire_metadata() -> None:
+    """admin://webhooks/recent carries a name, a description of both event shapes and a MIME type."""
+    resources = {str(r.uri): r for r in await srv.create_server().list_resources()}
+    res = resources["admin://webhooks/recent"]
+    assert res.name == "Recent Webhook Events"
+    assert res.mime_type == "application/json"
+    assert res.description is not None
+    for phrase in ("JSON object body is the payload", "non_json_payload", "body_stored: false", "HTTP transport"):
+        assert phrase in res.description
+    # Every resource is documented on the wire the same way.
+    assert all(r.name and r.description and r.mime_type for r in resources.values())
 
 
 def test_buffer_is_bounded() -> None:
@@ -366,15 +511,15 @@ async def test_main_registers_route_on_http_transports(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, transport: str
 ) -> None:
     with caplog.at_level(logging.DEBUG):
-        server = _run_main(monkeypatch, transport, SECRET)
+        server = _run_main(monkeypatch, transport, ROUTE_TOKEN)
     # Checked before the request below, whose own httpx client log line holds the URL.
-    assert SECRET not in caplog.text
+    assert ROUTE_TOKEN not in caplog.text
     assert await _route_status(server) == 200
 
 
 @pytest.mark.asyncio
 async def test_main_never_registers_route_on_stdio(monkeypatch: pytest.MonkeyPatch) -> None:
-    server = _run_main(monkeypatch, "stdio", SECRET)
+    server = _run_main(monkeypatch, "stdio", ROUTE_TOKEN)
     assert await _route_status(server) == 404
 
 
@@ -390,3 +535,29 @@ def test_webhook_secret_falls_back_to_settings(monkeypatch: pytest.MonkeyPatch) 
     assert srv._webhook_secret() == "from-settings"
     monkeypatch.setenv("SIGMA_WEBHOOK_SECRET", "from-env")
     assert srv._webhook_secret() == "from-env"
+
+
+AUTH_WARNING = (
+    "SIGMA_MCP_AUTH_TOKEN is set, but this server does not enforce it, so MCP requests are not "
+    "authenticated. Run it behind an authenticating proxy."
+)
+
+
+@pytest.mark.parametrize("transport", ["streamable-http", "sse"])
+def test_auth_token_on_http_logs_a_not_enforced_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, transport: str
+) -> None:
+    monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", "dummy-value-not-logged")
+    with caplog.at_level(logging.INFO, logger="sigma_mcp"):
+        _run_main(monkeypatch, transport, None)
+    warnings = [r for r in caplog.records if r.getMessage() == AUTH_WARNING]
+    assert len(warnings) == 1 and warnings[0].levelno == logging.WARNING
+    assert "Enforcing" not in caplog.text
+    assert "dummy-value-not-logged" not in caplog.text
+
+
+def test_auth_token_on_stdio_logs_nothing(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", "dummy-value-not-logged")
+    with caplog.at_level(logging.INFO, logger="sigma_mcp"):
+        _run_main(monkeypatch, "stdio", None)
+    assert "SIGMA_MCP_AUTH_TOKEN" not in caplog.text

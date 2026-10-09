@@ -90,7 +90,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 6. **Webhook Ingest Authentication**:
    - Sigma's export-to-webhook deliveries carry no documented signature or auth header (https://help.sigmacomputing.com/docs/export-to-webhook), so the secret is a URL path segment: `POST /webhooks/sigma/{token}`, compared with `hmac.compare_digest`, `404` on mismatch and for every method but `POST` (same bytes as an unknown path). Do not add a signature or header check unless Sigma documents one.
    - Only a JSON body (`application/json` or `+json`) is parsed and kept. Any other body (CSV, PDF, PNG exports) is recorded as `non_json_payload` metadata (content type, size, receipt time) and dropped. Never log a request body, and never store a non-JSON one.
-   - The route exists only on HTTP transports and only when `SIGMA_WEBHOOK_SECRET` is set to at least 32 URL-safe characters; never register it on stdio or without a usable secret, never log the secret, and keep it redacted from the uvicorn access log.
+   - The route exists only on HTTP transports and only when `SIGMA_WEBHOOK_SECRET` is set to at least 32 URL-safe characters; never register it on stdio or without a usable secret, never log the secret, and keep the whole path segment after `/webhooks/sigma/` redacted from every log record, whatever its value.
 7. **Registry Metadata Constraint**:
    - In `server.json`, the root `description` must be **strictly $\le$ 100 characters** to pass MCP Registry schema validation (longer strings trigger HTTP 422).
 8. **Git Safety & Releases**:

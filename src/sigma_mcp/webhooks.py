@@ -26,11 +26,11 @@ import logging
 import re
 import uuid
 from collections import deque
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from starlette.requests import Request
+from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 if TYPE_CHECKING:
@@ -57,9 +57,15 @@ NON_JSON_EVENT_TYPE = "non_json_payload"
 
 # The secret travels in the URL, so it must be URL-safe and long enough to be unguessable
 # (``secrets.token_urlsafe(32)`` gives 43 characters).
-MIN_WEBHOOK_SECRET_LENGTH = 32
+MIN_WEBHOOK_TOKEN_CHARS = 32
 _WEBHOOK_SECRET_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
-_REDACTED = "***REDACTED***"
+
+# Log redaction: everything after ``/webhooks/sigma/`` up to whitespace, a quote, ``?`` or
+# ``#`` is replaced, whatever it is, so a near-miss of the secret (one character short,
+# case-swapped, an extra segment) is hidden as well as the exact value. The prefix match is
+# case-insensitive and tolerates repeated slashes and a %-encoded ``/``.
+_WEBHOOK_PATH_SEGMENT = re.compile(r"(?i)(/+webhooks(?:/|%2f)+sigma(?:/|%2f)+)[^\s?#\"']+")
+WEBHOOK_PATH_PLACEHOLDER = "[redacted]"
 
 _EVENT_LISTENERS: list[Callable[[dict[str, Any]], Coroutine[Any, Any, None]]] = []
 
@@ -67,10 +73,10 @@ _EVENT_LISTENERS: list[Callable[[dict[str, Any]], Coroutine[Any, Any, None]]] = 
 def webhook_secret_is_usable(secret: str) -> bool:
     """Return whether ``secret`` can serve as the URL path secret.
 
-    It must be at least ``MIN_WEBHOOK_SECRET_LENGTH`` characters of ``A-Z a-z 0-9 _ -`` so it
+    It must be at least ``MIN_WEBHOOK_TOKEN_CHARS`` characters of ``A-Z a-z 0-9 _ -`` so it
     survives in a URL unencoded and cannot be guessed.
     """
-    return len(secret) >= MIN_WEBHOOK_SECRET_LENGTH and _WEBHOOK_SECRET_PATTERN.fullmatch(secret) is not None
+    return len(secret) >= MIN_WEBHOOK_TOKEN_CHARS and _WEBHOOK_SECRET_PATTERN.fullmatch(secret) is not None
 
 
 def verify_webhook_token(presented: str, secret: str) -> bool:
@@ -80,33 +86,70 @@ def verify_webhook_token(presented: str, secret: str) -> bool:
     return hmac.compare_digest(presented.encode("utf-8"), secret.encode("utf-8"))
 
 
-class _SecretRedactingFilter(logging.Filter):
-    """Replace the webhook secret in log records (the access log prints each request path)."""
+def redact_webhook_paths(text: str) -> str:
+    """Replace the path segment after ``/webhooks/sigma/`` in ``text`` with a placeholder."""
+    return _WEBHOOK_PATH_SEGMENT.sub(r"\1" + WEBHOOK_PATH_PLACEHOLDER, text)
 
-    def __init__(self, secret: str) -> None:
-        super().__init__()
-        self.secret = secret
+
+def _redact_value(value: object) -> object:
+    """Redact one format argument; a non-string (an ``httpx.URL``, say) becomes its redacted text."""
+    if value is None or isinstance(value, (int, float)):
+        return value
+    try:
+        text = value if isinstance(value, str) else str(value)
+    except Exception:
+        return value
+    redacted = redact_webhook_paths(text)
+    return value if redacted == text else redacted
+
+
+def redact_webhook_record(record: logging.LogRecord) -> logging.LogRecord:
+    """Redact webhook path segments in a record's message and its %-format arguments.
+
+    The arguments stay a tuple (or mapping) of the same shape, because uvicorn's access
+    formatter unpacks them by position.
+    """
+    if isinstance(record.msg, str):
+        record.msg = redact_webhook_paths(record.msg)
+    if isinstance(record.args, tuple):
+        record.args = tuple(_redact_value(a) for a in record.args)
+    elif isinstance(record.args, Mapping):
+        record.args = {k: _redact_value(v) for k, v in record.args.items()}
+    return record
+
+
+class _WebhookPathRedactingFilter(logging.Filter):
+    """Logger filter form of ``redact_webhook_record`` (never drops a record)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str) and self.secret in record.msg:
-            record.msg = record.msg.replace(self.secret, _REDACTED)
-        if isinstance(record.args, tuple):
-            record.args = tuple(
-                a.replace(self.secret, _REDACTED) if isinstance(a, str) and self.secret in a else a for a in record.args
-            )
+        redact_webhook_record(record)
         return True
 
 
-# Uvicorn's access log records the full request path, and so would the secret segment.
+# Uvicorn's access log records the full request path, and its error log can too.
 _REDACTED_LOGGERS = ("uvicorn.access", "uvicorn.error")
 
 
-def _install_secret_redaction(secret: str) -> None:
-    """Attach one redacting filter per secret to the uvicorn loggers (idempotent)."""
+def _install_webhook_path_redaction() -> None:
+    """Redact webhook path segments from every log record (idempotent).
+
+    A logger filter only sees records logged on that exact logger, not ones propagated from
+    its children, so the redaction is installed as a log record factory, which every
+    ``Logger`` call goes through. The uvicorn loggers also get the filter, which covers a
+    record handed to them that was not built by the factory.
+    """
+    previous = logging.getLogRecordFactory()
+    if not getattr(previous, "_sigma_webhook_redaction", False):
+
+        def factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
+            return redact_webhook_record(previous(*args, **kwargs))
+
+        factory._sigma_webhook_redaction = True  # type: ignore[attr-defined]
+        logging.setLogRecordFactory(factory)
     for name in _REDACTED_LOGGERS:
         target = logging.getLogger(name)
-        if not any(isinstance(f, _SecretRedactingFilter) and f.secret == secret for f in target.filters):
-            target.addFilter(_SecretRedactingFilter(secret))
+        if not any(isinstance(f, _WebhookPathRedactingFilter) for f in target.filters):
+            target.addFilter(_WebhookPathRedactingFilter())
 
 
 def record_webhook_event(event_type: str, payload: dict[str, Any], raw_body: str = "") -> dict[str, Any]:
@@ -193,7 +236,10 @@ async def _record_and_notify(event_type: str, payload: dict[str, Any]) -> dict[s
 
 
 async def _read_bounded_body(request: Request) -> bytes | None:
-    """Read the request body, or return ``None`` once it exceeds ``MAX_WEBHOOK_BODY_BYTES``."""
+    """Read the request body, or return ``None`` once it exceeds ``MAX_WEBHOOK_BODY_BYTES``.
+
+    Raises Starlette's ``ClientDisconnect`` if the client goes away before the body ends.
+    """
     body = bytearray()
     async for chunk in request.stream():
         body.extend(chunk)
@@ -212,28 +258,35 @@ def register_webhook_route(server: FastMCP, secret: str) -> bool:
     unknown path. Otherwise the handler answers ``413`` for a body over
     ``MAX_WEBHOOK_BODY_BYTES`` and then ``process_incoming_webhook``'s ``status_code``
     (200 or 400). Every method but ``POST`` gets the same ``404`` as a wrong secret, even with
-    the right one. The secret and the body are never logged, and the secret is redacted from
-    uvicorn's access log.
+    the right one. A client that disconnects before its body ends gets one warning line (no
+    traceback) and nothing is buffered. The secret and the body are never logged, and once a
+    secret is set, every log record has the path segment after ``/webhooks/sigma/`` redacted,
+    whatever its value.
     """
     if not secret:
         logger.info("Webhook ingest route not registered: SIGMA_WEBHOOK_SECRET is not set")
         return False
+    _install_webhook_path_redaction()
     if not webhook_secret_is_usable(secret):
         logger.warning(
             "Webhook ingest route not registered: SIGMA_WEBHOOK_SECRET must be at least %d characters "
             "of A-Z, a-z, 0-9, '_' or '-'",
-            MIN_WEBHOOK_SECRET_LENGTH,
+            MIN_WEBHOOK_TOKEN_CHARS,
         )
         return False
-
-    _install_secret_redaction(secret)
 
     async def receive_sigma_webhook(request: Request) -> Response:
         token = str(request.path_params.get("token", ""))
         if request.method != "POST" or not verify_webhook_token(token, secret):
             logger.warning("Rejected webhook request", extra={"status_code": 404})
             return PlainTextResponse("Not Found", status_code=404)
-        body = await _read_bounded_body(request)
+        try:
+            body = await _read_bounded_body(request)
+        except ClientDisconnect:
+            # The client is gone, so no response reaches it (uvicorn drops sends after a
+            # disconnect); return one anyway so the handler ends normally, without a traceback.
+            logger.warning("Webhook client disconnected before the request body ended; nothing recorded")
+            return Response(status_code=400)
         if body is None:
             return JSONResponse({"error": "Payload too large"}, status_code=413)
         result = await process_incoming_webhook(body, request.headers.get("content-type", ""))

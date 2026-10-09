@@ -555,7 +555,20 @@ def create_server(
         mime_type="text/plain",
     )(resource_sigma_docs_index)
 
-    root.resource("admin://webhooks/recent")(resource_webhooks_recent)
+    root.resource(
+        "admin://webhooks/recent",
+        name="Recent Webhook Events",
+        description=(
+            "Up to 20 of the newest events in this process's in-memory webhook buffer (it keeps the newest 100), "
+            "the same data as admin_list_recent_webhooks with its defaults. Events arrive only on an HTTP "
+            "transport with SIGMA_WEBHOOK_SECRET set, through POST /webhooks/sigma/<secret>; stdio has no such "
+            "route. Each event is {event_id, timestamp, event_type, payload}. A JSON object body is the "
+            "payload, with event_type taken from its event_type or type field (else general_event). Any other "
+            "body is dropped: event_type is non_json_payload and the payload is metadata only: content_type, "
+            "size_bytes, received_at and body_stored: false."
+        ),
+        mime_type="application/json",
+    )(resource_webhooks_recent)
 
     # 3. Job profiles: validate against the full mounted catalog, then filter tools
     if active.is_allowlist:
@@ -798,7 +811,10 @@ def main() -> None:
             logger.warning("--json-response flag is only applicable to 'streamable-http' transport.")
 
     if auth_token and args.transport in ("sse", "streamable-http"):
-        logger.info("Enforcing bearer token authentication on network transport")
+        logger.warning(
+            "SIGMA_MCP_AUTH_TOKEN is set, but this server does not enforce it, so MCP requests "
+            "are not authenticated. Run it behind an authenticating proxy."
+        )
 
     hosts = getattr(args, "allowed_hosts", None)
     if hosts is None:
