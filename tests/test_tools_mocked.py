@@ -13,6 +13,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 sys.path.insert(0, "src")
 
@@ -56,7 +57,7 @@ def reset_client():
 
 
 class TestToolsReturnJSON:
-    """Verify all tools return valid JSON (never raw exceptions)."""
+    """Verify tools return valid JSON, and failures raise ToolError with JSON error text."""
 
     def _call(self, tool_name, args=None):
         from sigma_mcp.server import mcp
@@ -64,6 +65,14 @@ class TestToolsReturnJSON:
         result = asyncio.run(mcp.call_tool(tool_name, args or {}))
         text = result.content[0].text
         return json.loads(text)
+
+    def _call_error(self, tool_name, args=None):
+        """A failed call raises ToolError (isError: true) carrying the redacted error JSON."""
+        from sigma_mcp.server import mcp
+
+        with pytest.raises(ToolError) as exc_info:
+            asyncio.run(mcp.call_tool(tool_name, args or {}))
+        return json.loads(str(exc_info.value))
 
     def test_list_connections_success(self):
         from sigma_mcp import server as srv
@@ -82,7 +91,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(404, {"message": "Not found"}))
         srv._client = c
-        data = self._call("workbooks_get_workbook", {"workbook_id": "nonexistent"})
+        data = self._call_error("workbooks_get_workbook", {"workbook_id": "nonexistent"})
         assert "error" in data
         assert data["error"]["status_code"] == 404
 
@@ -151,7 +160,7 @@ class TestToolsReturnJSON:
         c._http = MagicMock()
         c._http.request = AsyncMock(return_value=_mock_response(500, {"message": "Internal error"}))
         srv._client = c
-        data = self._call("workspace_list_tags")
+        data = self._call_error("workspace_list_tags")
         assert "error" in data
         assert data["error"]["status_code"] == 500
 
@@ -164,7 +173,7 @@ class TestToolsReturnJSON:
         c.max_retries = 0
         c.base_delay = 0.001
         srv._client = c
-        data = self._call("datasets_list_connections")
+        data = self._call_error("datasets_list_connections")
         assert "error" in data
         assert data["error"]["status_code"] == 429
 
@@ -178,6 +187,16 @@ class TestCompositeToolsValidation:
         result = asyncio.run(mcp.call_tool(tool_name, args or {}))
         return json.loads(result.content[0].text)
 
+    def _call_invalid(self, tool_name, args=None):
+        """Call a tool expected to fail input validation; it raises ToolError (isError: true)."""
+        from sigma_mcp.server import mcp
+
+        with pytest.raises(ToolError) as exc_info:
+            asyncio.run(mcp.call_tool(tool_name, args or {}))
+        data = json.loads(str(exc_info.value))
+        assert data["error"]["type"] == "invalid_request"
+        return data
+
     @staticmethod
     def _error_text(data: dict) -> str:
         """Extract error message text from either flat or nested error shape."""
@@ -187,19 +206,19 @@ class TestCompositeToolsValidation:
         return str(err)
 
     def test_export_and_download_empty_workbook_id(self):
-        data = self._call("workbooks_export_and_download", {"workbook_id": ""})
+        data = self._call_invalid("workbooks_export_and_download", {"workbook_id": ""})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_reassign_ownership_empty_email(self):
-        data = self._call(
+        data = self._call_invalid(
             "workbooks_reassign_workbook_ownership", {"old_owner_email": "", "new_owner_email": "b@b.com"}
         )
         assert "error" in data
         assert "old_owner_email" in self._error_text(data)
 
     def test_list_shared_workbooks_empty_member(self):
-        data = self._call("workbooks_list_workbooks_shared_with_member", {"member_id": ""})
+        data = self._call_invalid("workbooks_list_workbooks_shared_with_member", {"member_id": ""})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
@@ -213,11 +232,11 @@ class TestCompositeToolsValidation:
         with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
             self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
         monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
-        data = self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
+        data = self._call_invalid("admin_bulk_deactivate_members", {"name_pattern": ""})
         assert "error" in data
 
     def test_change_email_empty_member_id(self):
-        data = self._call("admin_change_member_email", {"member_id": "", "new_email": "x@y.com"})
+        data = self._call_invalid("admin_change_member_email", {"member_id": "", "new_email": "x@y.com"})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
@@ -231,7 +250,7 @@ class TestCompositeToolsValidation:
         with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
             self._call("admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"]})
         monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
-        data = self._call(
+        data = self._call_invalid(
             "admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"], "confirm": True}
         )
         assert "team_id" in self._error_text(data)
@@ -273,3 +292,61 @@ class TestSigmaAPIError:
         e = SigmaAPIError(404, "/v2/workbooks/abc", "GET")
         assert "404" in str(e)
         assert "/v2/workbooks/abc" in str(e)
+
+
+@pytest.mark.asyncio
+async def test_tool_failure_reaches_client_as_is_error(caplog):
+    """An upstream failure reaches the client as isError: true, redacted on the wire and in logs."""
+    import logging
+
+    from fastmcp import Client
+
+    from sigma_mcp import server as srv
+
+    c = _setup_client_mock()
+    c._http = MagicMock()
+    c._http.aclose = AsyncMock()
+    c._http.request = AsyncMock(side_effect=RuntimeError("upstream rejected Bearer secret-token-abc"))
+    c.max_retries = 0
+    c.base_delay = 0.001
+    srv._client = c
+
+    caplog.set_level(logging.DEBUG)
+    async with Client(srv.create_server()) as mcp_client:
+        result = await mcp_client.call_tool("workspace_list_tags", {}, raise_on_error=False)
+
+    assert result.is_error
+    text = result.content[0].text
+    assert json.loads(text)["error"]["type"] == "internal"
+    assert "***REDACTED***" in text
+    assert "secret-token-abc" not in text
+    logged = "\n".join(
+        record.getMessage() + (logging.Formatter().formatException(record.exc_info) if record.exc_info else "")
+        for record in caplog.records
+    )
+    assert "secret-token-abc" not in logged
+
+
+@pytest.mark.asyncio
+async def test_code_mode_execute_runs_real_tool():
+    """execute runs Python in the Code Mode sandbox and reaches a real catalog tool."""
+    from fastmcp import Client
+
+    from sigma_mcp import server as srv
+
+    c = _setup_client_mock()
+    c._http = MagicMock()
+    c._http.aclose = AsyncMock()
+    c._http.request = AsyncMock(return_value=_mock_response(200, {"entries": [{"tagId": "t1", "name": "Gold"}]}))
+    srv._client = c
+
+    app = srv.create_server(profile="full", enable_code_mode=True, enable_tool_search=False)
+    code = "res = await call_tool('workspace_list_tags', {})\nreturn res"
+    async with Client(app) as mcp_client:
+        arith = await mcp_client.call_tool("execute", {"code": "return 1 + 1"}, raise_on_error=False)
+        res = await mcp_client.call_tool("execute", {"code": code}, raise_on_error=False)
+
+    assert not arith.is_error, arith.content
+    assert [getattr(block, "text", None) for block in arith.content] == ["2"]
+    assert not res.is_error, res.content
+    assert "Gold" in str(res.content)

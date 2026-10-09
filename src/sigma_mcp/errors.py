@@ -20,6 +20,48 @@ _SECRET_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"ghs_[A-Za-z0-9\.\-_]{36,}"),
 ]
 
+# The fleet redaction set, copied verbatim from the template's SECRET_PATTERNS (template #60,
+# c343e86), in its order. Group 1 keeps the key; only the marker differs from the template
+# (``***REDACTED***``). It runs after the sigma patterns above, which stay: sigma's own bearer
+# pattern, client_secret, access and subject tokens, raw JWTs and ghs_ tokens.
+_FLEET_PATTERNS: list[re.Pattern[str]] = [
+    # Bearer value: base64url and base64 characters (``~``, ``+``, ``/``) plus ``=`` padding.
+    re.compile(r"(?i)(bearer\s+)[a-z0-9_\-\.~+/]{8,}=*", re.IGNORECASE),
+    re.compile(r"(?i)(api[_-]?key[\"'\s:=]+)[a-z0-9_\-\.]{8,}", re.IGNORECASE),
+    re.compile(r"(?i)(client[_-]?secret[\"'\s:=]+)[a-z0-9_\-\.]{8,}", re.IGNORECASE),
+    re.compile(r"(?i)(password[\"'\s:=]+)[^\s\"',]{4,}", re.IGNORECASE),
+    # api/access/refresh/auth/id/session tokens as key=value, key: value, an
+    # ``X-Auth-Token:`` header and JSON ("key": "value", also backslash-escaped inside an
+    # already-serialized JSON string).
+    re.compile(
+        r"(?i)((?:api|access|refresh|auth|id|session)[_-]?token(?:\\?[\"'])?\s*[:=]\s*"
+        r"(?:\\?[\"'])?)[^\s\"'\\&,;]+",
+        re.IGNORECASE,
+    ),
+    # The same keys URL-encoded (``access_token%3D...``); the value stops at an encoded
+    # ``%26`` (&) or ``%23`` (#), so the parameters after it survive.
+    re.compile(
+        r"(?i)((?:api|access|refresh|auth|id|session)[_-]?token%3D)"
+        r"(?:[^\s\"'\\&,;#%]|%(?!26|23))+",
+        re.IGNORECASE,
+    ),
+    # ``Authorization: Token <value>`` scheme, also as a quoted JSON or dict entry.
+    re.compile(
+        r"(?i)(authorization(?:\\?[\"'])?\s*[:=]\s*(?:\\?[\"'])?token\s+)[^\s\"'\\&,;]+",
+        re.IGNORECASE,
+    ),
+    # JSON ``"token": "value"``; the opening quote right before ``token`` keeps keys such
+    # as ``"next_token"`` and ``"page_token"`` untouched.
+    re.compile(r"(?i)(\\?[\"']token\\?[\"']\s*:\s*\\?[\"'])[^\s\"'\\&,;]+", re.IGNORECASE),
+    # Bare ``token`` key with ``:`` or ``=``, optional spaces and an optional opening quote
+    # (``token=``, ``token: x``, ``token = x``, ``token: "x"``); the lookbehind keeps
+    # ``page_token``, ``next_token``, ``csrf_token`` and ``max_tokens`` untouched.
+    re.compile(
+        r"(?i)((?<![A-Za-z0-9_])token\s*[:=]\s*(?:\\?[\"'])?)[^\s\"'\\&#]+",
+        re.IGNORECASE,
+    ),
+]
+
 
 def redact_secrets(text: str, extra_secret: str | None = None) -> str:
     """Remove client_secret, OAuth tokens, and raw JWTs from error messages and logs."""
@@ -32,6 +74,8 @@ def redact_secrets(text: str, extra_secret: str | None = None) -> str:
         text = text.replace(extra_secret, "***REDACTED***")
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub("***REDACTED***", text)
+    for pattern in _FLEET_PATTERNS:
+        text = pattern.sub(r"\1***REDACTED***", text)
     return text
 
 

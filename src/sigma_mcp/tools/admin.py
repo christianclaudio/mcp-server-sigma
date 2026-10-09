@@ -13,8 +13,12 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _batch_outcome,
+    _confirm_required,
     _invalid_request,
+    _item_error,
     _summarize_list,
+    _tool_failure,
     sigma_tool,
 )
 from sigma_mcp.tools.common import (
@@ -64,7 +68,7 @@ create_deployment = sigma_create_deployment
 async def sigma_archive_deployment(policy_id: str, confirm: bool = False) -> str:
     """Delete (archive) a deployment policy. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     result = await (await get_client()).delete_deployment(policy_id)
     return json.dumps({"status": "deleted", "statusCode": result})
 
@@ -77,7 +81,7 @@ archive_deployment = sigma_archive_deployment
 async def sigma_deactivate_member(member_id: str, confirm: bool = False) -> str:
     """Deactivate a member. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     return json.dumps(await (await get_client()).deactivate_member(member_id), indent=2)
 
 
@@ -262,7 +266,7 @@ create_team = sigma_create_team
 async def sigma_delete_team(team_id: str, confirm: bool = False) -> str:
     """Delete a team. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_team(team_id)
     return json.dumps({"status": code})
 
@@ -426,7 +430,7 @@ async def sigma_update_user_attribute_for_users(
     dedicated tool — use sigma_create_grant with a raw body as a workaround).
     """
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     body = {"delete": [{"userId": uid} for uid in user_ids]}
     return json.dumps(await (await get_client()).update_user_attribute_for_users(attribute_id, body), indent=2)
 
@@ -449,7 +453,7 @@ async def sigma_update_user_attribute_for_teams(
     Example: ["team-uuid-1", "team-uuid-2"]
     """
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     body = {"delete": [{"teamId": tid} for tid in team_ids]}
     return json.dumps(await (await get_client()).update_user_attribute_for_teams(attribute_id, body), indent=2)
 
@@ -472,7 +476,7 @@ async def sigma_update_user_attribute_for_tenants(
     Example: ["org-uuid-1", "org-uuid-2"]
     """
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     body = {"delete": [{"tenantOrganizationId": oid} for oid in tenant_org_ids]}
     return json.dumps(await (await get_client()).update_user_attribute_for_tenants(attribute_id, body), indent=2)
 
@@ -487,7 +491,7 @@ update_user_attribute_for_tenants = sigma_update_user_attribute_for_tenants
 async def sigma_delete_user_attribute_for_user(attribute_id: str, user_id: str, confirm: bool = False) -> str:
     """Delete a user attribute assignment for a specific user. DESTRUCTIVE. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_user_attribute_for_user(attribute_id, user_id)
     return json.dumps({"status": code})
 
@@ -502,7 +506,7 @@ delete_user_attribute_for_user = sigma_delete_user_attribute_for_user
 async def sigma_delete_user_attribute_for_team(attribute_id: str, team_id: str, confirm: bool = False) -> str:
     """Delete a user attribute assignment for a specific team. DESTRUCTIVE. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_user_attribute_for_team(attribute_id, team_id)
     return json.dumps({"status": code})
 
@@ -517,7 +521,7 @@ delete_user_attribute_for_team = sigma_delete_user_attribute_for_team
 async def sigma_delete_user_attribute_for_tenant(attribute_id: str, tenant_org_id: str, confirm: bool = False) -> str:
     """Delete a user attribute assignment for a specific tenant. DESTRUCTIVE. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_user_attribute_for_tenant(attribute_id, tenant_org_id)
     return json.dumps({"status": code})
 
@@ -572,13 +576,13 @@ async def sigma_onboard_member(
 ) -> str:
     """Onboard a new member: create account then add to teams."""
     if not email or not email.strip():
-        return _invalid_request("email is required")
+        _invalid_request("email is required")
     if not first_name or not first_name.strip():
-        return _invalid_request("first_name is required")
+        _invalid_request("first_name is required")
     if not last_name or not last_name.strip():
-        return _invalid_request("last_name is required")
+        _invalid_request("last_name is required")
     if member_type not in ("viewer", "creator", "admin"):
-        return _invalid_request(f"member_type must be one of: viewer, creator, admin (got '{member_type}')")
+        _invalid_request(f"member_type must be one of: viewer, creator, admin (got '{member_type}')")
     c = await get_client()
     member = await c.create_member(
         {"email": email, "firstName": first_name, "lastName": last_name, "memberType": member_type}
@@ -586,12 +590,13 @@ async def sigma_onboard_member(
     member_id = member.get("memberId") if isinstance(member, dict) else None
     teams_added: list[str] = []
     if team_ids and member_id:
-        for tid in team_ids:
+        for index, tid in enumerate(team_ids):
             try:
                 await c.update_team_members(tid, {"add": [member_id]})
                 teams_added.append(tid)
             except Exception as e:
-                teams_added.append(f"{tid}: FAILED ({e})")
+                # Same redaction and message fallback as batch items; no raw exception text.
+                teams_added.append(f"{tid}: FAILED ({_item_error(e, index=index)['message']})")
     return json.dumps({"member": member, "teams_added": teams_added}, indent=2)
 
 
@@ -603,9 +608,9 @@ onboard_member = sigma_onboard_member
 async def sigma_bulk_assign_team_members(team_id: str, member_ids: list[str]) -> str:
     """Add multiple members to a team in one call."""
     if not team_id or not team_id.strip():
-        return _invalid_request("team_id is required")
+        _invalid_request("team_id is required")
     if not member_ids:
-        return _invalid_request("member_ids must be a non-empty list")
+        _invalid_request("member_ids must be a non-empty list")
     c = await get_client()
     result = await c.update_team_members(team_id, {"add": member_ids})
     return json.dumps(result, indent=2)
@@ -632,25 +637,20 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     import re
 
     if not name_pattern or not name_pattern.strip():
-        return _invalid_request("name_pattern is required")
+        _invalid_request("name_pattern is required")
 
     # Reject catch-all patterns that would match every member
     _CATCHALL_PATTERNS = {".*", ".+", "^.*$", "^.+$", "", ".", "^$"}
     if name_pattern.strip() in _CATCHALL_PATTERNS:
-        return json.dumps(
-            {
-                "error": f"Catch-all pattern {name_pattern!r} is rejected for safety. "
-                "Use a specific name pattern to target individual members."
-            }
+        _invalid_request(
+            f"Catch-all pattern {name_pattern!r} is rejected for safety. "
+            "Use a specific name pattern to target individual members."
         )
     # Also reject any pattern that matches an empty string
     try:
         if re.compile(name_pattern, re.IGNORECASE).search(""):
-            return json.dumps(
-                {
-                    "error": f"Pattern {name_pattern!r} matches empty string and is too broad. "
-                    "Use a specific name pattern."
-                }
+            _invalid_request(
+                f"Pattern {name_pattern!r} matches empty string and is too broad. Use a specific name pattern."
             )
     except re.error:
         pass  # Will be caught below
@@ -660,10 +660,14 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     all_members = await c.auto_paginate("/v2/members", {"includeInactive": "true"})
 
     # Match pattern against "firstName lastName"
+    regex_error: str | None = None
     try:
         pattern = re.compile(name_pattern, re.IGNORECASE)
     except re.error as e:
-        return json.dumps({"error": f"Invalid regex pattern: {e}"})
+        regex_error = str(e)
+    if regex_error is not None:
+        # Raised after the except block so the re.error is not left on __context__.
+        _invalid_request(f"Invalid regex pattern: {regex_error}")
 
     matches = []
     for m in all_members:
@@ -677,13 +681,11 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     # Hard cap: refuse if more than 10 active members match
     _MAX_BULK_DEACTIVATE = 10
     if len(active_matches) > _MAX_BULK_DEACTIVATE:
-        return json.dumps(
-            {
-                "error": f"Pattern matches {len(active_matches)} active members, exceeding "
-                f"the safety cap of {_MAX_BULK_DEACTIVATE}. Use a narrower pattern.",
-                "count": len(active_matches),
-                "first_10": [f"{m.get('firstName', '')} {m.get('lastName', '')}".strip() for m in active_matches[:10]],
-            }
+        _invalid_request(
+            f"Pattern matches {len(active_matches)} active members, exceeding "
+            f"the safety cap of {_MAX_BULK_DEACTIVATE}. Use a narrower pattern.",
+            count=len(active_matches),
+            first_10=[f"{m.get('firstName', '')} {m.get('lastName', '')}".strip() for m in active_matches[:10]],
         )
 
     if dry_run or not confirm:
@@ -707,35 +709,45 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
             indent=2,
         )
 
-    # Execute deactivation
+    # Execute deactivation; each item is attempted on its own (``except Exception`` only).
     results: list[dict[str, Any]] = []
-    for m in active_matches:
+    errors: list[dict[str, Any]] = []
+    for index, m in enumerate(active_matches):
         mid = m.get("memberId", "")
         name = f"{m.get('firstName', '')} {m.get('lastName', '')}"
         if not mid:  # pragma: no cover
-            results.append({"memberId": mid, "name": name, "status": "skipped", "reason": "missing memberId"})
-            continue
-        try:
-            await c.deactivate_member(mid)
-            results.append({"memberId": mid, "name": name, "status": "deactivated"})
-        except Exception as e:
             results.append(
+                {"id": mid, "memberId": mid, "name": name, "status": "skipped", "reason": "missing memberId"}
+            )
+            errors.append(
                 {
+                    "id": mid,
                     "memberId": mid,
                     "name": name,
                     "status": "failed",
-                    "error": str(e),
+                    "error": _item_error("missing memberId", "invalid_item", index=index),
                 }
             )
+            continue
+        try:
+            res = await c.deactivate_member(mid)
+            results.append({"id": mid, "memberId": mid, "name": name, "status": "deactivated", "result": res})
+        except Exception as e:
+            item_err = _item_error(e, index=index)
+            # main's entry (redacted message string) stays in results; the error object is in errors.
+            results.append({"id": mid, "memberId": mid, "name": name, "status": "failed", "error": item_err["message"]})
+            errors.append({"id": mid, "memberId": mid, "name": name, "status": "failed", "error": item_err})
 
-    return json.dumps(
-        {
-            "pattern": name_pattern,
+    return _batch_outcome(
+        "member deactivations",
+        "deactivated",
+        results,
+        errors,
+        context={"pattern": name_pattern},
+        extra={
             "deactivated": sum(1 for r in results if r["status"] == "deactivated"),
             "failed": sum(1 for r in results if r["status"] == "failed"),
-            "results": results,
         },
-        indent=2,
     )
 
 
@@ -747,9 +759,9 @@ bulk_deactivate_members = sigma_bulk_deactivate_members
 async def sigma_change_member_email(member_id: str, new_email: str) -> str:
     """Change a member's email address via PATCH /v2/members/{id}."""
     if not member_id or not member_id.strip():
-        return _invalid_request("member_id is required")
+        _invalid_request("member_id is required")
     if not new_email or not new_email.strip():
-        return _invalid_request("new_email is required")
+        _invalid_request("new_email is required")
 
     c = await get_client()
     result = await c.update_member(member_id, {"email": new_email})
@@ -772,13 +784,13 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
       - Hard cap: refuses more than 50 member emails per call.
     """
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     if not team_id or not team_id.strip():
-        return _invalid_request("team_id is required")
+        _invalid_request("team_id is required")
     if not member_emails:
-        return _invalid_request("member_emails must be a non-empty list")
+        _invalid_request("member_emails must be a non-empty list")
     if len(member_emails) > 50:
-        return _invalid_request(f"Bulk removal cap exceeded ({len(member_emails)} > 50). Process in smaller batches.")
+        _invalid_request(f"Bulk removal cap exceeded ({len(member_emails)} > 50). Process in smaller batches.")
 
     c = await get_client()
     member_ids: list[str] = []
@@ -793,7 +805,7 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
             not_found.append(email)
 
     if not member_ids:
-        return json.dumps({"error": "No valid members found", "not_found": not_found})
+        _tool_failure("not_found", "No valid members found", not_found=not_found)
 
     result = await c.update_team_members(team_id, {"remove": member_ids})
     return json.dumps(
@@ -849,7 +861,7 @@ async def sigma_get_tenant_scoped_info(tenant_org_id: str) -> str:
     calls the whoami endpoint to verify the scoped identity.
     """
     if not tenant_org_id or not tenant_org_id.strip():
-        return _invalid_request("tenant_org_id is required")
+        _invalid_request("tenant_org_id is required")
 
     c = await get_client()
     tc = await c.for_tenant(tenant_org_id)
@@ -989,9 +1001,9 @@ async def sigma_get_org_setting(setting_name: str) -> str:
                   emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone.
     """
     if not setting_name or not setting_name.strip():
-        return _invalid_request("setting_name is required")
+        _invalid_request("setting_name is required")
     if setting_name not in VALID_ORG_SETTINGS:
-        return _invalid_request(
+        _invalid_request(
             f"Invalid setting_name '{setting_name}'. Must be one of: {', '.join(sorted(VALID_ORG_SETTINGS))}"
         )
     c = await get_client()
@@ -1013,11 +1025,11 @@ async def sigma_update_org_setting(setting_name: str, setting_value: dict[str, A
     setting_value: Dict containing setting fields to update.
     """
     if not confirm:
-        return _invalid_request("Must specify confirm=True to update organization setting")
+        return _confirm_required("Updating the organization setting")
     if not setting_name or not setting_name.strip():
-        return _invalid_request("setting_name is required")
+        _invalid_request("setting_name is required")
     if setting_name not in VALID_ORG_SETTINGS:
-        return _invalid_request(
+        _invalid_request(
             f"Invalid setting_name '{setting_name}'. Must be one of: {', '.join(sorted(VALID_ORG_SETTINGS))}"
         )
     c = await get_client()
@@ -1037,9 +1049,9 @@ async def sigma_configure_org_ai(provider_config: dict[str, Any], confirm: bool 
     provider_config: Provider specification dict (e.g. provider='openAI'/'anthropic'/'gemini'/'snowflake'/'databricks'/'bedrock'/'azureOpenAI').
     """
     if not confirm:
-        return _invalid_request("Must specify confirm=True to configure the organization AI provider")
+        return _confirm_required("Configuring the organization AI provider")
     if not provider_config:
-        return _invalid_request("provider_config is required")
+        _invalid_request("provider_config is required")
     c = await get_client()
     result = await c.configure_org_ai(provider_config)
     return json.dumps(result, indent=2)
@@ -1056,7 +1068,7 @@ async def sigma_reset_org_email_branding(confirm: bool = False) -> str:
     Destructive operation. Requires confirm=True.
     """
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     c = await get_client()
     status = await c.reset_org_email_branding()
     return json.dumps({"status": "reset", "statusCode": status}, indent=2)
@@ -1087,9 +1099,9 @@ async def sigma_add_allowed_ips(entries: list[dict[str, Any]], confirm: bool = F
              and optional 'description'.
     """
     if not confirm:
-        return _invalid_request("Must specify confirm=True to add IP allowlist entries")
+        return _confirm_required("Adding IP allowlist entries")
     if not entries:
-        return _invalid_request("entries list is required and cannot be empty")
+        _invalid_request("entries list is required and cannot be empty")
     c = await get_client()
     result = await c.batch_create_allowed_ips(entries)
     return json.dumps(result, indent=2)
@@ -1107,9 +1119,9 @@ async def sigma_remove_allowed_ips(entry_ids: list[str], confirm: bool = False) 
     entry_ids: List of IP allowlist entry ID strings to delete.
     """
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     if not entry_ids:
-        return _invalid_request("entry_ids list is required and cannot be empty")
+        _invalid_request("entry_ids list is required and cannot be empty")
     c = await get_client()
     result = await c.batch_delete_allowed_ips(entry_ids)
     return json.dumps(result, indent=2)

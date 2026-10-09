@@ -13,7 +13,10 @@ from sigma_mcp.client import DOCS_ALLOWED_HOSTS, SSRFSafeAsyncTransport, validat
 from sigma_mcp.tools.common import (
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _batch_outcome,
     _invalid_request,
+    _item_error,
+    _tool_failure,
     sigma_tool,
 )
 from sigma_mcp.tools.common import (
@@ -217,16 +220,16 @@ create_source_swap_policy = sigma_create_source_swap_policy
 async def sigma_materialize_and_wait(workbook_id: str, element_id: str, timeout_seconds: int = 300) -> str:
     """Trigger materialization and poll until complete or timeout."""
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     if not element_id or not element_id.strip():
-        return _invalid_request("element_id is required")
+        _invalid_request("element_id is required")
     from sigma_mcp import server as _srv
 
     c = await _srv.get_client()
     job = await c.materialize_workbook(workbook_id, {"elementId": element_id})
     job_id = job.get("materializationId") or job.get("jobId") or job.get("id") if isinstance(job, dict) else None
     if not job_id:
-        return json.dumps({"error": "Could not extract job ID from response", "raw": job})
+        _tool_failure("upstream_response", "Could not extract job ID from the materialization response")
 
     deadline = _srv.time.time() + timeout_seconds
     status: Any = None
@@ -257,10 +260,14 @@ async def sigma_list_all_input_tables() -> str:
     all_workbooks = await c.list_all_workbooks()
 
     input_tables: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
+    # main's top-level ``errors``: one entry per failed stage (pages or a page's elements), with the
+    # redacted message string; each entry also carries the error object as ``error_detail``.
+    stage_errors: list[dict[str, Any]] = []
     sem = asyncio.Semaphore(5)
 
-    async def scan_workbook(wb: dict[str, Any]) -> None:
+    async def scan_workbook(index: int, wb: dict[str, Any]) -> None:
         wb_id = wb.get("workbookId", "")
         wb_name = wb.get("name", "")
         async with sem:
@@ -268,22 +275,62 @@ async def sigma_list_all_input_tables() -> str:
                 pages_data = await c.list_workbook_pages(wb_id)
                 pages = pages_data.get("entries", []) if isinstance(pages_data, dict) else []
             except Exception as e:
-                errors.append({"workbookId": wb_id, "workbookName": wb_name, "stage": "pages", "error": str(e)})
+                item_err = {**_item_error(e, index=index), "stage": "pages"}
+                errors.append(
+                    {
+                        "id": wb_id,
+                        "workbookId": wb_id,
+                        "workbookName": wb_name,
+                        "stage": "pages",
+                        "status": "failed",
+                        "error": item_err,
+                    }
+                )
+                stage_errors.append(
+                    {
+                        "workbookId": wb_id,
+                        "workbookName": wb_name,
+                        "stage": "pages",
+                        "error": item_err["message"],
+                        "error_detail": item_err,
+                    }
+                )
                 return
 
-            for page in pages:
+            wb_tables: list[dict[str, Any]] = []
+            page_errors: list[dict[str, Any]] = []
+            for page_index, page in enumerate(pages):
                 page_id = page.get("pageId", "")
                 page_name = page.get("name", "")
                 try:
                     elements_data = await c.list_workbook_page_elements(wb_id, page_id)
                     elements = elements_data.get("entries", []) if isinstance(elements_data, dict) else []
                 except Exception as e:
-                    errors.append({"workbookId": wb_id, "pageId": page_id, "stage": "elements", "error": str(e)})
+                    page_err = _item_error(e, index=page_index)
+                    page_errors.append(
+                        {
+                            "id": page_id,
+                            "workbookId": wb_id,
+                            "pageId": page_id,
+                            "stage": "elements",
+                            "status": "failed",
+                            "error": page_err,
+                        }
+                    )
+                    stage_errors.append(
+                        {
+                            "workbookId": wb_id,
+                            "pageId": page_id,
+                            "stage": "elements",
+                            "error": page_err["message"],
+                            "error_detail": page_err,
+                        }
+                    )
                     continue
 
                 for el in elements:
                     if el.get("type") == "input-table":
-                        input_tables.append(
+                        wb_tables.append(
                             {
                                 "workbookId": wb_id,
                                 "workbookName": wb_name,
@@ -294,16 +341,48 @@ async def sigma_list_all_input_tables() -> str:
                             }
                         )
 
-    await asyncio.gather(*[scan_workbook(wb) for wb in all_workbooks])
+            if pages and len(page_errors) == len(pages):
+                errors.append(
+                    {
+                        "id": wb_id,
+                        "workbookId": wb_id,
+                        "workbookName": wb_name,
+                        "stage": "elements",
+                        "status": "failed",
+                        "error": {
+                            "type": "batch_failed",
+                            "message": f"All {len(pages)} page element fetches failed.",
+                            "stage": "elements",
+                            "pages": page_errors,
+                        },
+                    }
+                )
+                return
+            input_tables.extend(wb_tables)
+            results.append(
+                {
+                    "id": wb_id,
+                    "workbookId": wb_id,
+                    "workbookName": wb_name,
+                    "status": "scanned",
+                    "result": {"name": wb_name, "input_table_count": len(wb_tables), "page_errors": page_errors},
+                }
+            )
 
-    return json.dumps(
-        {
+    await asyncio.gather(*[scan_workbook(i, wb) for i, wb in enumerate(all_workbooks)])
+
+    return _batch_outcome(
+        "workbook scans",
+        "scanned",
+        results,
+        errors,
+        extra={
             "total_input_tables": len(input_tables),
             "input_tables": input_tables,
             "workbooks_scanned": len(all_workbooks),
-            "errors": errors,
+            # main's errors list stays; failed workbooks are counted in failed_count.
+            "errors": stage_errors,
         },
-        indent=2,
     )
 
 
@@ -355,7 +434,7 @@ async def sigma_search_docs(query: str) -> str:
             headers={"Accept": "application/json, text/event-stream"},
         )
     if resp.status_code != 200:
-        return json.dumps({"error": {"type": "docs_search_failed", "status": resp.status_code}})
+        _tool_failure("docs_search_failed", f"Docs search returned HTTP {resp.status_code}", status=resp.status_code)
     # Fern MCP returns SSE; parse the data line
     text = resp.text
     for line in text.splitlines():
@@ -365,7 +444,7 @@ async def sigma_search_docs(query: str) -> str:
             content_list = result.get("content", [])
             if content_list:
                 return json.dumps({"format": "markdown", "content": content_list[0].get("text", "")}, indent=2)
-    return json.dumps({"error": {"type": "docs_search_empty", "message": "No results found"}})
+    _tool_failure("docs_search_empty", "No results found")
 
 
 search_docs = sigma_search_docs
@@ -380,10 +459,13 @@ async def sigma_get_doc_page(page_slug: str) -> str:
     """
     import httpx
 
+    slug_error: str | None = None
     try:
         url = _doc_page_url(page_slug)
     except ValueError as exc:
-        return json.dumps({"error": {"type": "invalid_request", "message": str(exc)}})
+        slug_error = str(exc)
+    if slug_error is not None:
+        _invalid_request(slug_error)
     async with httpx.AsyncClient(
         timeout=30.0,
         follow_redirects=False,
@@ -391,7 +473,12 @@ async def sigma_get_doc_page(page_slug: str) -> str:
     ) as http:
         resp = await http.get(url)
     if resp.status_code != 200:
-        return json.dumps({"error": {"type": "page_not_found", "slug": page_slug, "status": resp.status_code}})
+        _tool_failure(
+            "page_not_found",
+            f"Documentation page fetch returned HTTP {resp.status_code}",
+            slug=page_slug,
+            status=resp.status_code,
+        )
     return json.dumps({"format": "markdown", "content": resp.text}, indent=2)
 
 

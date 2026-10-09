@@ -541,9 +541,11 @@ async def test_stateless_streamable_http_mutations_and_safety_gates(
                 },
             )
             assert res_del_preview.status_code == 200
-            del_preview_data = json.loads(res_del_preview.json()["result"]["content"][0]["text"])
-            assert del_preview_data["error"]["type"] == "invalid_request"
-            assert "confirm=True" in del_preview_data["error"]["message"]
+            del_preview_result = res_del_preview.json()["result"]
+            assert del_preview_result.get("isError", False) is False
+            del_preview_data = json.loads(del_preview_result["content"][0]["text"])
+            assert del_preview_data["status"] == "confirmation_required"
+            assert "confirm=true" in del_preview_data["message"]
             mock_delete.assert_not_called()
 
             # 3. Delete file confirmed (confirm=True)

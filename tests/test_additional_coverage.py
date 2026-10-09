@@ -3,6 +3,7 @@
 import logging
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 from sigma_mcp import server as srv
 
@@ -10,12 +11,6 @@ from sigma_mcp import server as srv
 def test_redact_secrets_empty_and_no_match() -> None:
     assert srv._redact_secrets("") == ""
     assert srv._redact_secrets("clean text") == "clean text"
-
-
-def test_invalid_request_helper() -> None:
-    res = srv._invalid_request("Missing param")
-    assert '"type": "invalid_request"' in res
-    assert '"message": "Missing param"' in res
 
 
 def test_structured_json_formatter_default() -> None:
@@ -50,15 +45,15 @@ def test_main_cli_variations(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_recipe_error_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Test empty parameter validation error returns
-    res1 = await srv.sigma_deploy_template_to_folder("", "f1", {})
-    assert "template_id is required" in res1
+    # Empty required parameters raise ToolError (a tool execution error, isError: true)
+    with pytest.raises(ToolError, match="template_id is required"):
+        await srv.sigma_deploy_template_to_folder("", "f1", {})
 
-    res2 = await srv.sigma_onboard_member("", "A", "B")
-    assert "email is required" in res2
+    with pytest.raises(ToolError, match="email is required"):
+        await srv.sigma_onboard_member("", "A", "B")
 
-    res3 = await srv.sigma_bulk_assign_team_members("", ["a@b.com"])
-    assert "team_id is required" in res3
+    with pytest.raises(ToolError, match="team_id is required"):
+        await srv.sigma_bulk_assign_team_members("", ["a@b.com"])
 
 
 @pytest.mark.asyncio

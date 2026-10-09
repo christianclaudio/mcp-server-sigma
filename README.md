@@ -22,7 +22,7 @@
 > **Credentials & Safety Notice**  
 > This server uses API credentials scoped to your Sigma organization. Tools can mutate workbooks, users, teams, and data models.  
 > - **Read-Only Mode:** To run safely without mutation risk, set `SIGMA_MCP_READONLY=1` or `--profile readonly` (lists the 90 tools annotated `readOnlyHint=true` and refuses every other call).  
-> - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`. Bulk destructive operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are listed in `full` but refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
+> - **Destructive Safety Gates:** All single-delete tools require explicit `confirm=True`; without it they change nothing and return a normal result (`isError: false`) asking the caller to re-call with `confirm=true`. Missing or invalid arguments return a tool error (`isError: true`) the model can correct, and so do other failed calls such as a member not found, an export that times out, or a rejected bulk-deactivate pattern (see [docs/errors.md](docs/errors.md)). A batch tool whose every item failed returns `isError: true` with `"type": "batch_failed"`; a partial success stays a normal result with `"status": "partial_success"`, a `<verb>_count`, `failed_count`, `results` and `errors`, where each entry has `id`, `status` and `result` or `error`, alongside the field names each tool returned before; failed items that earlier releases listed in `results` are still there too (see [docs/errors.md](docs/errors.md)). Bulk destructive operations (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are listed in `full` but refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.  
 > - Read [SECURITY.md](https://github.com/christianclaudio/mcp-server-sigma/blob/main/SECURITY.md) before deploying to production.
 
 ---
@@ -311,7 +311,7 @@ Nine tools are in no job profile and are reachable only in `full`: `workspace_de
 `tools/list` is flat by default. Discovery is opt-in and attaches **only on `full`**:
 
 * `--enable-tool-search` / `SIGMA_MCP_ENABLE_TOOL_SEARCH=1` replaces `tools/list` with `search_tools` and `call_tool`. The backend is `regex` (default) or `bm25` (`--tool-search-backend` / `SIGMA_MCP_TOOL_SEARCH_BACKEND`).
-* `--enable-code-mode` / `SIGMA_MCP_ENABLE_CODE_MODE=1` attaches FastMCP's experimental Code Mode (`search`, `get_schema`, `execute`). It is skipped with a warning if the FastMCP build does not ship it.
+* `--enable-code-mode` / `SIGMA_MCP_ENABLE_CODE_MODE=1` attaches FastMCP's experimental Code Mode (`search`, `get_schema`, `execute`). Code Mode needs the `fastmcp[code-mode]` extra, which ships its `pydantic-monty` sandbox, for example `uvx --with "fastmcp[code-mode]" mcp-server-sigma --enable-code-mode`. Without it, Code Mode is skipped with a warning and the flat catalog is served.
 * Turning on both raises `ValueError`. Asking for either on another profile logs a warning and keeps the flat list.
 * `search_tools`, `search` and `get_schema` only read the catalog and are annotated `readOnlyHint=true`. Under read-only, Code Mode `execute` is refused.
 

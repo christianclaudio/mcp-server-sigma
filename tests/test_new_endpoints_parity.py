@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from fastmcp.exceptions import ToolError
 
 from sigma_mcp.client import SigmaClient
 from sigma_mcp.tools import (
@@ -228,17 +229,21 @@ async def test_workbooks_tools(mock_client: SigmaClient):
     client._http = http_mock
 
     # sigma_update_workbook_contents
-    assert "confirm=True" in await sigma_update_workbook_contents("wb-1", {}, document_version=1, confirm=False)
-    assert "workbook_id is required" in await sigma_update_workbook_contents("", {}, document_version=1, confirm=True)
-    assert "positive integer" in await sigma_update_workbook_contents("wb-1", {}, document_version=0, confirm=True)
+    assert "confirm=true" in await sigma_update_workbook_contents("wb-1", {}, document_version=1, confirm=False)
+    with pytest.raises(ToolError, match="workbook_id is required"):
+        await sigma_update_workbook_contents("", {}, document_version=1, confirm=True)
+    with pytest.raises(ToolError, match="positive integer"):
+        await sigma_update_workbook_contents("wb-1", {}, document_version=0, confirm=True)
     http_mock.request.return_value = _mock_res(200, {"status": "ok"})
     out = await sigma_update_workbook_contents("wb-1", {"k": "v"}, document_version=2, confirm=True)
     assert json.loads(out) == {"status": "ok"}
     assert http_mock.request.call_args[1]["json"] == {"contents": {"k": "v"}, "documentVersion": 2}
 
     # sigma_verify_workbook_spec
-    assert "name is required" in await sigma_verify_workbook_spec("", "f-1", {})
-    assert "folder_id is required" in await sigma_verify_workbook_spec("Name", "", {})
+    with pytest.raises(ToolError, match="name is required"):
+        await sigma_verify_workbook_spec("", "f-1", {})
+    with pytest.raises(ToolError, match="folder_id is required"):
+        await sigma_verify_workbook_spec("Name", "", {})
     http_mock.request.return_value = _mock_res(200, {"specValid": True})
     out = await sigma_verify_workbook_spec("Name", "f-1", {"doc": 1}, description="test desc")
     assert json.loads(out) == {"specValid": True}
@@ -250,26 +255,33 @@ async def test_workbooks_tools(mock_client: SigmaClient):
     }
 
     # sigma_update_report_contents
-    assert "confirm=True" in await sigma_update_report_contents("rep-1", {}, document_version=1, confirm=False)
-    assert "report_id is required" in await sigma_update_report_contents("", {}, document_version=1, confirm=True)
-    assert "positive integer" in await sigma_update_report_contents("rep-1", {}, document_version=-1, confirm=True)
+    assert "confirm=true" in await sigma_update_report_contents("rep-1", {}, document_version=1, confirm=False)
+    with pytest.raises(ToolError, match="report_id is required"):
+        await sigma_update_report_contents("", {}, document_version=1, confirm=True)
+    with pytest.raises(ToolError, match="positive integer"):
+        await sigma_update_report_contents("rep-1", {}, document_version=-1, confirm=True)
     http_mock.request.return_value = _mock_res(200, {"reportUpdated": True})
     out = await sigma_update_report_contents("rep-1", {"pages": []}, document_version=5, confirm=True)
     assert json.loads(out) == {"reportUpdated": True}
     assert http_mock.request.call_args[1]["json"] == {"contents": {"pages": []}, "documentVersion": 5}
 
     # sigma_verify_report_spec
-    assert "name is required" in await sigma_verify_report_spec("", "f-1", {})
-    assert "folder_id is required" in await sigma_verify_report_spec("Rep", "", {})
+    with pytest.raises(ToolError, match="name is required"):
+        await sigma_verify_report_spec("", "f-1", {})
+    with pytest.raises(ToolError, match="folder_id is required"):
+        await sigma_verify_report_spec("Rep", "", {})
     http_mock.request.return_value = _mock_res(200, {"repValid": True})
     out = await sigma_verify_report_spec("Rep", "f-1", {}, description="report description")
     assert json.loads(out) == {"repValid": True}
     assert http_mock.request.call_args[1]["json"]["description"] == "report description"
 
     # sigma_download_query_export
-    assert "query_id is required" in await sigma_download_query_export("")
-    assert "positive integer" in await sigma_download_query_export("q-456", max_bytes=-1)
-    assert "positive integer" in await sigma_download_query_export("q-456", max_bytes=0)
+    with pytest.raises(ToolError, match="query_id is required"):
+        await sigma_download_query_export("")
+    with pytest.raises(ToolError, match="positive integer"):
+        await sigma_download_query_export("q-456", max_bytes=-1)
+    with pytest.raises(ToolError, match="positive integer"):
+        await sigma_download_query_export("q-456", max_bytes=0)
     http_mock.request.return_value = _mock_res(200, text="col1,col2\nval1,val2", headers={"content-type": "text/csv"})
     out = await sigma_download_query_export("q-456")
     parsed = json.loads(out)
@@ -282,20 +294,20 @@ async def test_workbooks_tools(mock_client: SigmaClient):
     assert "Export size exceeds maximum allowed bytes" in parsed_oversized["error"]
 
     # sigma_list_workbook_agents
-    assert "workbook_id is required" in await sigma_list_workbook_agents("")
+    with pytest.raises(ToolError, match="workbook_id is required"):
+        await sigma_list_workbook_agents("")
     http_mock.request.return_value = _mock_res(200, {"entries": [{"agentId": "ag-1"}]})
     out = await sigma_list_workbook_agents("wb-123", version_tag_name="v1")
     assert json.loads(out) == {"entries": [{"agentId": "ag-1"}]}
 
     # sigma_run_workbook_agent
-    assert "confirm=True" in await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=False)
-    assert "workbook_id is required" in await sigma_run_workbook_agent(
-        "", "ag-1", [{"role": "user", "content": "hi"}], confirm=True
-    )
-    assert "agent_id is required" in await sigma_run_workbook_agent(
-        "wb-1", "", [{"role": "user", "content": "hi"}], confirm=True
-    )
-    assert "cannot be empty" in await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=True)
+    assert "confirm=true" in await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=False)
+    with pytest.raises(ToolError, match="workbook_id is required"):
+        await sigma_run_workbook_agent("", "ag-1", [{"role": "user", "content": "hi"}], confirm=True)
+    with pytest.raises(ToolError, match="agent_id is required"):
+        await sigma_run_workbook_agent("wb-1", "", [{"role": "user", "content": "hi"}], confirm=True)
+    with pytest.raises(ToolError, match="cannot be empty"):
+        await sigma_run_workbook_agent("wb-1", "ag-1", [], confirm=True)
 
     http_mock.request.return_value = _mock_res(200, {"reply": "Hello!"})
     out = await sigma_run_workbook_agent(
@@ -330,29 +342,34 @@ async def test_admin_tools(mock_client: SigmaClient):
     assert json.loads(out) == {"entries": []}
 
     # sigma_get_org_setting
-    assert "setting_name is required" in await sigma_get_org_setting("")
-    assert "Invalid setting_name" in await sigma_get_org_setting("invalidSetting")
+    with pytest.raises(ToolError, match="setting_name is required"):
+        await sigma_get_org_setting("")
+    with pytest.raises(ToolError, match="Invalid setting_name"):
+        await sigma_get_org_setting("invalidSetting")
     http_mock.request.return_value = _mock_res(200, {"timezone": "UTC"})
     out = await sigma_get_org_setting("timezone")
     assert json.loads(out) == {"timezone": "UTC"}
 
     # sigma_update_org_setting
-    assert "confirm=True" in await sigma_update_org_setting("timezone", {}, confirm=False)
-    assert "setting_name is required" in await sigma_update_org_setting("", {}, confirm=True)
-    assert "Invalid setting_name" in await sigma_update_org_setting("notReal", {}, confirm=True)
+    assert "confirm=true" in await sigma_update_org_setting("timezone", {}, confirm=False)
+    with pytest.raises(ToolError, match="setting_name is required"):
+        await sigma_update_org_setting("", {}, confirm=True)
+    with pytest.raises(ToolError, match="Invalid setting_name"):
+        await sigma_update_org_setting("notReal", {}, confirm=True)
     http_mock.request.return_value = _mock_res(200, {"timezone": "America/New_York"})
     out = await sigma_update_org_setting("timezone", {"timezone": "America/New_York"}, confirm=True)
     assert json.loads(out) == {"timezone": "America/New_York"}
 
     # sigma_configure_org_ai
-    assert "confirm=True" in await sigma_configure_org_ai({}, confirm=False)
-    assert "provider_config is required" in await sigma_configure_org_ai({}, confirm=True)
+    assert "confirm=true" in await sigma_configure_org_ai({}, confirm=False)
+    with pytest.raises(ToolError, match="provider_config is required"):
+        await sigma_configure_org_ai({}, confirm=True)
     http_mock.request.return_value = _mock_res(200, {"configured": True})
     out = await sigma_configure_org_ai({"provider": "anthropic", "apiKey": "sk-ant"}, confirm=True)
     assert json.loads(out) == {"configured": True}
 
     # sigma_reset_org_email_branding
-    assert "confirm=True" in await sigma_reset_org_email_branding(confirm=False)
+    assert "confirm=true" in await sigma_reset_org_email_branding(confirm=False)
     http_mock.request.return_value = _mock_res(204)
     out = await sigma_reset_org_email_branding(confirm=True)
     assert json.loads(out)["status"] == "reset"
@@ -363,15 +380,17 @@ async def test_admin_tools(mock_client: SigmaClient):
     assert json.loads(out) == {"entries": [{"ip": "10.0.0.1"}]}
 
     # sigma_add_allowed_ips
-    assert "confirm=True" in await sigma_add_allowed_ips([], confirm=False)
-    assert "cannot be empty" in await sigma_add_allowed_ips([], confirm=True)
+    assert "confirm=true" in await sigma_add_allowed_ips([], confirm=False)
+    with pytest.raises(ToolError, match="cannot be empty"):
+        await sigma_add_allowed_ips([], confirm=True)
     http_mock.request.return_value = _mock_res(200, {"createdCount": 1})
     out = await sigma_add_allowed_ips([{"ip": "192.168.1.1/32", "scope": "public-api"}], confirm=True)
     assert json.loads(out) == {"createdCount": 1}
 
     # sigma_remove_allowed_ips
-    assert "confirm=True" in await sigma_remove_allowed_ips([], confirm=False)
-    assert "cannot be empty" in await sigma_remove_allowed_ips([], confirm=True)
+    assert "confirm=true" in await sigma_remove_allowed_ips([], confirm=False)
+    with pytest.raises(ToolError, match="cannot be empty"):
+        await sigma_remove_allowed_ips([], confirm=True)
     http_mock.request.return_value = _mock_res(200, {"deletedCount": 2})
     out = await sigma_remove_allowed_ips(["id-1", "id-2"], confirm=True)
     assert json.loads(out) == {"deletedCount": 2}

@@ -6,6 +6,7 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastmcp.exceptions import ToolError
 from httpx import Response
 
 from sigma_mcp import server as srv
@@ -161,13 +162,14 @@ async def test_scan_input_tables_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb_err", "name": "Err Workbook"}])
     c.list_workbook_pages = AsyncMock(side_effect=Exception("Page fetch failed"))
-    res1 = await srv.sigma_list_all_input_tables()
-    assert "Page fetch failed" in res1
+    # Every workbook failed: a tool error carrying the per-item errors.
+    with pytest.raises(ToolError, match="Page fetch failed"):
+        await srv.sigma_list_all_input_tables()
 
     c.list_workbook_pages = AsyncMock(return_value={"entries": [{"pageId": "p1", "name": "P1"}]})
     c.list_workbook_page_elements = AsyncMock(side_effect=Exception("Element fetch failed"))
-    res2 = await srv.sigma_list_all_input_tables()
-    assert "Element fetch failed" in res2
+    with pytest.raises(ToolError, match="Element fetch failed"):
+        await srv.sigma_list_all_input_tables()
 
 
 @pytest.mark.asyncio
@@ -182,8 +184,8 @@ async def test_bulk_sync_tenant_connections_error(monkeypatch: pytest.MonkeyPatc
     tc_err.aclose = AsyncMock()
     c.for_tenant = AsyncMock(return_value=tc_err)
 
-    res = await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
-    assert "Sync failed" in res
+    with pytest.raises(ToolError, match="Sync failed"):
+        await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
 
 
 @pytest.mark.asyncio

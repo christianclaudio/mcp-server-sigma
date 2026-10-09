@@ -12,6 +12,7 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _confirm_required,
     _invalid_request,
     sigma_tool,
 )
@@ -27,7 +28,7 @@ workspace_server = FastMCP("sigma-workspace", instructions="Workspaces, files, f
 async def sigma_delete_file(inode_id: str, confirm: bool = False) -> str:
     """Delete a file/workbook/data model by its inode ID. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_file(inode_id)
     return json.dumps({"status": code})
 
@@ -102,7 +103,7 @@ create_tag = sigma_create_tag
 async def sigma_delete_tag(tag_id: str, confirm: bool = False) -> str:
     """Delete a tag. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_tag(tag_id)
     return json.dumps({"status": code})
 
@@ -145,7 +146,7 @@ create_workspace = sigma_create_workspace
 async def sigma_delete_workspace(workspace_id: str, confirm: bool = False) -> str:
     """Delete a workspace. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_workspace(workspace_id)
     return json.dumps({"status": code})
 
@@ -175,7 +176,7 @@ async def sigma_grant_workspace_access(workspace_id: str, grant_type: str, grant
     """
     gt = grant_type.strip().lower()
     if gt not in ("member", "team"):
-        return _invalid_request("grant_type must be 'member' or 'team'")
+        _invalid_request("grant_type must be 'member' or 'team'")
     grantee_key = "memberId" if gt == "member" else "teamId"
     body = {"grants": [{"grantee": {grantee_key: grantee_id}, "permission": permission}]}
     return json.dumps(await (await get_client()).grant_workspace_access(workspace_id, body), indent=2)
@@ -191,7 +192,7 @@ grant_workspace_access = sigma_grant_workspace_access
 async def sigma_delete_workspace_grant(workspace_id: str, grant_id: str, confirm: bool = False) -> str:
     """Delete a permission grant from a workspace. DESTRUCTIVE. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_workspace_grant(workspace_id, grant_id)
     return json.dumps({"status": code})
 

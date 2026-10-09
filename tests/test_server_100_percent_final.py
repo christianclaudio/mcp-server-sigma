@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 from sigma_mcp import server as srv
 from sigma_mcp.client import SigmaClient
@@ -29,25 +30,30 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_sync_all_tables_in_schema validation & success & exception
-    assert "connection_id is required" in await srv.sigma_sync_all_tables_in_schema("", "db", "sch")
-    assert "database is required" in await srv.sigma_sync_all_tables_in_schema("c1", "", "sch")
-    assert "schema is required" in await srv.sigma_sync_all_tables_in_schema("c1", "db", "")
+    with pytest.raises(ToolError, match="connection_id is required"):
+        await srv.sigma_sync_all_tables_in_schema("", "db", "sch")
+    with pytest.raises(ToolError, match="database is required"):
+        await srv.sigma_sync_all_tables_in_schema("c1", "", "sch")
+    with pytest.raises(ToolError, match="schema is required"):
+        await srv.sigma_sync_all_tables_in_schema("c1", "db", "")
 
     c.sync_connection = AsyncMock(return_value={})
     res_sync_ok = await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
     assert "synced_path" in res_sync_ok
 
     c.sync_connection = AsyncMock(side_effect=Exception("Sync error"))
-    res_sync_err = await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
-    assert "Sync error" in res_sync_err
+    with pytest.raises(ToolError, match="Sync error"):
+        await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
 
     # sigma_copy_workbook_to_member validation & homeFolderId check & success & exception
-    assert "workbook_id is required" in await srv.sigma_copy_workbook_to_member("", "m1")
-    assert "member_id is required" in await srv.sigma_copy_workbook_to_member("wb1", "")
+    with pytest.raises(ToolError, match="workbook_id is required"):
+        await srv.sigma_copy_workbook_to_member("", "m1")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_copy_workbook_to_member("wb1", "")
 
     c.get_member = AsyncMock(return_value={"memberId": "m1"})
-    res_no_home = await srv.sigma_copy_workbook_to_member("wb1", "m1")
-    assert "Member has no homeFolderId" in res_no_home
+    with pytest.raises(ToolError, match="Member has no homeFolderId"):
+        await srv.sigma_copy_workbook_to_member("wb1", "m1")
 
     # With home folder but no explicit name — auto-fetches workbook name
     c.get_member = AsyncMock(return_value={"memberId": "m1", "homeFolderId": "hf1"})
@@ -72,27 +78,30 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
     c.get_member = AsyncMock(return_value={"memberId": "m1", "homeFolderId": "hf1"})
     c.get_workbook = AsyncMock(return_value={"name": "My Workbook"})
     c.duplicate_workbook = AsyncMock(side_effect=Exception("Duplicate failed"))
-    res_dup_err = await srv.sigma_copy_workbook_to_member("wb1", "m1")
-    assert "Duplicate failed" in res_dup_err
+    with pytest.raises(ToolError, match="Duplicate failed"):
+        await srv.sigma_copy_workbook_to_member("wb1", "m1")
 
     # sigma_duplicate_workbook validation branches
-    assert "name is required" in await srv.sigma_duplicate_workbook("wb1", "", "folder1")
+    with pytest.raises(ToolError, match="name is required"):
+        await srv.sigma_duplicate_workbook("wb1", "", "folder1")
     # When destination_folder_id is empty, it auto-discovers home folder; mock get_current_user + get_member
     c.get_current_user = AsyncMock(return_value={"userId": "u1"})
     c.get_member = AsyncMock(return_value={"memberId": "u1"})  # no homeFolderId
-    assert "home folder" in await srv.sigma_duplicate_workbook("wb1", "My Copy", "")
+    with pytest.raises(ToolError, match="home folder"):
+        await srv.sigma_duplicate_workbook("wb1", "My Copy", "")
 
     # sigma_convert_workbook_to_report validation branch
-    assert "name is required" in await srv.sigma_convert_workbook_to_report("wb1", "")
+    with pytest.raises(ToolError, match="name is required"):
+        await srv.sigma_convert_workbook_to_report("wb1", "")
 
     # sigma_reassign_workbook_ownership missing members & non-dict return
     c.search_members = AsyncMock(side_effect=[{"entries": []}, {"entries": []}])
-    res_no_old = await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
-    assert "No member found for email: old@ex.com" in res_no_old
+    with pytest.raises(ToolError, match="No member found for email: old@ex.com"):
+        await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
 
     c.search_members = AsyncMock(side_effect=[{"entries": [{"memberId": "m1"}]}, {"entries": []}])
-    res_no_new = await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
-    assert "No member found for email: new@ex.com" in res_no_new
+    with pytest.raises(ToolError, match="No member found for email: new@ex.com"):
+        await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
 
     c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
     c.get = AsyncMock(return_value=["non_dict_response"])
@@ -130,8 +139,8 @@ async def test_materialize_and_wait_timeout_and_no_job(monkeypatch: pytest.Monke
 
     # No job_id extracted
     c.materialize_workbook = AsyncMock(return_value={})
-    res_no_job = await srv.sigma_materialize_and_wait("wb1", "el1")
-    assert "Could not extract job ID" in res_no_job
+    with pytest.raises(ToolError, match="Could not extract job ID"):
+        await srv.sigma_materialize_and_wait("wb1", "el1")
 
     # Timeout scenario
     c.materialize_workbook = AsyncMock(return_value={"materializationId": "job123"})
@@ -167,8 +176,8 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     # sigma_bulk_remove_team_members exception
     c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
     c.update_team_members = AsyncMock(side_effect=Exception("Team removal error"))
-    res_rem_err = await srv.sigma_bulk_remove_team_members("t1", ["a@b.com"], confirm=True)
-    assert "Team removal error" in res_rem_err
+    with pytest.raises(ToolError, match="Team removal error"):
+        await srv.sigma_bulk_remove_team_members("t1", ["a@b.com"], confirm=True)
 
     # list_tenants_paginated non-dict response
     c.get = AsyncMock(return_value=["non_dict_response"])
@@ -176,7 +185,8 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     assert "total" in res_tenants_non_dict
 
     # list_workbooks_shared_with_member
-    assert "member_id is required" in await srv.sigma_list_workbooks_shared_with_member("")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_list_workbooks_shared_with_member("")
 
     c.auto_paginate = AsyncMock(return_value=[{"workbookId": "wb1"}])
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "Shared WB"}])
