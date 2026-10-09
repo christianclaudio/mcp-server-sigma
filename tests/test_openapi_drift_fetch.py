@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from scripts import check_openapi_drift
 from scripts.check_openapi_drift import _fetch_url, fetch_spec
 
 from sigma_mcp.client import SSRFSafeTransport
@@ -13,8 +14,8 @@ from sigma_mcp.client import SSRFSafeTransport
 
 def test_fetch_spec_rejects_loopback_without_request() -> None:
     with patch("sigma_mcp.client.SSRFSafeTransport.handle_request") as mock_handle:
-        spec = fetch_spec(["http://127.0.0.1/openapi.json"])
-    assert spec == {"paths": {}}
+        with pytest.raises(RuntimeError, match="no fallback URL"):
+            fetch_spec(["http://127.0.0.1/openapi.json"])
     mock_handle.assert_not_called()
 
 
@@ -56,6 +57,28 @@ def test_fetch_spec_falls_back_after_redirect() -> None:
 
 def test_fetch_spec_metadata_literal_is_rejected() -> None:
     with patch("sigma_mcp.client.SSRFSafeTransport.handle_request") as mock_handle:
-        spec = fetch_spec(["https://169.254.169.254/latest/meta-data"])
-    assert spec == {"paths": {}}
+        with pytest.raises(RuntimeError, match="no fallback URL"):
+            fetch_spec(["https://169.254.169.254/latest/meta-data"])
     mock_handle.assert_not_called()
+
+
+def test_main_exits_2_when_single_spec_url_override_fails(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A failed single --spec-url override is a fetch failure (exit 2), not drift (exit 1)."""
+    monkeypatch.setattr("sys.argv", ["check_openapi_drift.py", "--spec-url", "https://example.com/spec.json"])
+    with patch.object(check_openapi_drift, "_fetch_url", side_effect=httpx.ConnectError("boom")):
+        assert check_openapi_drift.main() == 2
+    captured = capsys.readouterr()
+    assert "Could not fetch spec" in captured.err
+    assert "wrong path" not in captured.out
+
+
+def test_main_exits_2_when_spec_has_no_endpoints(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An empty spec is never compared against the client."""
+    monkeypatch.setattr("sys.argv", ["check_openapi_drift.py", "--spec-url", "https://example.com/spec.json"])
+    with patch.object(check_openapi_drift, "fetch_spec", return_value={"paths": {}}):
+        assert check_openapi_drift.main() == 2
+    assert "refusing to compare against an empty spec" in capsys.readouterr().err

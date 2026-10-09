@@ -84,12 +84,19 @@ def _fetch_url(url: str) -> httpx.Response:
 
 
 def fetch_spec(urls: list[str]) -> dict[str, Any]:
-    """Fetch Sigma's OpenAPI spec, trying the primary URL first and falling back to split specs."""
+    """Fetch Sigma's OpenAPI spec, trying the primary URL first and falling back to split specs.
+
+    Raises ``RuntimeError`` when the primary URL fails and there is no fallback URL
+    (for example a single ``--spec-url`` override), so the caller never compares
+    the client against an empty spec.
+    """
     primary_url = urls[0]
     try:
         return _fetch_url(primary_url).json()  # type: ignore[no-any-return]
     except Exception as e:
         print(f"Warning: Failed to fetch primary spec ({primary_url}): {e}")
+        if not urls[1:]:
+            raise RuntimeError(f"Failed to fetch spec ({primary_url}) and no fallback URL is configured") from e
         print("Falling back to split documentation specs...")
 
     merged: dict[str, Any] = {"paths": {}}
@@ -240,6 +247,9 @@ def main() -> int:
         return 2
 
     spec_endpoints, spec_deprecated_params = extract_spec_endpoints_and_deprecations(spec)
+    if not spec_endpoints:
+        print("ERROR: Fetched spec has no endpoints; refusing to compare against an empty spec.", file=sys.stderr)
+        return 2
     client_calls = extract_client_calls(args.client_path)
     client_endpoints = {(c.method, c.normalized_path) for c in client_calls}
     allowlist = load_allowlist(args.allowlist)
