@@ -789,14 +789,19 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
         fid = f.get("id") or f.get("inodeId")
         if not isinstance(fid, str):
             errors.append(
-                {"id": fid, "status": "failed", "error": _item_error("missing file ID", "invalid_item", index=index)}
+                {
+                    "id": fid,
+                    "name": f.get("name"),
+                    "status": "failed",
+                    "error": _item_error("missing file ID", "invalid_item", index=index),
+                }
             )
             continue
         try:
             res = await c.update_file(fid, {"ownerId": new_member_id})
-            results.append({"id": fid, "status": "transferred", "result": res})
+            results.append({"id": fid, "name": f.get("name"), "status": "transferred", "result": res})
         except Exception as e:
-            errors.append({"id": fid, "status": "failed", "error": _item_error(e, index=index)})
+            errors.append({"id": fid, "name": f.get("name"), "status": "failed", "error": _item_error(e, index=index)})
 
     return _batch_outcome(
         "workbook transfers",
@@ -807,6 +812,7 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
             "old_owner": {"email": old_owner_email, "memberId": old_member_id},
             "new_owner": {"email": new_owner_email, "memberId": new_member_id},
         },
+        extra={"transferred": len(results), "failed": len(errors)},
     )
 
 

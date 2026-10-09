@@ -273,7 +273,14 @@ async def sigma_list_all_input_tables() -> str:
                 pages = pages_data.get("entries", []) if isinstance(pages_data, dict) else []
             except Exception as e:
                 errors.append(
-                    {"id": wb_id, "status": "failed", "error": {**_item_error(e, index=index), "stage": "pages"}}
+                    {
+                        "id": wb_id,
+                        "workbookId": wb_id,
+                        "workbookName": wb_name,
+                        "stage": "pages",
+                        "status": "failed",
+                        "error": {**_item_error(e, index=index), "stage": "pages"},
+                    }
                 )
                 return
 
@@ -286,7 +293,16 @@ async def sigma_list_all_input_tables() -> str:
                     elements_data = await c.list_workbook_page_elements(wb_id, page_id)
                     elements = elements_data.get("entries", []) if isinstance(elements_data, dict) else []
                 except Exception as e:
-                    page_errors.append({"id": page_id, "status": "failed", "error": _item_error(e, index=page_index)})
+                    page_errors.append(
+                        {
+                            "id": page_id,
+                            "workbookId": wb_id,
+                            "pageId": page_id,
+                            "stage": "elements",
+                            "status": "failed",
+                            "error": _item_error(e, index=page_index),
+                        }
+                    )
                     continue
 
                 for el in elements:
@@ -306,6 +322,9 @@ async def sigma_list_all_input_tables() -> str:
                 errors.append(
                     {
                         "id": wb_id,
+                        "workbookId": wb_id,
+                        "workbookName": wb_name,
+                        "stage": "elements",
                         "status": "failed",
                         "error": {
                             "type": "batch_failed",
@@ -320,6 +339,8 @@ async def sigma_list_all_input_tables() -> str:
             results.append(
                 {
                     "id": wb_id,
+                    "workbookId": wb_id,
+                    "workbookName": wb_name,
                     "status": "scanned",
                     "result": {"name": wb_name, "input_table_count": len(wb_tables), "page_errors": page_errors},
                 }
@@ -332,7 +353,11 @@ async def sigma_list_all_input_tables() -> str:
         "scanned",
         results,
         errors,
-        extra={"total_input_tables": len(input_tables), "input_tables": input_tables},
+        extra={
+            "total_input_tables": len(input_tables),
+            "input_tables": input_tables,
+            "workbooks_scanned": len(all_workbooks),
+        },
     )
 
 

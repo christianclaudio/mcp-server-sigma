@@ -202,6 +202,10 @@ def test_tool_failure_redacts_message_and_string_details(monkeypatch: pytest.Mon
 
 # ─── batch tools: every item failed is an error; a partial success is not ─────
 
+# Per-entry field names from main that the batch tools keep alongside the fleet keys.
+_LEGACY_ENTRY_KEYS = {"memberId", "name", "workbookId", "workbookName", "pageId", "stage", "orgId", "connectionId"}
+_LEGACY_ENTRY_KEYS |= {"connections_synced"}
+
 
 async def _call_ok(name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Call a tool over an in-memory Client; assert isError false and return the parsed result."""
@@ -220,7 +224,7 @@ def _assert_item_errors(items: list[dict[str, Any]]) -> None:
         assert isinstance(err, dict), item
         assert isinstance(err["message"], str) and err["message"], item
         assert _SECRET not in json.dumps(err)
-        assert set(item) == {"id", "status", "error"}, item
+        assert {"id", "status", "error"} <= set(item) <= {"id", "status", "error"} | _LEGACY_ENTRY_KEYS, item
         assert item["status"] == "failed", item
         for nested in err.get("pages", []) + err.get("connections", []):
             _assert_item_errors([nested])
@@ -232,7 +236,7 @@ def _assert_batch_shape(data: dict[str, Any], verb: str) -> None:
     assert data[f"{verb}_count"] == len(data["results"])
     assert data["failed_count"] == len(data["errors"])
     for entry in data["results"]:
-        assert set(entry) == {"id", "status", "result"}, entry
+        assert {"id", "status", "result"} <= set(entry) <= {"id", "status", "result"} | _LEGACY_ENTRY_KEYS, entry
         assert entry["status"] == verb, entry
     if data["errors"]:
         _assert_item_errors(data["errors"])
@@ -267,6 +271,14 @@ async def test_admin_bulk_deactivate_partial_is_normal_result(api: AsyncMock) ->
     assert [r["id"] for r in data["results"]] == ["m-0"]
     assert [e["id"] for e in data["errors"]] == ["m-1"]
     _assert_item_errors(data["errors"])
+    # Field names from main stay alongside the fleet keys.
+    assert data["pattern"] == "Test"
+    assert data["deactivated"] == 1
+    assert data["failed"] == 1
+    assert data["results"][0]["memberId"] == "m-0"
+    assert data["results"][0]["name"] == "Test0 User"
+    assert data["errors"][0]["memberId"] == "m-1"
+    assert data["errors"][0]["name"] == "Test1 User"
 
 
 def _owned_files(n: int) -> dict[str, Any]:
@@ -311,6 +323,11 @@ async def test_workbooks_reassign_partial_is_normal_result(api: AsyncMock) -> No
     assert [r["id"] for r in data["results"]] == ["f0"]
     assert [e["id"] for e in data["errors"]] == ["f1"]
     _assert_item_errors(data["errors"])
+    # Field names from main stay alongside the fleet keys.
+    assert data["transferred"] == 1
+    assert data["failed"] == 1
+    assert data["results"][0]["name"] == "WB 0"
+    assert data["errors"][0]["name"] == "WB 1"
 
 
 @pytest.mark.asyncio
@@ -332,6 +349,9 @@ async def test_elements_scan_all_failed_is_error_true(api: AsyncMock) -> None:
     assert err["failed_count"] == 2
     assert sorted(e["error"]["stage"] for e in err["errors"]) == ["elements", "pages"]
     assert [e["id"] for e in err["errors"]] == ["wb1", "wb2"]
+    assert [e["stage"] for e in err["errors"]] == ["pages", "elements"]
+    page = err["errors"][1]["error"]["pages"][0]
+    assert (page["workbookId"], page["pageId"], page["stage"]) == ("wb2", "p1", "elements")
     _assert_item_errors(err["errors"])
 
 
@@ -356,6 +376,12 @@ async def test_elements_scan_partial_is_normal_result(api: AsyncMock) -> None:
     assert data["total_input_tables"] == 1
     assert len(data["errors"]) == 1
     _assert_batch_shape(data, "scanned")
+    # Field names from main stay alongside the fleet keys.
+    assert data["workbooks_scanned"] == 2
+    assert data["results"][0]["workbookId"] == "wb2"
+    assert data["results"][0]["workbookName"] == "B"
+    err = data["errors"][0]
+    assert (err["workbookId"], err["workbookName"], err["stage"]) == ("wb1", "A", "pages")
 
 
 def _tenant_client(sync_side_effect: Any) -> AsyncMock:
@@ -408,6 +434,12 @@ async def test_datasets_tenant_sync_partial_is_normal_result(api: AsyncMock) -> 
     assert [e["id"] for e in data["errors"]] == ["t1"]
     _assert_batch_shape(data, "synced")
     _assert_batch_shape(data["results"][0]["result"], "synced")
+    # Field names from main stay alongside the fleet keys.
+    assert data["tenants_processed"] == 2
+    ok = data["results"][0]
+    assert (ok["orgId"], ok["name"], ok["connections_synced"]) == ("t2", "T2", 1)
+    assert ok["result"]["results"][0]["connectionId"] == "c1"
+    assert (data["errors"][0]["orgId"], data["errors"][0]["name"]) == ("t1", "T1")
 
 
 def test_tool_failure_redacts_nested_batch_errors(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -714,18 +714,34 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     errors: list[dict[str, Any]] = []
     for index, m in enumerate(active_matches):
         mid = m.get("memberId", "")
+        name = f"{m.get('firstName', '')} {m.get('lastName', '')}"
         if not mid:  # pragma: no cover
             errors.append(
-                {"id": mid, "status": "failed", "error": _item_error("missing memberId", "invalid_item", index=index)}
+                {
+                    "id": mid,
+                    "memberId": mid,
+                    "name": name,
+                    "status": "failed",
+                    "error": _item_error("missing memberId", "invalid_item", index=index),
+                }
             )
             continue
         try:
             res = await c.deactivate_member(mid)
-            results.append({"id": mid, "status": "deactivated", "result": res})
+            results.append({"id": mid, "memberId": mid, "name": name, "status": "deactivated", "result": res})
         except Exception as e:
-            errors.append({"id": mid, "status": "failed", "error": _item_error(e, index=index)})
+            errors.append(
+                {"id": mid, "memberId": mid, "name": name, "status": "failed", "error": _item_error(e, index=index)}
+            )
 
-    return _batch_outcome("member deactivations", "deactivated", results, errors, context={"pattern": name_pattern})
+    return _batch_outcome(
+        "member deactivations",
+        "deactivated",
+        results,
+        errors,
+        context={"pattern": name_pattern},
+        extra={"deactivated": len(results), "failed": len(errors)},
+    )
 
 
 bulk_deactivate_members = sigma_bulk_deactivate_members

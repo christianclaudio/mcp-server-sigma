@@ -327,14 +327,24 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                     cid = conn.get("connectionId", "")
                     try:
                         res = await tc.sync_connection(cid, [])
-                        synced.append({"id": cid, "status": "synced", "result": res})
+                        synced.append({"id": cid, "connectionId": cid, "status": "synced", "result": res})
                     except Exception as e:
-                        conn_errors.append({"id": cid, "status": "failed", "error": _item_error(e, index=conn_index)})
+                        conn_errors.append(
+                            {
+                                "id": cid,
+                                "connectionId": cid,
+                                "status": "failed",
+                                "error": _item_error(e, index=conn_index),
+                            }
+                        )
                 if conn_errors and not synced:
                     # A tenant whose every connection sync failed is a failed item.
                     errors.append(
                         {
                             "id": org_id,
+                            "orgId": org_id,
+                            "name": tenant.get("name"),
+                            "connections_synced": 0,
                             "status": "failed",
                             "error": {
                                 "type": "batch_failed",
@@ -347,6 +357,9 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                     results.append(
                         {
                             "id": org_id,
+                            "orgId": org_id,
+                            "name": tenant.get("name"),
+                            "connections_synced": len(synced),
                             "status": "synced",
                             "result": {
                                 "name": tenant.get("name"),
@@ -359,7 +372,15 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                         }
                     )
             except Exception as e:
-                errors.append({"id": org_id, "status": "failed", "error": _item_error(e, index=index)})
+                errors.append(
+                    {
+                        "id": org_id,
+                        "orgId": org_id,
+                        "name": tenant.get("name"),
+                        "status": "failed",
+                        "error": _item_error(e, index=index),
+                    }
+                )
             finally:
                 # Tenant clients borrow the parent's transport, so aclose() is a
                 # no-op for them. Called anyway so the contract holds if that
@@ -369,7 +390,9 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
 
     await asyncio.gather(*[sync_tenant(i, t) for i, t in enumerate(tenants)])
 
-    return _batch_outcome("tenant syncs", "synced", results, errors)
+    return _batch_outcome(
+        "tenant syncs", "synced", results, errors, extra={"tenants_processed": len(results) + len(errors)}
+    )
 
 
 bulk_sync_tenant_connections = sigma_bulk_sync_tenant_connections

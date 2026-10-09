@@ -119,8 +119,13 @@ Every batch result has one shape. Each item is an entry with the item key `id`, 
 and either `result` (the item was done) or `error` (`"status": "failed"`). The top level always
 has `status` (`success` or `partial_success`), a `<verb>_count` of the items done
 (`deactivated_count`, `transferred_count`, `scanned_count`, `synced_count`), `failed_count`,
-`results` and `errors`, plus the tool's own context fields. When at least one item succeeds,
-the call is a normal result (`isError: false`):
+`results` and `errors`, plus the tool's own context fields. The field names these tools
+returned before keep their place alongside: entries keep `memberId` and `name`
+(deactivations), `name` (transfers), `workbookId`, `workbookName`, `pageId` and `stage`
+(scans), and `orgId`, `name`, `connections_synced` and `connectionId` (tenant syncs); the top
+level keeps `deactivated` and `failed`, `transferred` and `failed`, `workbooks_scanned`, and
+`tenants_processed`. When at least one item succeeds, the call is a normal result
+(`isError: false`):
 
 ```json
 {
@@ -128,11 +133,13 @@ the call is a normal result (`isError: false`):
   "transferred_count": 1,
   "failed_count": 1,
   "results": [
-    { "id": "f0", "status": "transferred", "result": { "id": "f0", "ownerId": "new-id" } }
+    { "id": "f0", "name": "WB 0", "status": "transferred",
+      "result": { "id": "f0", "ownerId": "new-id" } }
   ],
   "errors": [
     {
       "id": "f1",
+      "name": "WB 1",
       "status": "failed",
       "error": { "type": "sigma_api_error", "status_code": 403, "method": "PATCH",
                  "path": "/v2/files/f1", "detail": null, "request_id": null,
@@ -140,7 +147,9 @@ the call is a normal result (`isError: false`):
     }
   ],
   "old_owner": { "email": "old@example.com", "memberId": "old-id" },
-  "new_owner": { "email": "new@example.com", "memberId": "new-id" }
+  "new_owner": { "email": "new@example.com", "memberId": "new-id" },
+  "transferred": 1,
+  "failed": 1
 }
 ```
 
@@ -156,11 +165,11 @@ same context fields, `failed_count` and `errors`:
     "new_owner": { "email": "new@example.com", "memberId": "new-id" },
     "failed_count": 2,
     "errors": [
-      { "id": "f0", "status": "failed",
+      { "id": "f0", "name": "WB 0", "status": "failed",
         "error": { "type": "sigma_api_error", "status_code": 403, "method": "PATCH",
                    "path": "/v2/files/f0", "detail": null, "request_id": null,
                    "message": "Sigma API PATCH /v2/files/f0 returned 403" } },
-      { "id": "f1", "status": "failed",
+      { "id": "f1", "name": "WB 1", "status": "failed",
         "error": { "type": "internal", "message": "boom Authorization: ***REDACTED***" } }
     ]
   }
