@@ -82,6 +82,7 @@ async def test_resources_read_unknown_uri_over_the_wire() -> None:
         with pytest.raises(MCPError, match="elements://reference/missing") as exc:
             await client.read_resource("elements://reference/missing")
         assert "Internal server error" not in str(exc.value)
+        assert exc.value.code == -32602
 
 
 @pytest.mark.asyncio
