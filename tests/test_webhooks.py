@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -118,6 +119,30 @@ async def test_webhook_listener_exception() -> None:
         assert res["status_code"] == 200
     finally:
         webhooks._EVENT_LISTENERS.remove(bad_listener)
+
+
+@pytest.mark.asyncio
+async def test_webhook_listener_exception_log_is_redacted(caplog: pytest.LogCaptureFixture) -> None:
+    from sigma_mcp import webhooks
+
+    token = "sk-live-abc123"
+
+    async def leaky_listener(evt: dict) -> None:
+        raise RuntimeError(f"upstream rejected Authorization: Bearer {token}")
+
+    webhooks._EVENT_LISTENERS.append(leaky_listener)
+    try:
+        with caplog.at_level(logging.ERROR, logger="sigma_mcp.webhooks"):
+            res = await process_incoming_webhook(b'{"event_type": "test"}', "application/json")
+    finally:
+        webhooks._EVENT_LISTENERS.remove(leaky_listener)
+
+    assert res["status_code"] == 200
+    records = [r for r in caplog.records if r.message == "Error executing webhook listener"]
+    assert len(records) == 1
+    logged = records[0].__dict__["error"]
+    assert token not in logged
+    assert "***REDACTED***" in logged
 
 
 @pytest.mark.asyncio

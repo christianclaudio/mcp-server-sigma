@@ -30,7 +30,7 @@ ALL_DOMAINS: tuple[str, ...] = ("workbooks", "datasets", "elements", "workspace"
 # guard unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 BULK_DESTRUCTIVE_TOOLS: frozenset[str] = frozenset({"admin_bulk_deactivate_members", "admin_bulk_remove_team_members"})
 
-# Job profile ``analyst`` (31 tools), in catalog order.
+# Job profile ``analyst``, in catalog order.
 ANALYST_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -67,7 +67,7 @@ ANALYST_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``author`` (40 tools), in catalog order.
+# Job profile ``author``, in catalog order.
 AUTHOR_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -113,7 +113,7 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``modeler`` (33 tools), in catalog order.
+# Job profile ``modeler``, in catalog order.
 MODELER_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -152,7 +152,7 @@ MODELER_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``embed`` (50 tools), in catalog order.
+# Job profile ``embed``, in catalog order.
 EMBED_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -208,7 +208,7 @@ EMBED_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``access_admin`` (52 tools), in catalog order.
+# Job profile ``access_admin``, in catalog order.
 ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbook_grants",

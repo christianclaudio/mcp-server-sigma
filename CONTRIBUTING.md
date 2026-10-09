@@ -117,7 +117,7 @@ Adding a tool takes 4 steps:
 3. **Add Unit Test** (`tests/test_tools_mocked.py`):
    Add a mocked test asserting clean JSON output and proper error handling.
 
-4. **Place the tool in a profile and update the counts**: add its wire name to a job profile allowlist in `src/sigma_mcp/profiles.py` or to `FULL_ONLY_TOOLS` (the tests fail on a tool that is in neither; a full-only tool also goes in `EXPECTED_FULL_ONLY` in `scripts/check_tool_contract.py`). Then update the expected counts in `scripts/check_tool_contract.py`, the matching `README.md` tables, and the copies in `tests/test_profiles.py` (`SIGNED_OFF`), `tests/test_unit.py` and `tests/test_enterprise_assertion.py`.
+4. **Place the tool in a profile and update the counts**: add its wire name to a job profile allowlist in `src/sigma_mcp/profiles.py` or to `FULL_ONLY_TOOLS` (the tests fail on a tool that is in neither; a full-only tool also goes in `EXPECTED_FULL_ONLY` in `scripts/check_tool_contract.py`). Then update the expected tool counts (per profile) in `scripts/check_tool_contract.py` and the `README.md` tables; the tests import theirs from the contract script.
 
 ---
 

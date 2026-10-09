@@ -38,7 +38,7 @@ When connecting this server to autonomous agents or public assistant interfaces,
 ```bash
 SIGMA_MCP_READONLY=1 sigma-mcp
 ```
-This lists only the **90 tools annotated `readOnlyHint=True`** and refuses every other tool at call time, including through the Tool Search `call_tool` proxy. The gate reads the `readOnlyHint` annotation and nothing else; a tool without the hint is treated as a write. A refusal is a `SafetyViolationError` (a FastMCP `ToolError`), so the client receives a `tools/call` result with `isError: true`. `SIGMA_MCP_READONLY=1` composes with every profile.
+This lists only the **tools annotated `readOnlyHint=True`** (the README's Profiles and Feature & Tool Summary tables give the count) and refuses every other tool at call time, including through the Tool Search `call_tool` proxy. The gate reads the `readOnlyHint` annotation and nothing else; a tool without the hint is treated as a write. A refusal is a `SafetyViolationError` (a FastMCP `ToolError`), so the client receives a `tools/call` result with `isError: true`. `SIGMA_MCP_READONLY=1` composes with every profile.
 
 ### 4. Safety Gates for Single & Bulk Operations
 - **Single Delete Operations:** Require explicit `confirm=True` on all atomic delete/deactivate endpoints (`workspace_delete_workspace`, `workspace_delete_file`, etc.).

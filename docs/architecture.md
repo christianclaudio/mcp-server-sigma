@@ -98,18 +98,20 @@ domain sub-servers. Build order:
    experimental Code Mode, on `full` only and never both. Other profiles log a warning
    and stay flat.
 
-| Profile | Job | Tools | Read-only |
-|---------|-----|------:|----------:|
-| `full` (default) | Every tool, including the 9 in `FULL_ONLY_TOOLS` | 172 | 90 |
-| `readonly` | Every `readOnlyHint=True` tool | 90 | 90 |
-| `analyst` | Consume workbooks and reports | 31 | 23 |
-| `author` | Build workbooks and reports | 40 | 28 |
-| `modeler` | Build data models and manage connections | 33 | 24 |
-| `embed` | Embedded analytics and multi-tenant | 50 | 27 |
-| `access_admin` | Users, teams, grants, and access | 52 | 22 |
+| Profile | Job |
+|---------|-----|
+| `full` (default) | Every tool, including the ones in `FULL_ONLY_TOOLS` |
+| `readonly` | Every `readOnlyHint=True` tool |
+| `analyst` | Consume workbooks and reports |
+| `author` | Build workbooks and reports |
+| `modeler` | Build data models and manage connections |
+| `embed` | Embedded analytics and multi-tenant |
+| `access_admin` | Users, teams, grants, and access |
 
 The authoritative lists live in `src/sigma_mcp/profiles.py`; the expected counts live
-in `scripts/check_tool_contract.py`.
+in `scripts/check_tool_contract.py`. For the per-profile tool and read-only counts, see
+the Profiles and Feature & Tool Summary tables in the [README](../README.md), which the
+contract check verifies.
 
 Call-time gates (root and admin middleware):
 

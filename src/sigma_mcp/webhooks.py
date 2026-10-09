@@ -33,6 +33,8 @@ from typing import TYPE_CHECKING, Any
 from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 
+from sigma_mcp.errors import redact_secrets
+
 if TYPE_CHECKING:
     from fastmcp import FastMCP
 
@@ -230,7 +232,7 @@ async def _record_and_notify(event_type: str, payload: dict[str, Any]) -> dict[s
         try:
             await asyncio.wait_for(listener(event), timeout=2.0)
         except Exception as e:
-            logger.error("Error executing webhook listener", extra={"error": str(e)})
+            logger.error("Error executing webhook listener", extra={"error": redact_secrets(str(e))})
 
     return {"status": "accepted", "event_id": event["event_id"], "status_code": 200}
 
