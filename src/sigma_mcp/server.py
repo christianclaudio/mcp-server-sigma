@@ -45,6 +45,7 @@ from fastmcp.tools import FunctionTool, Tool
 from mcp.server.caching import CacheHint
 
 from sigma_mcp import __version__
+from sigma_mcp.auth import AUTH_TOKEN_ENV, SharedTokenVerifier
 from sigma_mcp.client import SigmaClient
 from sigma_mcp.config import readonly_enabled, settings
 from sigma_mcp.errors import redact_secrets
@@ -761,7 +762,7 @@ def main() -> None:
             tool_search_backend=backend,
         )
 
-    auth_token = os.environ.get("SIGMA_MCP_AUTH_TOKEN", "")
+    auth_token = os.environ.get(AUTH_TOKEN_ENV, "").strip()
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8000)
     stateless = getattr(args, "stateless", False)
@@ -773,8 +774,16 @@ def main() -> None:
         if json_response:
             logger.warning("--json-response flag is only applicable to 'streamable-http' transport.")
 
-    if auth_token and args.transport in ("sse", "streamable-http"):
-        logger.info("Enforcing bearer token authentication on network transport")
+    if args.transport in ("sse", "streamable-http"):
+        if auth_token:
+            mcp.auth = SharedTokenVerifier(auth_token)
+            logger.info("Bearer token authentication is on for the %s transport", args.transport)
+        else:
+            logger.warning(
+                "%s is not set, so MCP requests on the %s transport are not authenticated.",
+                AUTH_TOKEN_ENV,
+                args.transport,
+            )
 
     hosts = getattr(args, "allowed_hosts", None)
     if hosts is None:
