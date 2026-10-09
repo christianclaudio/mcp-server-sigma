@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+from fastmcp.resources import ResourceResult
 
 from sigma_mcp import server as srv
 from sigma_mcp.client import SigmaClient
@@ -138,9 +139,10 @@ async def test_server_lifespan_clears_client(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.asyncio
-async def test_resource_list_compat_properties() -> None:
+async def test_read_resource_returns_fastmcp_resource_result() -> None:
     res = await srv.mcp.read_resource("elements://reference/formulas")
-    assert res.contents is not None
+    assert isinstance(res, ResourceResult)
+    assert res.contents
     assert res.meta is None
 
 

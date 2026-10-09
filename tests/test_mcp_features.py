@@ -7,10 +7,16 @@ import logging
 from unittest.mock import patch
 
 import pytest
+from fastmcp import Client
+from fastmcp.resources import ResourceResult
+from mcp import MCPError
+from mcp.types import TextResourceContents
 
+from sigma_mcp.profiles import PROFILES
 from sigma_mcp.server import (
     StructuredJSONFormatter,
     configure_logging,
+    create_server,
     mcp,
 )
 
@@ -23,13 +29,60 @@ async def test_mcp_resources_registered() -> None:
     assert "admin://reference/capabilities" in resource_uris
 
     formula_res = await mcp.read_resource("elements://reference/formulas")
-    assert isinstance(formula_res, list) and len(formula_res) == 1
-    assert hasattr(formula_res[0], "content") and "Sigma" in str(formula_res[0].content)
+    assert isinstance(formula_res, ResourceResult) and len(formula_res.contents) == 1
+    assert "Sigma" in str(formula_res.contents[0].content)
 
     caps_res = await mcp.read_resource("admin://reference/capabilities")
-    assert isinstance(caps_res, list) and len(caps_res) == 1
-    caps_data = json.loads(str(caps_res[0].content))
+    assert isinstance(caps_res, ResourceResult) and len(caps_res.contents) == 1
+    caps_data = json.loads(str(caps_res.contents[0].content))
     assert "connections" in caps_data["supported_domains"]
+
+
+# Every static resource the root registers, with its declared MIME type.
+EXPECTED_RESOURCES = {
+    "elements://reference/formulas": "text/markdown",
+    "admin://reference/capabilities": "application/json",
+    "elements://reference/docs-index": "text/plain",
+    "admin://webhooks/recent": "text/plain",
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("profile", sorted(PROFILES))
+async def test_resources_read_over_the_wire(profile: str) -> None:
+    """resources/read through an MCP client returns each resource's exact URI, MIME type and text.
+
+    Calls the protocol handler, not ``FastMCP.read_resource`` directly, so a return value
+    the handler cannot convert surfaces here instead of as ``Internal server error``.
+    """
+    server = create_server(profile=profile)
+    async with Client(server) as client:
+        resources = await client.list_resources()
+        assert {str(r.uri): r.mime_type for r in resources} == EXPECTED_RESOURCES
+        for resource in resources:
+            contents = await client.read_resource(str(resource.uri))
+            assert len(contents) == 1
+            item = contents[0]
+            assert isinstance(item, TextResourceContents)
+            assert str(item.uri) == str(resource.uri)
+            assert item.mime_type == resource.mime_type
+            assert item.text
+
+        formulas = await client.read_resource("elements://reference/formulas")
+        assert isinstance(formulas[0], TextResourceContents) and "Sigma" in formulas[0].text
+        caps = await client.read_resource("admin://reference/capabilities")
+        assert isinstance(caps[0], TextResourceContents)
+        assert "connections" in json.loads(caps[0].text)["supported_domains"]
+
+
+@pytest.mark.asyncio
+async def test_resources_read_unknown_uri_over_the_wire() -> None:
+    """An unknown URI is a not-found error naming the URI, not an internal error."""
+    async with Client(create_server(profile="full")) as client:
+        with pytest.raises(MCPError, match="elements://reference/missing") as exc:
+            await client.read_resource("elements://reference/missing")
+        assert "Internal server error" not in str(exc.value)
+        assert exc.value.code == -32602
 
 
 @pytest.mark.asyncio

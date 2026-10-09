@@ -69,6 +69,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
 - **Zero live network calls in the default suite.** Tests must run 100% offline in CI. Opt-in live modules are `tests/test_e2e_live.py` (`-m e2e`) and `tests/test_integration_live.py` (`SIGMA_LIVE_TESTS=1` plus `SIGMA_CLIENT_ID`).
+- Keep `tests/test_client_surface.py` (mandatory house standard; conformance is not a substitute): it builds `create_server` under every profile in `PROFILES` and, through an in-memory `fastmcp.Client`, lists every tool and reads every resource and prompt; add fixture URIs or prompt arguments in its tables, never skip a component.
 - Update expected tool counts (per profile) in `scripts/check_tool_contract.py`, the `README.md` tables, and the copies in `tests/test_profiles.py` (`SIGNED_OFF`), `tests/test_unit.py` and `tests/test_enterprise_assertion.py`. A full-only tool also goes in `EXPECTED_FULL_ONLY` in `scripts/check_tool_contract.py`.
 - Ensure test statement coverage remains at **100.0%** (`--cov-fail-under=100`). Branch coverage is not enabled.
 

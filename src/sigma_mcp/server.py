@@ -232,22 +232,6 @@ if not hasattr(Tool, "input_schema"):
     Tool.input_schema = property(lambda self: getattr(self, "parameters", {}))  # type: ignore[attr-defined]
 
 
-class _ResourceList(list[Any]):
-    """Compatibility list wrapper for read_resource return type."""
-
-    def __init__(self, result: Any) -> None:
-        super().__init__(getattr(result, "contents", []))
-        self._result = result
-
-    @property
-    def contents(self) -> list[Any]:
-        return getattr(self._result, "contents", [])
-
-    @property
-    def meta(self) -> Any:
-        return getattr(self._result, "meta", None)
-
-
 class _UriCompat(str):
     """String subclass that compares equal to AnyUrl and str."""
 
@@ -604,14 +588,6 @@ def create_server(
         return await _orig_get_prompt(name, **kwargs)
 
     root.get_prompt = _get_prompt_compat  # type: ignore[assignment]
-
-    _orig_read_resource = root.read_resource
-
-    async def _read_resource_compat(uri: Any, **kwargs: Any) -> Any:
-        raw_res = await _orig_read_resource(uri, **kwargs)
-        return _ResourceList(raw_res)
-
-    root.read_resource = _read_resource_compat  # type: ignore[method-assign]
 
     _orig_list_resources = root.list_resources
 
