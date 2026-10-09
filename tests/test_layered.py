@@ -124,11 +124,6 @@ def test_tool_search_and_code_mode_are_mutually_exclusive() -> None:
 @pytest.mark.asyncio
 async def test_full_code_mode_attaches_when_available(caplog: pytest.LogCaptureFixture) -> None:
     """full + enable_code_mode attaches experimental meta-tools; job profiles refuse it."""
-    try:
-        from fastmcp.experimental.transforms.code_mode import CodeMode  # noqa: F401
-    except ImportError:  # pragma: no cover - depends on FastMCP build
-        pytest.skip("CodeMode not available in this FastMCP build")
-
     app = create_server(profile="full", enable_code_mode=True, enable_tool_search=False)
     names = {t.name for t in await app.list_tools()}
     assert "execute" in names

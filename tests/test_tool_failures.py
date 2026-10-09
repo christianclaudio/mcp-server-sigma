@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import re
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -421,14 +423,46 @@ def test_tool_failure_redacts_nested_batch_errors(monkeypatch: pytest.MonkeyPatc
 
 def test_item_error_always_has_a_redacted_message(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SIGMA_CLIENT_SECRET", _SECRET)
-    api_err = _item_error(SigmaAPIError(403, "/v2/files/f1", "PATCH", f"no {_SECRET}", "req-1"))
+    api_err = _item_error(SigmaAPIError(403, "/v2/files/f1", "PATCH", f"no {_SECRET}", "req-1"), index=0)
     assert api_err["type"] == "sigma_api_error"
     assert api_err["message"] == "Sigma API PATCH /v2/files/f1 returned 403"
     assert api_err["status_code"] == 403
     assert _SECRET not in json.dumps(api_err)
-    assert _item_error(ValueError("")) == {"type": "internal", "message": "ValueError"}
-    assert _item_error("missing file ID", "invalid_item") == {"type": "invalid_item", "message": "missing file ID"}
-    assert _item_error(RuntimeError(f"x {_SECRET}"))["message"] == "x ***REDACTED***"
+    assert _item_error(ValueError(""), index=0) == {"type": "internal", "message": "ValueError"}
+    assert _item_error("missing file ID", "invalid_item", index=0) == {
+        "type": "invalid_item",
+        "message": "missing file ID",
+    }
+    assert _item_error(RuntimeError(f"x {_SECRET}"), index=0)["message"] == "x ***REDACTED***"
+
+
+def test_item_error_logs_only_index_and_error_type(caplog: pytest.LogCaptureFixture) -> None:
+    """The batch item warning names the item index and the error type, never the message text.
+
+    The redacted message stays in the returned error; the log record carries none of it, redacted
+    or not, so no message text (and no secret in it) reaches the logs.
+    """
+    message = "upload failed Authorization: Bearer sk-live-abc123 api_key=AKIAFAKEKEY1234 for joe@example.com"
+    with caplog.at_level(logging.WARNING, logger="sigma_mcp"):
+        err = _item_error(RuntimeError(message), index=7)
+        reason = _item_error("missing file ID", "invalid_item", index=3)
+    assert err["message"] == "upload failed Authorization: ***REDACTED*** api_key=***REDACTED*** for joe@example.com"
+    assert reason["message"] == "missing file ID"
+    records = [r for r in caplog.records if r.getMessage().startswith("Batch item ")]
+    assert [r.getMessage() for r in records] == [
+        "Batch item 7 failed: RuntimeError",
+        "Batch item 3 failed: invalid_item",
+    ]
+    assert all(r.levelno == logging.WARNING and r.exc_info is None for r in records)
+    for fragment in (
+        "upload failed",
+        "sk-live-abc123",
+        "AKIAFAKEKEY1234",
+        "joe@example.com",
+        "REDACTED",
+        "missing file ID",
+    ):
+        assert fragment not in caplog.text, fragment
 
 
 # ─── batch items: a non-API exception is recorded, redacted, and the batch continues ──
@@ -453,7 +487,8 @@ async def test_admin_bulk_deactivate_runtime_error_is_redacted(
     assert data["status"] == "partial_success"
     assert data["errors"][0]["error"] == {"type": "internal", "message": "boom Authorization: ***REDACTED***"}
     _no_leak(data, caplog)
-    assert "Batch item failed: boom Authorization: ***REDACTED***" in caplog.text
+    assert "Batch item 0 failed: RuntimeError" in caplog.text
+    assert "boom" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -819,9 +854,9 @@ def item_errors(monkeypatch: pytest.MonkeyPatch) -> list[BaseException | str]:
 
     seen: list[BaseException | str] = []
 
-    def spy(exc: BaseException | str, error_type: str = "internal") -> dict[str, Any]:
+    def spy(exc: BaseException | str, error_type: str = "internal", *, index: int) -> dict[str, Any]:
         seen.append(exc)
-        return _item_error(exc, error_type)
+        return _item_error(exc, error_type, index=index)
 
     for mod in (admin, datasets, elements, workbooks):
         monkeypatch.setattr(mod, "_item_error", spy)
@@ -831,7 +866,7 @@ def item_errors(monkeypatch: pytest.MonkeyPatch) -> list[BaseException | str]:
 def _assert_cancel_not_recorded(caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]) -> None:
     """The cancellation never became a failed item: no item error was built for it, none logged."""
     assert not any(isinstance(e, asyncio.CancelledError) for e in item_errors), item_errors
-    assert "Batch item failed" not in caplog.text
+    assert re.search(r"Batch item \d+ failed", caplog.text) is None
 
 
 @pytest.mark.asyncio

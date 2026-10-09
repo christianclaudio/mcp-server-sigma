@@ -785,16 +785,18 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
     # Execute transfers
     results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for f in owned:
+    for index, f in enumerate(owned):
         fid = f.get("id") or f.get("inodeId")
         if not isinstance(fid, str):
-            errors.append({"id": fid, "status": "failed", "error": _item_error("missing file ID", "invalid_item")})
+            errors.append(
+                {"id": fid, "status": "failed", "error": _item_error("missing file ID", "invalid_item", index=index)}
+            )
             continue
         try:
             res = await c.update_file(fid, {"ownerId": new_member_id})
             results.append({"id": fid, "status": "transferred", "result": res})
         except Exception as e:
-            errors.append({"id": fid, "status": "failed", "error": _item_error(e)})
+            errors.append({"id": fid, "status": "failed", "error": _item_error(e, index=index)})
 
     return _batch_outcome(
         "workbook transfers",

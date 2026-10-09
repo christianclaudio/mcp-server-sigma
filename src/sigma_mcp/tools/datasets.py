@@ -313,7 +313,7 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
     errors: list[dict[str, Any]] = []
     sem = asyncio.Semaphore(3)
 
-    async def sync_tenant(tenant: dict[str, Any]) -> None:
+    async def sync_tenant(index: int, tenant: dict[str, Any]) -> None:
         org_id = tenant.get("orgId", "")
         async with sem:
             tc: SigmaClient | None = None
@@ -323,13 +323,13 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                 conn_entries = conns.get("entries", []) if isinstance(conns, dict) else []
                 synced: list[dict[str, Any]] = []
                 conn_errors: list[dict[str, Any]] = []
-                for conn in conn_entries:
+                for conn_index, conn in enumerate(conn_entries):
                     cid = conn.get("connectionId", "")
                     try:
                         res = await tc.sync_connection(cid, [])
                         synced.append({"id": cid, "status": "synced", "result": res})
                     except Exception as e:
-                        conn_errors.append({"id": cid, "status": "failed", "error": _item_error(e)})
+                        conn_errors.append({"id": cid, "status": "failed", "error": _item_error(e, index=conn_index)})
                 if conn_errors and not synced:
                     # A tenant whose every connection sync failed is a failed item.
                     errors.append(
@@ -359,7 +359,7 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                         }
                     )
             except Exception as e:
-                errors.append({"id": org_id, "status": "failed", "error": _item_error(e)})
+                errors.append({"id": org_id, "status": "failed", "error": _item_error(e, index=index)})
             finally:
                 # Tenant clients borrow the parent's transport, so aclose() is a
                 # no-op for them. Called anyway so the contract holds if that
@@ -367,7 +367,7 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                 if tc is not None:
                     await tc.aclose()
 
-    await asyncio.gather(*[sync_tenant(t) for t in tenants])
+    await asyncio.gather(*[sync_tenant(i, t) for i, t in enumerate(tenants)])
 
     return _batch_outcome("tenant syncs", "synced", results, errors)
 

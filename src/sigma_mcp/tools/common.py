@@ -61,14 +61,15 @@ def _invalid_request(message: str, **details: Any) -> NoReturn:
     _tool_failure("invalid_request", message, **details)
 
 
-def _item_error(exc: BaseException | str, error_type: str = "internal") -> dict[str, Any]:
+def _item_error(exc: BaseException | str, error_type: str = "internal", *, index: int) -> dict[str, Any]:
     """Build the redacted ``error`` object for one failed item in a batch result.
 
     Every per-item error carries a non-empty ``message``. A ``SigmaAPIError`` keeps its
     structured fields (``type``, ``status_code``, ``method``, ``path``, ``detail``,
     ``request_id``); any other exception, or a plain reason string, gets ``type`` and ``message``.
     Callers catch ``Exception`` (never ``BaseException``) per item, so one failure is recorded
-    and the batch continues.
+    and the batch continues. ``index`` is the item's zero-based position in the list the caller
+    is iterating; it is used only in the log line.
     """
     if isinstance(exc, SigmaAPIError):
         item: dict[str, Any] = exc.to_dict()
@@ -77,8 +78,10 @@ def _item_error(exc: BaseException | str, error_type: str = "internal") -> dict[
         message = exc if isinstance(exc, str) else (str(exc) or type(exc).__name__)
         item = {"type": error_type, "message": message}
     redacted: dict[str, Any] = _redact_value(item)
-    # Only the redacted message is logged; no traceback, so nothing unredacted reaches the logs.
-    logger.warning("Batch item failed: %s", redacted["message"])
+    # Log only the item index and the error type (the exception class, or ``error_type`` for a
+    # reason string). No message and no traceback reach the logs; the redacted message stays in
+    # the returned error.
+    logger.warning("Batch item %d failed: %s", index, error_type if isinstance(exc, str) else type(exc).__name__)
     return redacted
 
 

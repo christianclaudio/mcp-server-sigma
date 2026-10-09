@@ -264,7 +264,7 @@ async def sigma_list_all_input_tables() -> str:
     errors: list[dict[str, Any]] = []
     sem = asyncio.Semaphore(5)
 
-    async def scan_workbook(wb: dict[str, Any]) -> None:
+    async def scan_workbook(index: int, wb: dict[str, Any]) -> None:
         wb_id = wb.get("workbookId", "")
         wb_name = wb.get("name", "")
         async with sem:
@@ -272,19 +272,21 @@ async def sigma_list_all_input_tables() -> str:
                 pages_data = await c.list_workbook_pages(wb_id)
                 pages = pages_data.get("entries", []) if isinstance(pages_data, dict) else []
             except Exception as e:
-                errors.append({"id": wb_id, "status": "failed", "error": {**_item_error(e), "stage": "pages"}})
+                errors.append(
+                    {"id": wb_id, "status": "failed", "error": {**_item_error(e, index=index), "stage": "pages"}}
+                )
                 return
 
             wb_tables: list[dict[str, Any]] = []
             page_errors: list[dict[str, Any]] = []
-            for page in pages:
+            for page_index, page in enumerate(pages):
                 page_id = page.get("pageId", "")
                 page_name = page.get("name", "")
                 try:
                     elements_data = await c.list_workbook_page_elements(wb_id, page_id)
                     elements = elements_data.get("entries", []) if isinstance(elements_data, dict) else []
                 except Exception as e:
-                    page_errors.append({"id": page_id, "status": "failed", "error": _item_error(e)})
+                    page_errors.append({"id": page_id, "status": "failed", "error": _item_error(e, index=page_index)})
                     continue
 
                 for el in elements:
@@ -323,7 +325,7 @@ async def sigma_list_all_input_tables() -> str:
                 }
             )
 
-    await asyncio.gather(*[scan_workbook(wb) for wb in all_workbooks])
+    await asyncio.gather(*[scan_workbook(i, wb) for i, wb in enumerate(all_workbooks)])
 
     return _batch_outcome(
         "workbook scans",

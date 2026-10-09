@@ -590,13 +590,13 @@ async def sigma_onboard_member(
     member_id = member.get("memberId") if isinstance(member, dict) else None
     teams_added: list[str] = []
     if team_ids and member_id:
-        for tid in team_ids:
+        for index, tid in enumerate(team_ids):
             try:
                 await c.update_team_members(tid, {"add": [member_id]})
                 teams_added.append(tid)
             except Exception as e:
                 # Same redaction and message fallback as batch items; no raw exception text.
-                teams_added.append(f"{tid}: FAILED ({_item_error(e)['message']})")
+                teams_added.append(f"{tid}: FAILED ({_item_error(e, index=index)['message']})")
     return json.dumps({"member": member, "teams_added": teams_added}, indent=2)
 
 
@@ -712,16 +712,18 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     # Execute deactivation; each item is attempted on its own (``except Exception`` only).
     results: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
-    for m in active_matches:
+    for index, m in enumerate(active_matches):
         mid = m.get("memberId", "")
         if not mid:  # pragma: no cover
-            errors.append({"id": mid, "status": "failed", "error": _item_error("missing memberId", "invalid_item")})
+            errors.append(
+                {"id": mid, "status": "failed", "error": _item_error("missing memberId", "invalid_item", index=index)}
+            )
             continue
         try:
             res = await c.deactivate_member(mid)
             results.append({"id": mid, "status": "deactivated", "result": res})
         except Exception as e:
-            errors.append({"id": mid, "status": "failed", "error": _item_error(e)})
+            errors.append({"id": mid, "status": "failed", "error": _item_error(e, index=index)})
 
     return _batch_outcome("member deactivations", "deactivated", results, errors, context={"pattern": name_pattern})
 
