@@ -6,6 +6,9 @@ import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from fastmcp.exceptions import ToolError
+
 
 def _mock_client() -> MagicMock:
     """Create a mock SigmaClient with preset methods."""
@@ -68,11 +71,12 @@ class TestExportPolling:
         with patch("sigma_mcp.server.get_client", AsyncMock(return_value=mc)):
             with patch("sigma_mcp.server.asyncio.sleep", new_callable=AsyncMock):
                 with patch("sigma_mcp.server.time.time", side_effect=fake_time):
-                    result_str = await sigma_export_and_download("wb-1", format="csv", timeout_seconds=1)
+                    with pytest.raises(ToolError) as exc_info:
+                        await sigma_export_and_download("wb-1", format="csv", timeout_seconds=1)
 
-        result = json.loads(result_str)
-        assert result.get("error") == "timeout"
-        assert "query_id" in result
+        err = json.loads(str(exc_info.value))["error"]
+        assert err["type"] == "timeout"
+        assert err["query_id"] == "q-timeout"
 
 
 # ─── Materialize and wait ─────────────────────────────────────────────────────

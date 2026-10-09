@@ -215,6 +215,14 @@ class TestDocsTools:
         result = asyncio.run(mcp.call_tool(tool_name, args))
         return json.loads(result.content[0].text)
 
+    def _call_failing(self, tool_name, args):
+        """Call a docs tool expected to fail; it raises ToolError (isError: true)."""
+        from sigma_mcp.server import mcp
+
+        with pytest.raises(ToolError) as exc_info:
+            asyncio.run(mcp.call_tool(tool_name, args))
+        return json.loads(str(exc_info.value))
+
     def test_search_docs_success(self):
         sse_body = (
             'event: message\ndata: {"result":{"content":[{"type":"text",'
@@ -245,9 +253,9 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("elements_search_docs", {"query": "test"})
-        assert "error" in data
+            data = self._call_failing("elements_search_docs", {"query": "test"})
         assert data["error"]["type"] == "docs_search_failed"
+        assert data["error"]["status"] == 500
 
     def test_get_doc_page_success(self):
         mock_resp = MagicMock()
@@ -276,9 +284,10 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("elements_get_doc_page", {"page_slug": "nonexistent-page"})
-        assert "error" in data
+            data = self._call_failing("elements_get_doc_page", {"page_slug": "nonexistent-page"})
         assert data["error"]["type"] == "page_not_found"
+        assert data["error"]["slug"] == "nonexistent-page"
+        assert data["error"]["status"] == 404
 
     def test_get_doc_page_strips_full_url(self):
         mock_resp = MagicMock()
@@ -311,8 +320,7 @@ class TestDocsTools:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            data = self._call_tool("elements_search_docs", {"query": "nonexistent"})
-        assert "error" in data
+            data = self._call_failing("elements_search_docs", {"query": "nonexistent"})
         assert data["error"]["type"] == "docs_search_empty"
 
     def test_get_doc_page_strips_md_suffix(self):
@@ -349,7 +357,7 @@ class TestDocsTools:
                 "docs/%2e%2e/%2e%2e/secret",
                 "https://evil.example/docs/page",
             ):
-                data = self._call_tool("elements_get_doc_page", {"page_slug": slug})
+                data = self._call_failing("elements_get_doc_page", {"page_slug": slug})
                 assert data["error"]["type"] == "invalid_request", slug
         mock_client.get.assert_not_called()
 

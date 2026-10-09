@@ -16,9 +16,12 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _batch_outcome,
     _confirm_required,
     _invalid_request,
+    _item_error,
     _summarize_list,
+    _tool_failure,
     sigma_tool,
 )
 from sigma_mcp.tools.common import (
@@ -288,8 +291,8 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
 
     # Check if for_tenant is available
     if not hasattr(c, "for_tenant"):
-        return json.dumps(
-            {"error": "Multi-tenant auth (for_tenant) not yet available. Phase C must be implemented first."}
+        _tool_failure(
+            "not_supported", "Multi-tenant auth (for_tenant) not yet available. Phase C must be implemented first."
         )
 
     tenants_data = await c.list_tenants()
@@ -307,6 +310,7 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
         )
 
     results: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
     sem = asyncio.Semaphore(3)
 
     async def sync_tenant(tenant: dict[str, Any]) -> None:
@@ -317,21 +321,45 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
                 tc = await c.for_tenant(org_id)
                 conns = await tc.list_connections()
                 conn_entries = conns.get("entries", []) if isinstance(conns, dict) else []
-                synced = 0
-                errors: list[dict[str, Any]] = []
+                synced: list[dict[str, Any]] = []
+                conn_errors: list[dict[str, Any]] = []
                 for conn in conn_entries:
                     cid = conn.get("connectionId", "")
                     try:
-                        await tc.sync_connection(cid, [])
-                        synced += 1
+                        res = await tc.sync_connection(cid, [])
+                        synced.append({"id": cid, "status": "synced", "result": res})
                     except Exception as e:
-                        errors.append({"connectionId": cid, "error": str(e)})
-                entry: dict[str, Any] = {"orgId": org_id, "name": tenant.get("name"), "connections_synced": synced}
-                if errors:
-                    entry["errors"] = errors
-                results.append(entry)
+                        conn_errors.append({"id": cid, "status": "failed", "error": _item_error(e)})
+                if conn_errors and not synced:
+                    # A tenant whose every connection sync failed is a failed item.
+                    errors.append(
+                        {
+                            "id": org_id,
+                            "status": "failed",
+                            "error": {
+                                "type": "batch_failed",
+                                "message": f"All {len(conn_errors)} connection syncs failed.",
+                                "connections": conn_errors,
+                            },
+                        }
+                    )
+                else:
+                    results.append(
+                        {
+                            "id": org_id,
+                            "status": "synced",
+                            "result": {
+                                "name": tenant.get("name"),
+                                "status": "partial_success" if conn_errors else "success",
+                                "synced_count": len(synced),
+                                "failed_count": len(conn_errors),
+                                "results": synced,
+                                "errors": conn_errors,
+                            },
+                        }
+                    )
             except Exception as e:
-                results.append({"orgId": org_id, "name": tenant.get("name"), "error": str(e)})
+                errors.append({"id": org_id, "status": "failed", "error": _item_error(e)})
             finally:
                 # Tenant clients borrow the parent's transport, so aclose() is a
                 # no-op for them. Called anyway so the contract holds if that
@@ -341,13 +369,7 @@ async def sigma_bulk_sync_tenant_connections(dry_run: bool = True) -> str:
 
     await asyncio.gather(*[sync_tenant(t) for t in tenants])
 
-    return json.dumps(
-        {
-            "tenants_processed": len(results),
-            "results": results,
-        },
-        indent=2,
-    )
+    return _batch_outcome("tenant syncs", "synced", results, errors)
 
 
 bulk_sync_tenant_connections = sigma_bulk_sync_tenant_connections

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -63,8 +64,10 @@ async def test_recipe_validation_errors(monkeypatch: pytest.MonkeyPatch) -> None
 
     with pytest.raises(ToolError, match="name_pattern is required"):
         await srv.sigma_bulk_deactivate_members("", confirm=True)
-    assert "is rejected for safety" in await srv.sigma_bulk_deactivate_members(".*", confirm=True)
-    assert "is rejected for safety" in await srv.sigma_bulk_deactivate_members(".+", confirm=True)
+    with pytest.raises(ToolError, match="is rejected for safety"):
+        await srv.sigma_bulk_deactivate_members(".*", confirm=True)
+    with pytest.raises(ToolError, match="is rejected for safety"):
+        await srv.sigma_bulk_deactivate_members(".+", confirm=True)
 
     with pytest.raises(ToolError, match="member_id is required"):
         await srv.sigma_change_member_email("", "a@b.com")
@@ -113,7 +116,7 @@ async def test_composite_recipes_execution(monkeypatch: pytest.MonkeyPatch) -> N
     c.for_tenant = AsyncMock(return_value=tenant_client)
 
     res_exec = await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
-    assert "connections_synced" in res_exec
+    assert json.loads(res_exec)["results"][0]["result"]["synced_count"] >= 1
 
 
 @pytest.mark.asyncio
@@ -129,6 +132,6 @@ async def test_bulk_deactivate_member_cap(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(srv, "_client", c)
 
     # Should refuse due to >10 cap
-    res = await srv.sigma_bulk_deactivate_members("Viewer", dry_run=False, confirm=True)
-    assert "exceeding the safety cap of 10" in res
+    with pytest.raises(ToolError, match="exceeding the safety cap of 10"):
+        await srv.sigma_bulk_deactivate_members("Viewer", dry_run=False, confirm=True)
     c.deactivate_member.assert_not_awaited()

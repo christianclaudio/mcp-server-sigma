@@ -52,8 +52,8 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
         await srv.sigma_copy_workbook_to_member("wb1", "")
 
     c.get_member = AsyncMock(return_value={"memberId": "m1"})
-    res_no_home = await srv.sigma_copy_workbook_to_member("wb1", "m1")
-    assert "Member has no homeFolderId" in res_no_home
+    with pytest.raises(ToolError, match="Member has no homeFolderId"):
+        await srv.sigma_copy_workbook_to_member("wb1", "m1")
 
     # With home folder but no explicit name — auto-fetches workbook name
     c.get_member = AsyncMock(return_value={"memberId": "m1", "homeFolderId": "hf1"})
@@ -96,12 +96,12 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
 
     # sigma_reassign_workbook_ownership missing members & non-dict return
     c.search_members = AsyncMock(side_effect=[{"entries": []}, {"entries": []}])
-    res_no_old = await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
-    assert "No member found for email: old@ex.com" in res_no_old
+    with pytest.raises(ToolError, match="No member found for email: old@ex.com"):
+        await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
 
     c.search_members = AsyncMock(side_effect=[{"entries": [{"memberId": "m1"}]}, {"entries": []}])
-    res_no_new = await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
-    assert "No member found for email: new@ex.com" in res_no_new
+    with pytest.raises(ToolError, match="No member found for email: new@ex.com"):
+        await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
 
     c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
     c.get = AsyncMock(return_value=["non_dict_response"])
@@ -139,8 +139,8 @@ async def test_materialize_and_wait_timeout_and_no_job(monkeypatch: pytest.Monke
 
     # No job_id extracted
     c.materialize_workbook = AsyncMock(return_value={})
-    res_no_job = await srv.sigma_materialize_and_wait("wb1", "el1")
-    assert "Could not extract job ID" in res_no_job
+    with pytest.raises(ToolError, match="Could not extract job ID"):
+        await srv.sigma_materialize_and_wait("wb1", "el1")
 
     # Timeout scenario
     c.materialize_workbook = AsyncMock(return_value={"materializationId": "job123"})

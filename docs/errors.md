@@ -20,7 +20,7 @@ error message.
 
 ## Error Contract
 
-The JSON text of a failed call has one of three error shapes — never an unhandled exception or stack
+The JSON text of a failed call has one of four error shapes — never an unhandled exception or stack
 trace. Client secrets are redacted from all error messages before they reach the MCP
 client.
 
@@ -72,6 +72,120 @@ path the decorator uses for the other two shapes:
   }
 }
 ```
+
+The `admin_bulk_deactivate_members` pattern checks use this shape too: a catch-all pattern,
+a pattern that matches the empty string, an invalid regex, and a pattern that matches more
+than 10 active members. The safety-cap error also carries `count` and `first_10` (the first
+ten matching names). `elements_get_doc_page` reports a slug it rejects (bad characters,
+`..`, or a host other than `help.sigmacomputing.com`) as `invalid_request`.
+
+### 4. Tool failures detected by the tool
+
+Returned with `isError: true` when the call cannot do what was asked even though the API
+calls succeeded. `_tool_failure` raises FastMCP `ToolError` with the redacted payload,
+`from None`, the same way `_invalid_request` does. The message is built by the tool; a raw
+upstream response body is never included.
+
+```json
+{
+  "error": {
+    "type": "timeout",
+    "message": "Export did not finish within timeout_seconds=300",
+    "query_id": "q-123",
+    "timeout_seconds": 300
+  }
+}
+```
+
+| `type` | Raised by | Extra fields |
+|---|---|---|
+| `not_found` | `workbooks_reassign_workbook_ownership` (no member for an email), `workbooks_copy_workbook_to_member` (member has no `homeFolderId`), `admin_bulk_remove_team_members` (no email resolved to a member) | `member_id` or `not_found` where relevant |
+| `timeout` | `workbooks_export_and_download` (export not ready within `timeout_seconds`) | `query_id`, `timeout_seconds` |
+| `upstream_response` | `workbooks_export_and_download` (no `queryId` in the export response), `elements_materialize_and_wait` (no job ID in the materialization response) | none |
+| `docs_search_failed` | `elements_search_docs` (docs host returned a non-200 status) | `status` |
+| `docs_search_empty` | `elements_search_docs` (no passage returned) | none |
+| `page_not_found` | `elements_get_doc_page` (docs host returned a non-200 status) | `slug`, `status` |
+| `not_supported` | `datasets_bulk_sync_tenant_connections` (client has no tenant token exchange) | none |
+| `batch_failed` | a batch tool in which every item failed (see below) | context fields, `failed_count`, `errors` |
+
+`workbooks_export_and_download` returns a normal result with `truncated: true` and the size,
+without content, when the file exceeds `max_bytes`.
+
+### Batch results
+
+`admin_bulk_deactivate_members`, `workbooks_reassign_workbook_ownership`,
+`elements_list_all_input_tables` and `datasets_bulk_sync_tenant_connections` act on many items.
+Every batch result has one shape. Each item is an entry with the item key `id`, a `status`,
+and either `result` (the item was done) or `error` (`"status": "failed"`). The top level always
+has `status` (`success` or `partial_success`), a `<verb>_count` of the items done
+(`deactivated_count`, `transferred_count`, `scanned_count`, `synced_count`), `failed_count`,
+`results` and `errors`, plus the tool's own context fields. When at least one item succeeds,
+the call is a normal result (`isError: false`):
+
+```json
+{
+  "status": "partial_success",
+  "transferred_count": 1,
+  "failed_count": 1,
+  "results": [
+    { "id": "f0", "status": "transferred", "result": { "id": "f0", "ownerId": "new-id" } }
+  ],
+  "errors": [
+    {
+      "id": "f1",
+      "status": "failed",
+      "error": { "type": "sigma_api_error", "status_code": 403, "method": "PATCH",
+                 "path": "/v2/files/f1", "detail": null, "request_id": null,
+                 "message": "Sigma API PATCH /v2/files/f1 returned 403" }
+    }
+  ],
+  "old_owner": { "email": "old@example.com", "memberId": "old-id" },
+  "new_owner": { "email": "new@example.com", "memberId": "new-id" }
+}
+```
+
+When every item fails, nothing was done, so the call is a tool error (`isError: true`) with the
+same context fields, `failed_count` and `errors`:
+
+```json
+{
+  "error": {
+    "type": "batch_failed",
+    "message": "All 2 workbook transfers failed; nothing was transferred.",
+    "old_owner": { "email": "old@example.com", "memberId": "old-id" },
+    "new_owner": { "email": "new@example.com", "memberId": "new-id" },
+    "failed_count": 2,
+    "errors": [
+      { "id": "f0", "status": "failed",
+        "error": { "type": "sigma_api_error", "status_code": 403, "method": "PATCH",
+                   "path": "/v2/files/f0", "detail": null, "request_id": null,
+                   "message": "Sigma API PATCH /v2/files/f0 returned 403" } },
+      { "id": "f1", "status": "failed",
+        "error": { "type": "internal", "message": "boom Authorization: ***REDACTED***" } }
+    ]
+  }
+}
+```
+
+The other messages are "All N member deactivations failed; nothing was deactivated.",
+"All N workbook scans failed; nothing was scanned." and "All N tenant syncs failed; nothing
+was synced.". A scanned workbook's `result` has `name`, `input_table_count` and `page_errors`
+(page entries in the same shape); a synced tenant's `result` has `name`, `status`,
+`synced_count`, `failed_count`, `results` and `errors` for its connections.
+
+A workbook scan fails when its pages cannot be listed or every page's elements fail (its `error`
+has `"type": "batch_failed"`, `stage` and `pages`); a tenant sync fails when the tenant cannot
+be reached or every connection sync fails (its `error` has `"type": "batch_failed"` and
+`connections`). Each item is
+attempted on its own: any `Exception` from one item is recorded and the batch continues. Each
+failed item's `error` is an object with at least a non-empty `message`; an API failure also
+keeps the `sigma_api_error` fields, and anything else has `type` (`internal`, or
+`invalid_item` for a workbook with no file ID). Secrets are redacted in every string of the
+per-item errors, and only the redacted message is logged, without a traceback. A cancelled call
+(`asyncio.CancelledError`) is not an item failure: it stops the call and propagates.
+
+Every tool error is raised after the `except` block that caught the original exception has
+ended, `from None`, so the unredacted exception is on neither `__cause__` nor `__context__`.
 
 ### Confirmation prompt (not an error)
 

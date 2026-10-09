@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -66,8 +67,8 @@ async def test_tenant_info_and_export_branches(monkeypatch: pytest.MonkeyPatch) 
     assert "truncated" in res_pdf_trunc
 
     c.export_workbook = AsyncMock(return_value={})
-    res_no_query = await srv.sigma_export_and_download("wb1")
-    assert "No queryId in export response" in res_no_query
+    with pytest.raises(ToolError, match="No queryId in export response"):
+        await srv.sigma_export_and_download("wb1")
 
 
 @pytest.mark.asyncio
@@ -101,12 +102,12 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
         await srv.sigma_bulk_remove_team_members("t1", [], confirm=True)
 
     c.search_members = AsyncMock(return_value={"entries": []})
-    res_no_m = await srv.sigma_bulk_remove_team_members("t1", ["unknown@ex.com"], confirm=True)
-    assert "No valid members found" in res_no_m
+    with pytest.raises(ToolError, match="No valid members found"):
+        await srv.sigma_bulk_remove_team_members("t1", ["unknown@ex.com"], confirm=True)
 
     # bulk deactivate empty string matching pattern
-    res_empty_match = await srv.sigma_bulk_deactivate_members("a*", confirm=True)
-    assert "matches empty string and is too broad" in res_empty_match
+    with pytest.raises(ToolError, match="matches empty string and is too broad"):
+        await srv.sigma_bulk_deactivate_members("a*", confirm=True)
 
     c.auto_paginate = AsyncMock(
         return_value=[
@@ -119,12 +120,14 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
     c.deactivate_member = AsyncMock(side_effect=[200, Exception("Deactivate error")])
 
     # bulk deactivate invalid regex
-    res_bad_regex = await srv.sigma_bulk_deactivate_members("[invalid_regex", confirm=True)
-    assert "Invalid regex pattern" in res_bad_regex
+    with pytest.raises(ToolError, match="Invalid regex pattern"):
+        await srv.sigma_bulk_deactivate_members("[invalid_regex", confirm=True)
 
     res_exec = await srv.sigma_bulk_deactivate_members("Jones|Fail", dry_run=False, confirm=True)
-    assert "Bob Jones" in res_exec
-    assert "Deactivate error" in res_exec
+    data = json.loads(res_exec)
+    assert [r["id"] for r in data["results"]] == ["m2"]
+    assert [e["id"] for e in data["errors"]] == ["m3"]
+    assert data["errors"][0]["error"]["message"] == "Deactivate error"
 
 
 @pytest.mark.asyncio
@@ -138,15 +141,15 @@ async def test_bulk_sync_tenant_connections_branches(monkeypatch: pytest.MonkeyP
     tc.aclose = AsyncMock()
     c.for_tenant = AsyncMock(side_effect=Exception("Tenant auth error"))
 
-    res_err = await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
-    assert "Tenant auth error" in res_err
+    with pytest.raises(ToolError, match="Tenant auth error"):
+        await srv.sigma_bulk_sync_tenant_connections(dry_run=False)
 
     # Missing for_tenant method
     c_no_ft = MagicMock()
     del c_no_ft.for_tenant
     monkeypatch.setattr(srv, "_client", c_no_ft)
-    res_no_ft = await srv.sigma_bulk_sync_tenant_connections(dry_run=True)
-    assert "Multi-tenant auth" in res_no_ft
+    with pytest.raises(ToolError, match="Multi-tenant auth"):
+        await srv.sigma_bulk_sync_tenant_connections(dry_run=True)
 
 
 def test_server_profile_and_readonly_filtering(monkeypatch: pytest.MonkeyPatch) -> None:

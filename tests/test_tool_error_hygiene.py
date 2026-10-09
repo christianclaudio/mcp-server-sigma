@@ -37,6 +37,7 @@ async def test_decorator_suppresses_the_original_exception(exc: Exception) -> No
     with pytest.raises(ToolError) as exc_info:
         await handler()
     assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
     assert exc_info.value.__suppress_context__ is True
 
 

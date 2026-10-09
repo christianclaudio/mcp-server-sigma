@@ -86,6 +86,7 @@ def test_invalid_request_raises_redacted_tool_error(monkeypatch: pytest.MonkeyPa
     with pytest.raises(ToolError) as exc_info:
         _invalid_request(f"bad value {_SECRET}")
     assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
     assert exc_info.value.__suppress_context__ is True
     assert json.loads(str(exc_info.value)) == {
         "error": {"type": "invalid_request", "message": "bad value ***REDACTED***"}

@@ -24,7 +24,33 @@ ANNOTATION_IDEMPOTENT = ToolAnnotations(
 )
 
 
-def _invalid_request(message: str) -> NoReturn:
+def _tool_failure(error_type: str, message: str, **details: Any) -> NoReturn:
+    """Raise a failed tool call as a tool execution error (``isError: true``).
+
+    Raises FastMCP ``ToolError`` with the redacted ``{"error": {"type": ..., "message": ...}}``
+    JSON, ``from None`` so no original exception rides along as the cause. Every string in the
+    details, including strings nested in lists and dicts (per-item batch errors), is redacted too.
+    ``sigma_tool`` re-raises it unchanged. Callers pass only fields they built themselves, never a
+    raw upstream body.
+    """
+    payload: dict[str, Any] = {"type": error_type, "message": redact_secrets(message)}
+    for key, value in details.items():
+        payload[key] = _redact_value(value)
+    raise ToolError(json.dumps({"error": payload})) from None
+
+
+def _redact_value(value: Any) -> Any:
+    """Redact secrets in every string of a JSON-like value."""
+    if isinstance(value, str):
+        return redact_secrets(value)
+    if isinstance(value, list):
+        return [_redact_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _redact_value(v) for k, v in value.items()}
+    return value
+
+
+def _invalid_request(message: str, **details: Any) -> NoReturn:
     """Raise an input validation failure as a tool execution error.
 
     The MCP spec lists input validation errors among tool execution errors, reported in the
@@ -32,7 +58,67 @@ def _invalid_request(message: str) -> NoReturn:
     ``ToolError`` with the redacted ``{"error": {"type": "invalid_request", ...}}`` JSON, the same
     path ``sigma_tool`` uses for API and internal failures, which re-raises it unchanged.
     """
-    raise ToolError(json.dumps({"error": {"type": "invalid_request", "message": redact_secrets(message)}})) from None
+    _tool_failure("invalid_request", message, **details)
+
+
+def _item_error(exc: BaseException | str, error_type: str = "internal") -> dict[str, Any]:
+    """Build the redacted ``error`` object for one failed item in a batch result.
+
+    Every per-item error carries a non-empty ``message``. A ``SigmaAPIError`` keeps its
+    structured fields (``type``, ``status_code``, ``method``, ``path``, ``detail``,
+    ``request_id``); any other exception, or a plain reason string, gets ``type`` and ``message``.
+    Callers catch ``Exception`` (never ``BaseException``) per item, so one failure is recorded
+    and the batch continues.
+    """
+    if isinstance(exc, SigmaAPIError):
+        item: dict[str, Any] = exc.to_dict()
+        item["message"] = str(exc)
+    else:
+        message = exc if isinstance(exc, str) else (str(exc) or type(exc).__name__)
+        item = {"type": error_type, "message": message}
+    redacted: dict[str, Any] = _redact_value(item)
+    # Only the redacted message is logged; no traceback, so nothing unredacted reaches the logs.
+    logger.warning("Batch item failed: %s", redacted["message"])
+    return redacted
+
+
+def _batch_outcome(
+    items: str,
+    verb: str,
+    results: list[dict[str, Any]],
+    errors: list[dict[str, Any]],
+    context: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> str:
+    """Return a batch result in the fleet shape, or raise ``batch_failed`` if every item failed.
+
+    Each entry is ``{"id", "status", "result"}`` or ``{"id", "status": "failed", "error"}``, where
+    ``error`` comes from ``_item_error``. The result always has ``status`` (``success`` or
+    ``partial_success``), ``<verb>_count``, ``failed_count``, ``results`` and ``errors``;
+    ``context`` is added to both the result and the ``batch_failed`` error, ``extra`` only to the
+    result. The raise happens outside any ``except`` block, so it carries no ``__context__``.
+    """
+    ctx = context or {}
+    if errors and not results:
+        _tool_failure(
+            "batch_failed",
+            f"All {len(errors)} {items} failed; nothing was {verb}.",
+            **ctx,
+            failed_count=len(errors),
+            errors=errors,
+        )
+    return json.dumps(
+        {
+            "status": "success" if not errors else "partial_success",
+            f"{verb}_count": len(results),
+            "failed_count": len(errors),
+            "results": results,
+            "errors": errors,
+            **ctx,
+            **(extra or {}),
+        },
+        indent=2,
+    )
 
 
 def _confirm_required(action: str) -> str:
@@ -68,7 +154,8 @@ def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
 
     A failed call raises FastMCP ``ToolError`` carrying the redacted ``{"error": ...}`` JSON,
     so the client receives a ``tools/call`` result with ``isError: true``. It is raised
-    ``from None`` so the unredacted original exception does not ride along as the cause.
+    ``from None`` after the ``except`` block ends, so the unredacted original exception is on
+    neither ``__cause__`` nor ``__context__``.
     """
 
     @functools.wraps(fn)
@@ -88,14 +175,17 @@ def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
             err = e.to_dict()
             if isinstance(err.get("detail"), str):
                 err["detail"] = redact_secrets(err["detail"])
-            raise ToolError(json.dumps({"error": err})) from None
+            failure = json.dumps({"error": err})
         except Exception as e:
             duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
             logger.error(
                 "Tool failed with internal error", extra={"tool_name": fn.__name__, "duration_ms": duration_ms}
             )
             msg = redact_secrets(str(e))
-            raise ToolError(json.dumps({"error": {"type": "internal", "message": msg}})) from None
+            failure = json.dumps({"error": {"type": "internal", "message": msg}})
+        # Raised after the except blocks end, so the unredacted original exception is on neither
+        # __cause__ nor __context__.
+        raise ToolError(failure) from None
 
     return wrapper
 

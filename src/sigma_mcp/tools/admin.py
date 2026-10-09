@@ -13,9 +13,12 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _batch_outcome,
     _confirm_required,
     _invalid_request,
+    _item_error,
     _summarize_list,
+    _tool_failure,
     sigma_tool,
 )
 from sigma_mcp.tools.common import (
@@ -638,20 +641,15 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     # Reject catch-all patterns that would match every member
     _CATCHALL_PATTERNS = {".*", ".+", "^.*$", "^.+$", "", ".", "^$"}
     if name_pattern.strip() in _CATCHALL_PATTERNS:
-        return json.dumps(
-            {
-                "error": f"Catch-all pattern {name_pattern!r} is rejected for safety. "
-                "Use a specific name pattern to target individual members."
-            }
+        _invalid_request(
+            f"Catch-all pattern {name_pattern!r} is rejected for safety. "
+            "Use a specific name pattern to target individual members."
         )
     # Also reject any pattern that matches an empty string
     try:
         if re.compile(name_pattern, re.IGNORECASE).search(""):
-            return json.dumps(
-                {
-                    "error": f"Pattern {name_pattern!r} matches empty string and is too broad. "
-                    "Use a specific name pattern."
-                }
+            _invalid_request(
+                f"Pattern {name_pattern!r} matches empty string and is too broad. Use a specific name pattern."
             )
     except re.error:
         pass  # Will be caught below
@@ -661,10 +659,14 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     all_members = await c.auto_paginate("/v2/members", {"includeInactive": "true"})
 
     # Match pattern against "firstName lastName"
+    regex_error: str | None = None
     try:
         pattern = re.compile(name_pattern, re.IGNORECASE)
     except re.error as e:
-        return json.dumps({"error": f"Invalid regex pattern: {e}"})
+        regex_error = str(e)
+    if regex_error is not None:
+        # Raised after the except block so the re.error is not left on __context__.
+        _invalid_request(f"Invalid regex pattern: {regex_error}")
 
     matches = []
     for m in all_members:
@@ -678,13 +680,11 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
     # Hard cap: refuse if more than 10 active members match
     _MAX_BULK_DEACTIVATE = 10
     if len(active_matches) > _MAX_BULK_DEACTIVATE:
-        return json.dumps(
-            {
-                "error": f"Pattern matches {len(active_matches)} active members, exceeding "
-                f"the safety cap of {_MAX_BULK_DEACTIVATE}. Use a narrower pattern.",
-                "count": len(active_matches),
-                "first_10": [f"{m.get('firstName', '')} {m.get('lastName', '')}".strip() for m in active_matches[:10]],
-            }
+        _invalid_request(
+            f"Pattern matches {len(active_matches)} active members, exceeding "
+            f"the safety cap of {_MAX_BULK_DEACTIVATE}. Use a narrower pattern.",
+            count=len(active_matches),
+            first_10=[f"{m.get('firstName', '')} {m.get('lastName', '')}".strip() for m in active_matches[:10]],
         )
 
     if dry_run or not confirm:
@@ -708,36 +708,21 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
             indent=2,
         )
 
-    # Execute deactivation
+    # Execute deactivation; each item is attempted on its own (``except Exception`` only).
     results: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
     for m in active_matches:
         mid = m.get("memberId", "")
-        name = f"{m.get('firstName', '')} {m.get('lastName', '')}"
         if not mid:  # pragma: no cover
-            results.append({"memberId": mid, "name": name, "status": "skipped", "reason": "missing memberId"})
+            errors.append({"id": mid, "status": "failed", "error": _item_error("missing memberId", "invalid_item")})
             continue
         try:
-            await c.deactivate_member(mid)
-            results.append({"memberId": mid, "name": name, "status": "deactivated"})
+            res = await c.deactivate_member(mid)
+            results.append({"id": mid, "status": "deactivated", "result": res})
         except Exception as e:
-            results.append(
-                {
-                    "memberId": mid,
-                    "name": name,
-                    "status": "failed",
-                    "error": str(e),
-                }
-            )
+            errors.append({"id": mid, "status": "failed", "error": _item_error(e)})
 
-    return json.dumps(
-        {
-            "pattern": name_pattern,
-            "deactivated": sum(1 for r in results if r["status"] == "deactivated"),
-            "failed": sum(1 for r in results if r["status"] == "failed"),
-            "results": results,
-        },
-        indent=2,
-    )
+    return _batch_outcome("member deactivations", "deactivated", results, errors, context={"pattern": name_pattern})
 
 
 bulk_deactivate_members = sigma_bulk_deactivate_members
@@ -794,7 +779,7 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
             not_found.append(email)
 
     if not member_ids:
-        return json.dumps({"error": "No valid members found", "not_found": not_found})
+        _tool_failure("not_found", "No valid members found", not_found=not_found)
 
     result = await c.update_team_members(team_id, {"remove": member_ids})
     return json.dumps(

@@ -12,9 +12,12 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _batch_outcome,
     _confirm_required,
     _invalid_request,
+    _item_error,
     _summarize_list,
+    _tool_failure,
     sigma_tool,
 )
 from sigma_mcp.tools.common import (
@@ -559,7 +562,7 @@ async def sigma_copy_workbook_to_member(workbook_id: str, member_id: str, name: 
     member = await c.get_member(member_id)
     home_folder = member.get("homeFolderId") if isinstance(member, dict) else None
     if not home_folder:
-        return json.dumps({"error": "Member has no homeFolderId"})
+        _tool_failure("not_found", "Member has no homeFolderId", member_id=member_id)
     # Resolve workbook name if not explicitly provided
     copy_name = name
     if not copy_name:
@@ -673,7 +676,7 @@ async def sigma_export_and_download(
     result = await c.export_workbook(workbook_id, export_body)
     query_id = result.get("queryId") if isinstance(result, dict) else None
     if not query_id:
-        return json.dumps({"error": "No queryId in export response", "raw": result})
+        _tool_failure("upstream_response", "No queryId in export response")
 
     deadline = _srv.time.time() + timeout_seconds
     backoff = 2.0
@@ -704,7 +707,12 @@ async def sigma_export_and_download(
         await _srv.asyncio.sleep(backoff)
         backoff = min(backoff * 1.5, 15.0)
 
-    return json.dumps({"error": "timeout", "query_id": query_id, "timeout_seconds": timeout_seconds})
+    _tool_failure(
+        "timeout",
+        f"Export did not finish within timeout_seconds={timeout_seconds}",
+        query_id=query_id,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 export_and_download = sigma_export_and_download
@@ -732,13 +740,13 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
     old_results = await c.search_members(old_owner_email)
     old_entries = old_results.get("entries", []) if isinstance(old_results, dict) else []
     if not old_entries:
-        return json.dumps({"error": f"No member found for email: {old_owner_email}"})
+        _tool_failure("not_found", f"No member found for email: {old_owner_email}")
     old_member_id = old_entries[0]["memberId"]
 
     new_results = await c.search_members(new_owner_email)
     new_entries = new_results.get("entries", []) if isinstance(new_results, dict) else []
     if not new_entries:
-        return json.dumps({"error": f"No member found for email: {new_owner_email}"})
+        _tool_failure("not_found", f"No member found for email: {new_owner_email}")
     new_member_id = new_entries[0]["memberId"]
 
     # Get all workbooks owned by old member
@@ -776,26 +784,27 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
 
     # Execute transfers
     results: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
     for f in owned:
         fid = f.get("id") or f.get("inodeId")
         if not isinstance(fid, str):
-            results.append({"id": fid, "name": f.get("name"), "status": "failed", "error": "missing file ID"})
+            errors.append({"id": fid, "status": "failed", "error": _item_error("missing file ID", "invalid_item")})
             continue
         try:
-            await c.update_file(fid, {"ownerId": new_member_id})
-            results.append({"id": fid, "name": f.get("name"), "status": "transferred"})
+            res = await c.update_file(fid, {"ownerId": new_member_id})
+            results.append({"id": fid, "status": "transferred", "result": res})
         except Exception as e:
-            results.append({"id": fid, "name": f.get("name"), "status": "failed", "error": str(e)})
+            errors.append({"id": fid, "status": "failed", "error": _item_error(e)})
 
-    return json.dumps(
-        {
+    return _batch_outcome(
+        "workbook transfers",
+        "transferred",
+        results,
+        errors,
+        context={
             "old_owner": {"email": old_owner_email, "memberId": old_member_id},
             "new_owner": {"email": new_owner_email, "memberId": new_member_id},
-            "results": results,
-            "transferred": sum(1 for r in results if r["status"] == "transferred"),
-            "failed": sum(1 for r in results if r["status"] == "failed"),
         },
-        indent=2,
     )
 
 
