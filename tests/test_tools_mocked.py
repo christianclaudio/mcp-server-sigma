@@ -187,6 +187,16 @@ class TestCompositeToolsValidation:
         result = asyncio.run(mcp.call_tool(tool_name, args or {}))
         return json.loads(result.content[0].text)
 
+    def _call_invalid(self, tool_name, args=None):
+        """Call a tool expected to fail input validation; it raises ToolError (isError: true)."""
+        from sigma_mcp.server import mcp
+
+        with pytest.raises(ToolError) as exc_info:
+            asyncio.run(mcp.call_tool(tool_name, args or {}))
+        data = json.loads(str(exc_info.value))
+        assert data["error"]["type"] == "invalid_request"
+        return data
+
     @staticmethod
     def _error_text(data: dict) -> str:
         """Extract error message text from either flat or nested error shape."""
@@ -196,19 +206,19 @@ class TestCompositeToolsValidation:
         return str(err)
 
     def test_export_and_download_empty_workbook_id(self):
-        data = self._call("workbooks_export_and_download", {"workbook_id": ""})
+        data = self._call_invalid("workbooks_export_and_download", {"workbook_id": ""})
         assert "error" in data
         assert "workbook_id" in self._error_text(data)
 
     def test_reassign_ownership_empty_email(self):
-        data = self._call(
+        data = self._call_invalid(
             "workbooks_reassign_workbook_ownership", {"old_owner_email": "", "new_owner_email": "b@b.com"}
         )
         assert "error" in data
         assert "old_owner_email" in self._error_text(data)
 
     def test_list_shared_workbooks_empty_member(self):
-        data = self._call("workbooks_list_workbooks_shared_with_member", {"member_id": ""})
+        data = self._call_invalid("workbooks_list_workbooks_shared_with_member", {"member_id": ""})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
@@ -222,11 +232,11 @@ class TestCompositeToolsValidation:
         with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
             self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
         monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
-        data = self._call("admin_bulk_deactivate_members", {"name_pattern": ""})
+        data = self._call_invalid("admin_bulk_deactivate_members", {"name_pattern": ""})
         assert "error" in data
 
     def test_change_email_empty_member_id(self):
-        data = self._call("admin_change_member_email", {"member_id": "", "new_email": "x@y.com"})
+        data = self._call_invalid("admin_change_member_email", {"member_id": "", "new_email": "x@y.com"})
         assert "error" in data
         assert "member_id" in self._error_text(data)
 
@@ -240,7 +250,7 @@ class TestCompositeToolsValidation:
         with pytest.raises(SafetyViolationError, match="Bulk destructive operations disabled"):
             self._call("admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"]})
         monkeypatch.setenv("SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE", "1")
-        data = self._call(
+        data = self._call_invalid(
             "admin_bulk_remove_team_members", {"team_id": "", "member_emails": ["x@y.com"], "confirm": True}
         )
         assert "team_id" in self._error_text(data)

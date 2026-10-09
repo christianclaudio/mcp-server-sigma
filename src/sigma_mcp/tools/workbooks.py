@@ -12,6 +12,7 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _confirm_required,
     _invalid_request,
     _summarize_list,
     sigma_tool,
@@ -72,7 +73,7 @@ async def sigma_duplicate_workbook(
     destination_folder_id: ID of the destination folder. If omitted, clones into the same folder as the original.
     """
     if not name or not name.strip():
-        return _invalid_request("name is required by the Sigma copy API")
+        _invalid_request("name is required by the Sigma copy API")
     if not destination_folder_id or not destination_folder_id.strip():
         # Auto-discover: use the current user's home folder
         client = await get_client()
@@ -82,7 +83,7 @@ async def sigma_duplicate_workbook(
         member_dict = member if isinstance(member, dict) else {}
         destination_folder_id = str(member_dict.get("homeFolderId", ""))
         if not destination_folder_id:
-            return _invalid_request("Could not determine home folder; provide destination_folder_id explicitly")
+            _invalid_request("Could not determine home folder; provide destination_folder_id explicitly")
     body: dict[str, Any] = {"name": name, "destinationFolderId": destination_folder_id}
     return json.dumps(await (await get_client()).duplicate_workbook(workbook_id, body), indent=2)
 
@@ -150,7 +151,7 @@ async def sigma_convert_workbook_to_report(
     destination_folder_id: Optional folder ID for the report; defaults to My Documents.
     """
     if not name or not name.strip():
-        return _invalid_request("name is required by the Sigma convertToReport API")
+        _invalid_request("name is required by the Sigma convertToReport API")
     body: dict[str, Any] = {"name": name}
     if destination_folder_id:
         body["destinationFolderId"] = destination_folder_id
@@ -209,7 +210,7 @@ async def sigma_create_workbook_embed(
     source_id: Required when source_type is 'page' or 'element'.
     """
     if source_type in ("page", "element") and not (source_id and source_id.strip()):
-        return _invalid_request("source_id is required when source_type is 'page' or 'element'")
+        _invalid_request("source_id is required when source_type is 'page' or 'element'")
     body: dict[str, Any] = {"embedType": embed_type, "sourceType": source_type}
     if source_id:
         body["sourceId"] = source_id
@@ -238,14 +239,14 @@ async def sigma_export_workbook(
             pages.get("entries", []) if isinstance(pages, dict) else (pages if isinstance(pages, list) else [])
         )
         if not page_entries:
-            return _invalid_request("Workbook has no pages to export")
+            _invalid_request("Workbook has no pages to export")
         page_id = str(page_entries[0]["pageId"])
         elems = await client.list_workbook_page_elements(workbook_id, page_id)
         elem_entries: list[Any] = (
             elems.get("entries", []) if isinstance(elems, dict) else (elems if isinstance(elems, list) else [])
         )
         if not elem_entries:
-            return _invalid_request("First page has no elements to export")
+            _invalid_request("First page has no elements to export")
         element_id = str(elem_entries[0]["elementId"])
 
     if format in ("pdf", "png"):
@@ -289,7 +290,7 @@ add_workbook_schedule = sigma_add_workbook_schedule
 async def sigma_delete_workbook_schedule(workbook_id: str, schedule_id: str, confirm: bool = False) -> str:
     """Delete a scheduled export. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_workbook_schedule(workbook_id, schedule_id)
     return json.dumps({"status": code})
 
@@ -346,7 +347,7 @@ tag_workbook = sigma_tag_workbook
 async def sigma_remove_workbook_tag(workbook_id: str, tag_id: str, confirm: bool = False) -> str:
     """Remove a tag from a workbook. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).remove_workbook_tag(workbook_id, tag_id)
     return json.dumps({"status": code})
 
@@ -441,9 +442,9 @@ async def sigma_duplicate_report(report_id: str, name: str, destination_folder_i
     destination_folder_id: ID of the destination folder to clone into (required by the API).
     """
     if not name or not name.strip():
-        return _invalid_request("name is required by the Sigma copy API")
+        _invalid_request("name is required by the Sigma copy API")
     if not destination_folder_id or not destination_folder_id.strip():
-        return _invalid_request("destination_folder_id is required by the Sigma copy API")
+        _invalid_request("destination_folder_id is required by the Sigma copy API")
     body = {"name": name, "destinationFolderId": destination_folder_id}
     return json.dumps(await (await get_client()).duplicate_report(report_id, body), indent=2)
 
@@ -551,9 +552,9 @@ async def sigma_copy_workbook_to_member(workbook_id: str, member_id: str, name: 
     name: Optional name for the copied workbook. Defaults to the original workbook name.
     """
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     if not member_id or not member_id.strip():
-        return _invalid_request("member_id is required")
+        _invalid_request("member_id is required")
     c = await get_client()
     member = await c.get_member(member_id)
     home_folder = member.get("homeFolderId") if isinstance(member, dict) else None
@@ -581,11 +582,11 @@ async def sigma_deploy_template_to_folder(
 ) -> str:
     """Full deployment: instantiate a template into a folder, then optionally swap its sources."""
     if not template_id or not template_id.strip():
-        return _invalid_request("template_id is required")
+        _invalid_request("template_id is required")
     if not folder_id or not folder_id.strip():
-        return _invalid_request("folder_id is required")
+        _invalid_request("folder_id is required")
     if not name or not name.strip():
-        return _invalid_request("name is required")
+        _invalid_request("name is required")
     c = await get_client()
     wb = await c.save_workbook_from_template(template_id, folder_id, name)
     workbook_id = wb.get("workbookId") if isinstance(wb, dict) else None
@@ -607,9 +608,9 @@ async def sigma_promote_workbook(workbook_id: str, tag_name: str, tag_color: str
                Ignored if the tag already exists. Defaults to 'cyan'.
     """
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     if not tag_name or not tag_name.strip():
-        return _invalid_request("tag_name is required")
+        _invalid_request("tag_name is required")
     c = await get_client()
     tags = await c.list_tags()
     tag_id: str | None = None
@@ -624,7 +625,7 @@ async def sigma_promote_workbook(workbook_id: str, tag_name: str, tag_color: str
         # Sigma create_tag response also uses versionTagId
         tag_id = new_tag.get("versionTagId") if isinstance(new_tag, dict) else None
     if not tag_id:
-        return _invalid_request("Could not resolve or create tag")
+        _invalid_request("Could not resolve or create tag")
     # The tag_workbook endpoint takes the tag NAME, not the ID. We still resolve/create
     # the tag first so the caller gets a stable tag_id back in the response.
     result = await c.tag_workbook(workbook_id, tag_name)
@@ -656,7 +657,7 @@ async def sigma_export_and_download(
     import base64
 
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
 
     from sigma_mcp import server as _srv
 
@@ -721,9 +722,9 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
     would change without making changes.
     """
     if not old_owner_email or not old_owner_email.strip():
-        return _invalid_request("old_owner_email is required")
+        _invalid_request("old_owner_email is required")
     if not new_owner_email or not new_owner_email.strip():
-        return _invalid_request("new_owner_email is required")
+        _invalid_request("new_owner_email is required")
 
     c = await get_client()
 
@@ -811,7 +812,7 @@ async def sigma_list_workbooks_shared_with_member(member_id: str) -> str:
     Cross-references member's file list against the full workbook catalog.
     """
     if not member_id or not member_id.strip():
-        return _invalid_request("member_id is required")
+        _invalid_request("member_id is required")
 
     c = await get_client()
 
@@ -874,11 +875,11 @@ async def sigma_update_workbook_contents(
     against concurrent overwrites.
     """
     if not confirm:
-        return _invalid_request("Must specify confirm=True to update workbook contents")
+        return _confirm_required("Updating workbook contents")
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     if document_version is None or document_version <= 0:
-        return _invalid_request("document_version must be a positive integer to guard against concurrent overwrites")
+        _invalid_request("document_version must be a positive integer to guard against concurrent overwrites")
     c = await get_client()
     body: dict[str, Any] = {"contents": contents, "documentVersion": document_version}
     result = await c.update_workbook_contents(workbook_id, body)
@@ -901,9 +902,9 @@ async def sigma_verify_workbook_spec(
     Validates schema structure, syntax, and element layout.
     """
     if not name or not name.strip():
-        return _invalid_request("name is required")
+        _invalid_request("name is required")
     if not folder_id or not folder_id.strip():
-        return _invalid_request("folder_id is required")
+        _invalid_request("folder_id is required")
     c = await get_client()
     body: dict[str, Any] = {"name": name, "folderId": folder_id, "document": document}
     if description is not None:
@@ -929,11 +930,11 @@ async def sigma_update_report_contents(
     against concurrent overwrites.
     """
     if not confirm:
-        return _invalid_request("Must specify confirm=True to update report contents")
+        return _confirm_required("Updating report contents")
     if not report_id or not report_id.strip():
-        return _invalid_request("report_id is required")
+        _invalid_request("report_id is required")
     if document_version is None or document_version <= 0:
-        return _invalid_request("document_version must be a positive integer to guard against concurrent overwrites")
+        _invalid_request("document_version must be a positive integer to guard against concurrent overwrites")
     c = await get_client()
     body: dict[str, Any] = {"contents": contents, "documentVersion": document_version}
     result = await c.update_report_contents(report_id, body)
@@ -953,9 +954,9 @@ async def sigma_verify_report_spec(
 ) -> str:
     """Verify a report code representation specification without saving."""
     if not name or not name.strip():
-        return _invalid_request("name is required")
+        _invalid_request("name is required")
     if not folder_id or not folder_id.strip():
-        return _invalid_request("folder_id is required")
+        _invalid_request("folder_id is required")
     c = await get_client()
     body: dict[str, Any] = {"name": name, "folderId": folder_id, "document": document}
     if description is not None:
@@ -977,9 +978,9 @@ async def sigma_download_query_export(query_id: str, max_bytes: int = 10_000_000
     max_bytes: Maximum allowed payload size in bytes (default 10 MB).
     """
     if not query_id or not query_id.strip():
-        return _invalid_request("query_id is required")
+        _invalid_request("query_id is required")
     if max_bytes <= 0:
-        return _invalid_request("max_bytes must be a positive integer")
+        _invalid_request("max_bytes must be a positive integer")
     c = await get_client()
     result = await c.download_query_export(query_id, max_bytes=max_bytes)
     return json.dumps(result, indent=2)
@@ -993,7 +994,7 @@ download_query_export = sigma_download_query_export
 async def sigma_list_workbook_agents(workbook_id: str, version_tag_name: str | None = None) -> str:
     """List AI agents defined in a specific workbook (optionally filtering by version tag)."""
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     c = await get_client()
     result = await c.list_workbook_agents(workbook_id, version_tag_name)
     return json.dumps(result, indent=2)
@@ -1022,13 +1023,13 @@ async def sigma_run_workbook_agent(
     version_tag_name: Target published version tag (defaults to latest published version).
     """
     if not confirm:
-        return _invalid_request("Must specify confirm=True to run workbook agent")
+        return _confirm_required("Running the workbook agent")
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     if not agent_id or not agent_id.strip():
-        return _invalid_request("agent_id is required")
+        _invalid_request("agent_id is required")
     if not messages:
-        return _invalid_request("messages list is required and cannot be empty")
+        _invalid_request("messages list is required and cannot be empty")
     c = await get_client()
     body: dict[str, Any] = {"messages": messages}
     if version_tag_name:

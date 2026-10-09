@@ -30,9 +30,12 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_sync_all_tables_in_schema validation & success & exception
-    assert "connection_id is required" in await srv.sigma_sync_all_tables_in_schema("", "db", "sch")
-    assert "database is required" in await srv.sigma_sync_all_tables_in_schema("c1", "", "sch")
-    assert "schema is required" in await srv.sigma_sync_all_tables_in_schema("c1", "db", "")
+    with pytest.raises(ToolError, match="connection_id is required"):
+        await srv.sigma_sync_all_tables_in_schema("", "db", "sch")
+    with pytest.raises(ToolError, match="database is required"):
+        await srv.sigma_sync_all_tables_in_schema("c1", "", "sch")
+    with pytest.raises(ToolError, match="schema is required"):
+        await srv.sigma_sync_all_tables_in_schema("c1", "db", "")
 
     c.sync_connection = AsyncMock(return_value={})
     res_sync_ok = await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
@@ -43,8 +46,10 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
         await srv.sigma_sync_all_tables_in_schema("c1", "db", "sch")
 
     # sigma_copy_workbook_to_member validation & homeFolderId check & success & exception
-    assert "workbook_id is required" in await srv.sigma_copy_workbook_to_member("", "m1")
-    assert "member_id is required" in await srv.sigma_copy_workbook_to_member("wb1", "")
+    with pytest.raises(ToolError, match="workbook_id is required"):
+        await srv.sigma_copy_workbook_to_member("", "m1")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_copy_workbook_to_member("wb1", "")
 
     c.get_member = AsyncMock(return_value={"memberId": "m1"})
     res_no_home = await srv.sigma_copy_workbook_to_member("wb1", "m1")
@@ -77,14 +82,17 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
         await srv.sigma_copy_workbook_to_member("wb1", "m1")
 
     # sigma_duplicate_workbook validation branches
-    assert "name is required" in await srv.sigma_duplicate_workbook("wb1", "", "folder1")
+    with pytest.raises(ToolError, match="name is required"):
+        await srv.sigma_duplicate_workbook("wb1", "", "folder1")
     # When destination_folder_id is empty, it auto-discovers home folder; mock get_current_user + get_member
     c.get_current_user = AsyncMock(return_value={"userId": "u1"})
     c.get_member = AsyncMock(return_value={"memberId": "u1"})  # no homeFolderId
-    assert "home folder" in await srv.sigma_duplicate_workbook("wb1", "My Copy", "")
+    with pytest.raises(ToolError, match="home folder"):
+        await srv.sigma_duplicate_workbook("wb1", "My Copy", "")
 
     # sigma_convert_workbook_to_report validation branch
-    assert "name is required" in await srv.sigma_convert_workbook_to_report("wb1", "")
+    with pytest.raises(ToolError, match="name is required"):
+        await srv.sigma_convert_workbook_to_report("wb1", "")
 
     # sigma_reassign_workbook_ownership missing members & non-dict return
     c.search_members = AsyncMock(side_effect=[{"entries": []}, {"entries": []}])
@@ -177,7 +185,8 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     assert "total" in res_tenants_non_dict
 
     # list_workbooks_shared_with_member
-    assert "member_id is required" in await srv.sigma_list_workbooks_shared_with_member("")
+    with pytest.raises(ToolError, match="member_id is required"):
+        await srv.sigma_list_workbooks_shared_with_member("")
 
     c.auto_paginate = AsyncMock(return_value=[{"workbookId": "wb1"}])
     c.list_all_workbooks = AsyncMock(return_value=[{"workbookId": "wb1", "name": "Shared WB"}])

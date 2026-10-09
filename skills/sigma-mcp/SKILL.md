@@ -31,7 +31,7 @@ This skill provides expert instructions, architectural workflows, and safety pro
 ## 🛡️ Safety & Execution Rules for AI Agents
 
 1. **Confirmation Gating on Destructive Tools**:
-   Every tool annotated `destructiveHint=true` makes no changes unless it receives `confirm=True` (`admin_bulk_deactivate_members` also needs `dry_run=False`; otherwise it only previews). The complete list:
+   Every tool annotated `destructiveHint=true` makes no changes unless it receives `confirm=True` (`admin_bulk_deactivate_members` also needs `dry_run=False`; otherwise it only previews). Without it the result is not an error (`isError: false`): it has `"status": "confirmation_required"` and says to re-call with `confirm=true`. Missing or invalid arguments are errors (`isError: true`, `"type": "invalid_request"`); fix the argument and call again. The complete list:
    - Delete operations: `workspace_delete_file`, `workspace_delete_workspace`, `workspace_delete_workspace_grant`, `workspace_delete_tag`, `admin_delete_team`, `workbooks_delete_workbook_schedule`, `datasets_delete_connection_path_grant`, `admin_delete_user_attribute_for_user`, `admin_delete_user_attribute_for_team`, `admin_delete_user_attribute_for_tenant`
    - Deactivation and archiving: `admin_deactivate_member`, `admin_bulk_deactivate_members`, `admin_archive_deployment`
    - Revocation and removal: `admin_update_user_attribute_for_users`, `admin_update_user_attribute_for_teams`, `admin_update_user_attribute_for_tenants`, `workbooks_remove_workbook_tag`, `admin_remove_allowed_ips`, `admin_bulk_remove_team_members`

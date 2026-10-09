@@ -217,9 +217,9 @@ create_source_swap_policy = sigma_create_source_swap_policy
 async def sigma_materialize_and_wait(workbook_id: str, element_id: str, timeout_seconds: int = 300) -> str:
     """Trigger materialization and poll until complete or timeout."""
     if not workbook_id or not workbook_id.strip():
-        return _invalid_request("workbook_id is required")
+        _invalid_request("workbook_id is required")
     if not element_id or not element_id.strip():
-        return _invalid_request("element_id is required")
+        _invalid_request("element_id is required")
     from sigma_mcp import server as _srv
 
     c = await _srv.get_client()

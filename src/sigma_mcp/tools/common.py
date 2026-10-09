@@ -7,7 +7,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NoReturn
 
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
@@ -24,9 +24,30 @@ ANNOTATION_IDEMPOTENT = ToolAnnotations(
 )
 
 
-def _invalid_request(message: str) -> str:
-    """Return a uniform nested error response for validation failures."""
-    return json.dumps({"error": {"type": "invalid_request", "message": message}})
+def _invalid_request(message: str) -> NoReturn:
+    """Raise an input validation failure as a tool execution error.
+
+    The MCP spec lists input validation errors among tool execution errors, reported in the
+    tool result with ``isError: true`` so the model can correct the call. This raises FastMCP
+    ``ToolError`` with the redacted ``{"error": {"type": "invalid_request", ...}}`` JSON, the same
+    path ``sigma_tool`` uses for API and internal failures, which re-raises it unchanged.
+    """
+    raise ToolError(json.dumps({"error": {"type": "invalid_request", "message": redact_secrets(message)}})) from None
+
+
+def _confirm_required(action: str) -> str:
+    """Return the confirm two-step prompt as a normal tool result (``isError: false``).
+
+    A destructive or guarded write called without ``confirm=True`` did what it was designed to
+    do: it made no change and tells the model how to proceed. That is not a failed call.
+    """
+    return json.dumps(
+        {
+            "status": "confirmation_required",
+            "executed": False,
+            "message": f"{action} was not executed. Re-call this tool with confirm=true to proceed.",
+        }
+    )
 
 
 def _summarize_list(data: Any, key_fields: list[str]) -> Any:
@@ -58,6 +79,9 @@ def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
             duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
             logger.info("Tool executed successfully", extra={"tool_name": fn.__name__, "duration_ms": duration_ms})
             return result
+        except ToolError:
+            # Already a redacted tool execution error (``_invalid_request``); keep its payload.
+            raise
         except SigmaAPIError as e:
             duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
             logger.error("Tool failed with API error", extra={"tool_name": fn.__name__, "duration_ms": duration_ms})

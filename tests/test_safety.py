@@ -9,6 +9,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 
 # ─── admin_bulk_deactivate_members safety ─────────────────────────────────────
 
@@ -41,10 +42,13 @@ class TestBulkDeactivateSafety:
         members = [{"memberId": "m-0", "firstName": "A", "lastName": "B", "isActive": True, "isInactive": False}]
         mc = _mock_client_with_members(members)
         with patch("sigma_mcp.server.get_client", AsyncMock(return_value=mc)):
-            result_str = await sigma_bulk_deactivate_members(pattern, dry_run=False, confirm=True)
-
-        result = json.loads(result_str)
-        assert "error" in result
+            if pattern:
+                result = json.loads(await sigma_bulk_deactivate_members(pattern, dry_run=False, confirm=True))
+                assert "error" in result
+            else:
+                # An empty pattern is an input validation failure: ToolError, isError: true.
+                with pytest.raises(ToolError, match="name_pattern is required"):
+                    await sigma_bulk_deactivate_members(pattern, dry_run=False, confirm=True)
         mc.deactivate_member.assert_not_called()
         mc.delete.assert_not_called()
 
@@ -106,10 +110,8 @@ class TestBulkDeactivateSafety:
         from sigma_mcp.server import sigma_bulk_remove_team_members
 
         too_many_emails = [f"user{i}@example.com" for i in range(51)]
-        result_str = await sigma_bulk_remove_team_members("t1", too_many_emails, confirm=True)
-        result = json.loads(result_str)
-        assert "error" in result
-        assert "Bulk removal cap exceeded" in result["error"]["message"]
+        with pytest.raises(ToolError, match="Bulk removal cap exceeded"):
+            await sigma_bulk_remove_team_members("t1", too_many_emails, confirm=True)
 
 
 # ─── sigma_reassign_workbook_ownership safety ─────────────────────────────────

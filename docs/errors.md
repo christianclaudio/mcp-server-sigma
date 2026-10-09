@@ -11,13 +11,16 @@ payload, so the client receives a `tools/call` result with `isError: true`. This
 
 - **Success**: JSON response from the Sigma API (`isError: false`)
 - **Failure**: JSON error object with diagnostic information (`isError: true`)
+- **Confirmation required**: a destructive or guarded write called without
+  `confirm=True` makes no change and returns a normal result (`isError: false`); see
+  [Confirmation prompt](#confirmation-prompt-not-an-error)
 
 The MCP client always receives valid JSON — never a stack trace or unstructured
 error message.
 
 ## Error Contract
 
-The JSON text has one of three error shapes — never an unhandled exception or stack
+The JSON text of a failed call has one of three error shapes — never an unhandled exception or stack
 trace. Client secrets are redacted from all error messages before they reach the MCP
 client.
 
@@ -53,9 +56,13 @@ Returned with `isError: true` when an unhandled exception occurs inside a tool f
 
 ### 3. Validation errors (invalid request parameters)
 
-Returned early when a tool detects missing or invalid arguments before calling
-the API. These are currently returned as a normal tool result (`isError: false`),
-not raised:
+Returned with `isError: true` when a tool detects missing or invalid arguments
+before calling the API. The MCP specification lists input validation errors as tool
+execution errors, reported in the tool result with `isError: true` so the model can
+correct the call and retry
+([Tools: Error Handling](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#error-handling)).
+`_invalid_request` raises FastMCP `ToolError` with the redacted payload, the same
+path the decorator uses for the other two shapes:
 
 ```json
 {
@@ -65,6 +72,22 @@ not raised:
   }
 }
 ```
+
+### Confirmation prompt (not an error)
+
+Destructive tools and the guarded writes listed in the skill take `confirm: bool = False`.
+Called without `confirm=True`, the tool makes no change and returns a normal result
+(`isError: false`). The call did what it was designed to do, so it is not a failure:
+
+```json
+{
+  "status": "confirmation_required",
+  "executed": false,
+  "message": "This destructive operation was not executed. Re-call this tool with confirm=true to proceed."
+}
+```
+
+`admin_bulk_deactivate_members` keeps its own dry-run preview instead.
 
 ## Status Code Reference
 

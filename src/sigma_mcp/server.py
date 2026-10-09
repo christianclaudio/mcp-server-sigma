@@ -120,11 +120,6 @@ def configure_logging() -> None:
         logging.root.setLevel(logging.INFO)
 
 
-def _invalid_request(message: str) -> str:
-    """Return a uniform nested error response for validation failures."""
-    return json.dumps({"type": "invalid_request", "message": message})
-
-
 def _summarize_list(data: Any, allowed_fields: list[str]) -> Any:
     """Helper to summarize high-cardinality list responses when summary_only=True."""
     if not isinstance(data, dict):

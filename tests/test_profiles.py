@@ -291,8 +291,9 @@ async def test_bulk_tool_runs_with_gate_and_still_needs_confirm(monkeypatch: pyt
         "admin_bulk_remove_team_members", {"team_id": "t-1", "member_emails": ["a@b.co"], "confirm": False}
     )
     assert not res.is_error
-    message = json.loads(res.content[0].text)["error"]["message"]  # type: ignore[union-attr]
-    assert "confirm=True" in message
+    payload = json.loads(res.content[0].text)  # type: ignore[union-attr]
+    assert payload["status"] == "confirmation_required"
+    assert "confirm=true" in payload["message"]
 
 
 @pytest.mark.asyncio

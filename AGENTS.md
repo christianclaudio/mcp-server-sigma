@@ -77,7 +77,8 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 ## 🛡️ Non-Negotiable Safety & Security Rules
 
 1. **Destructive Confirmation Gate**:
-   - Delete, archive, deactivate, and bulk-removal tools must accept `confirm: bool = False`. If `False`, do not execute the side-effect (`_invalid_request` refusal, or a dry-run preview on `admin_bulk_deactivate_members`).
+   - Delete, archive, deactivate, and bulk-removal tools must accept `confirm: bool = False`. If `False`, do not execute the side-effect: return `_confirm_required(...)`, a normal result (`isError: false`) telling the caller to re-call with `confirm=true` (or a dry-run preview on `admin_bulk_deactivate_members`).
+   - Input validation failures call `_invalid_request(...)`, which raises `ToolError` with the redacted payload, so the result carries `isError: true`. Do not use it for the confirm prompt.
 2. **Secret Redaction**:
    - Error messages, logs, and tracebacks must pass through regex redaction (`_redact_secrets`) stripping Bearer tokens, client secrets, access tokens, subject tokens, raw JWTs, and `ghs_` tokens.
 3. **Multi-Tenant RFC 8693 Token Exchange**:

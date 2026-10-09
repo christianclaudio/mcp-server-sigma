@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -84,8 +85,9 @@ async def test_get_client_rejects_untrusted_base_url() -> None:
 async def test_delete_confirm_parameter_required() -> None:
     from sigma_mcp.server import sigma_delete_workspace, sigma_delete_workspace_grant
 
-    res1 = await sigma_delete_workspace("ws1")
-    assert "Destructive operation requires explicit confirm=True" in res1
-
-    res2 = await sigma_delete_workspace_grant("ws1", "g1")
-    assert "Destructive operation requires explicit confirm=True" in res2
+    # The confirm two-step is a normal result (not an error) that tells the caller to re-call.
+    for res in (await sigma_delete_workspace("ws1"), await sigma_delete_workspace_grant("ws1", "g1")):
+        payload = json.loads(res)
+        assert payload["status"] == "confirmation_required"
+        assert payload["executed"] is False
+        assert "Re-call this tool with confirm=true" in payload["message"]

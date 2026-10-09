@@ -16,6 +16,7 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    _confirm_required,
     _invalid_request,
     _summarize_list,
     sigma_tool,
@@ -102,7 +103,7 @@ async def sigma_add_connection_grant(connection_id: str, grant_type: str, grante
     """
     gt = grant_type.strip().lower()
     if gt not in ("member", "team"):
-        return _invalid_request("grant_type must be 'member' or 'team'")
+        _invalid_request("grant_type must be 'member' or 'team'")
     grantee_key = "memberId" if gt == "member" else "teamId"
     body = {"grants": [{"grantee": {grantee_key: grantee_id}, "permission": permission}]}
     return json.dumps(await (await get_client()).add_connection_grant(connection_id, body), indent=2)
@@ -118,7 +119,7 @@ add_connection_grant = sigma_add_connection_grant
 async def sigma_delete_connection_path_grant(connection_path_id: str, grant_id: str, confirm: bool = False) -> str:
     """Delete a grant from a connection path. DESTRUCTIVE. Requires confirm=True."""
     if not confirm:
-        return _invalid_request("Destructive operation requires explicit confirm=True parameter.")
+        return _confirm_required("This destructive operation")
     code = await (await get_client()).delete_connection_path_grant(connection_path_id, grant_id)
     return json.dumps({"status": code})
 
@@ -255,11 +256,11 @@ swap_report_sources = sigma_swap_report_sources
 async def sigma_sync_all_tables_in_schema(connection_id: str, database: str, schema: str) -> str:
     """Sync all tables in a warehouse schema so they become visible in Sigma."""
     if not connection_id or not connection_id.strip():
-        return _invalid_request("connection_id is required")
+        _invalid_request("connection_id is required")
     if not database or not database.strip():
-        return _invalid_request("database is required")
+        _invalid_request("database is required")
     if not schema or not schema.strip():
-        return _invalid_request("schema is required")
+        _invalid_request("schema is required")
     c = await get_client()
     path = [database, schema]
     await c.sync_connection(connection_id, path)
