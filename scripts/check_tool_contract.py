@@ -34,6 +34,8 @@ EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
     "access_admin": (52, 22),
 }
 JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
+# Number of tools that the author and modeler profiles share.
+SHARED_TOOL_COUNT = 10
 
 # Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
 EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
@@ -47,7 +49,7 @@ EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
 # Expected annotation split on ``full``.
 EXPECTED_DEFAULT = EXPECTED_PROFILE_COUNTS["full"][0]
 EXPECTED_READONLY = EXPECTED_PROFILE_COUNTS["readonly"][0]
-EXPECTED_READ_ONLY = 90
+EXPECTED_READ_ONLY = EXPECTED_PROFILE_COUNTS["full"][1]
 EXPECTED_DESTRUCTIVE = 20
 EXPECTED_IDEMPOTENT = 8
 
@@ -223,6 +225,8 @@ def main() -> int:
         set(default["names"]),
     )
     check("job profiles and FULL_ONLY_TOOLS are disjoint", in_jobs & set(base["full_only"]), set())
+    shared = set(base["profiles"]["author"]["names"]) & set(base["profiles"]["modeler"]["names"])
+    check("author and modeler shared tools", len(shared), SHARED_TOOL_COUNT)
 
     print("\nSIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 (listing unchanged):")
     bulk = probe(SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE="1")

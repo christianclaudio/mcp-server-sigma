@@ -19,6 +19,7 @@ from scripts.check_tool_contract import (
     EXPECTED_FULL_ONLY,
     EXPECTED_PROFILE_COUNTS,
     EXPECTED_READ_ONLY,
+    SHARED_TOOL_COUNT,
 )
 
 from sigma_mcp import middleware, profiles, server
@@ -152,11 +153,11 @@ async def test_every_tool_has_explicit_read_only_hint() -> None:
 
 @pytest.mark.asyncio
 async def test_author_and_modeler_split_overlap_on_lookups_only() -> None:
-    """The former builder job is split: author and modeler share 10 read-only lookups."""
+    """The former builder job is split: author and modeler share only read-only lookups."""
     author = await _tool_names(create_server(profile="author"))
     modeler = await _tool_names(create_server(profile="modeler"))
     shared = author & modeler
-    assert len(shared) == 10
+    assert len(shared) == SHARED_TOOL_COUNT
     full = {t.name: t for t in await create_server(profile="full").list_tools()}
     assert all(is_read_only_tool(full[name]) for name in shared)
     assert "workbooks_promote_workbook" not in author | modeler
@@ -351,7 +352,7 @@ async def test_readonly_enforced_under_allowlist_profile(monkeypatch: pytest.Mon
     """SIGMA_MCP_READONLY=1 on an allowlist profile hides and refuses its write tools."""
     monkeypatch.setattr(settings, "MCP_READONLY", True)
     app = create_server(profile="author")
-    assert len(await _tool_names(app)) == 28
+    assert len(await _tool_names(app)) == EXPECTED_PROFILE_COUNTS["author"][1]
     with pytest.raises(SafetyViolationError, match=WRITE):
         await app.call_tool(WRITE, WRITE_ARGS)
     res = await app.call_tool(READ, {})
