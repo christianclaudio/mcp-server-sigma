@@ -67,7 +67,7 @@ from sigma_mcp.tools import (
     workbooks_server,
     workspace_server,
 )
-from sigma_mcp.webhooks import get_recent_webhooks
+from sigma_mcp.webhooks import get_recent_webhooks, register_webhook_route
 
 logger = logging.getLogger("sigma_mcp")
 
@@ -667,6 +667,11 @@ mcp = create_server()
 from sigma_mcp.tools import *  # noqa: F401, F403, E402
 
 
+def _webhook_secret() -> str:
+    """Return the webhook path secret from the live env (``SIGMA_WEBHOOK_SECRET``) or settings."""
+    return os.environ.get("SIGMA_WEBHOOK_SECRET") or settings.WEBHOOK_SECRET
+
+
 def _handle_shutdown(signum: int, frame: Any) -> None:
     """Gracefully handle SIGTERM/SIGINT from host supervisor to exit with status 0 immediately."""
     sys.exit(0)
@@ -810,6 +815,9 @@ def main() -> None:
     }
     if getattr(args, "allowed_origins", None) is not None:
         run_kwargs["allowed_origins"] = args.allowed_origins
+
+    if args.transport in ("sse", "streamable-http"):
+        register_webhook_route(mcp, _webhook_secret())
 
     if args.transport == "sse":
         logger.warning(

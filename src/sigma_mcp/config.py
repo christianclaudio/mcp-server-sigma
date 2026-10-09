@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     )
     WEBHOOK_SECRET: str = Field(
         default="",
-        description="Shared secret for webhook HMAC signature verification",
+        description="Secret URL path segment for the webhook ingest route (HTTP transports only)",
     )
     LOG_FORMAT: str = Field(
         default="",

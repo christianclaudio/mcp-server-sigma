@@ -163,6 +163,8 @@ sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 
 Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`.
 
+To receive Sigma webhook exports on this HTTP transport, also set `SIGMA_WEBHOOK_SECRET`; see [Webhook ingest](#webhook-ingest-http-transport-only).
+
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>
 
@@ -275,6 +277,24 @@ Configure behavior using environment variables:
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
+| `SIGMA_WEBHOOK_SECRET` | `""` | HTTP transports only. Secret URL path segment for the webhook ingest route: setting it registers `POST /webhooks/sigma/<secret>` on `streamable-http` and `sse` (see [Webhook ingest](#webhook-ingest-http-transport-only)); never on stdio. At least 32 characters of `A-Z a-z 0-9 _ -`. Unset means no route. |
+
+### Webhook ingest (HTTP transport only)
+
+With `SIGMA_WEBHOOK_SECRET` set and `--transport streamable-http` (or `sse`), the server registers `POST /webhooks/sigma/<secret>` for Sigma's [Export to webhook](https://help.sigmacomputing.com/docs/export-to-webhook) deliveries. It is never registered on stdio, without a secret, or with a secret shorter than 32 characters or containing anything but `A-Z a-z 0-9 _ -`, so an unauthenticated or guessable ingest route cannot exist.
+
+* **Authentication is the URL.** Sigma's export-to-webhook destination takes only an endpoint URL, and its docs state that "this feature does not currently support export to authenticated endpoints". Sigma documents no signature, auth header, or timestamp on those deliveries, so the secret is a path segment. Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and enter `https://<your-public-host>/webhooks/sigma/<secret>` as the endpoint in Sigma (Sigma requires `https://`, so put a TLS-terminating proxy in front).
+* The server compares the segment in constant time (`hmac.compare_digest`) before reading the body. A wrong or missing segment gets `404 Not Found`, the same answer as an unknown path. So does every method but `POST` (`GET`, `HEAD`, `PUT` and so on) anywhere under `/webhooks/sigma`, even with the right secret.
+* Treat the full endpoint URL as a credential: anyone who can see it (Sigma schedule editors, proxy logs) can post events. The server never logs the secret and redacts it from uvicorn's access log; check that your proxy does not log request paths, and rotate the secret by changing the variable and the endpoint in Sigma.
+* Bodies of up to 1 MiB are accepted. Sigma exports CSV, JSON, PDF and PNG to webhooks, so what is buffered depends on the `Content-Type`:
+  * `application/json` or any `+json` type: the body must be a JSON object, which becomes the event `payload`. The event type is its `event_type` or `type` field, otherwise `general_event`.
+  * Any other type, or none (CSV, PDF, PNG, ...): the body is dropped, never stored or logged. The event type is `non_json_payload` and the payload is `{"content_type": "<header as sent, or empty>", "size_bytes": <n>, "received_at": "<ISO 8601 UTC>", "body_stored": false}`.
+  * An empty body, whatever the type: a `general_event` with an empty payload.
+* Every buffered event is `{"event_id": "evt_...", "timestamp": "<ISO 8601 UTC>", "event_type": ..., "payload": {...}}`.
+* Responses: `200` `{"status": "accepted", "event_id": ...}`; `404` for a wrong or missing secret or any method but `POST`; `400` for invalid JSON or a non-object body sent as JSON; `413` for a body over 1 MiB.
+* No replay protection: Sigma sends no timestamp or nonce to check.
+* Accepted events go into the in-memory buffer (the newest 100; older events are dropped) that `admin_list_recent_webhooks` and `admin://webhooks/recent` read. Nothing is persisted across restarts.
+* The route sits behind the same Host/Origin protection as `/mcp`, so add the public hostname Sigma posts to with `--allowed-host`.
 
 ---
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 from unittest.mock import AsyncMock
 
@@ -16,7 +14,8 @@ from sigma_mcp.webhooks import (
     get_recent_webhooks,
     process_incoming_webhook,
     record_webhook_event,
-    verify_webhook_signature,
+    verify_webhook_token,
+    webhook_secret_is_usable,
 )
 
 
@@ -25,19 +24,35 @@ def _reset_webhooks() -> None:
     clear_webhook_buffer()
 
 
-def test_verify_webhook_signature() -> None:
-    secret = "my_webhook_secret_123"
-    body = b'{"event_type": "export_completed", "exportId": "exp1"}'
+def test_verify_webhook_token() -> None:
+    secret = "Zq8-tK3_vW1xY9aB2cD4eF6gH7jL0mN5pR"
 
-    # Missing secret or header returns False
-    assert verify_webhook_signature(body, None, secret) is False
-    assert verify_webhook_signature(body, "sha256=123", "") is False
+    # Missing secret or token returns False
+    assert verify_webhook_token("", secret) is False
+    assert verify_webhook_token(secret, "") is False
 
-    # Valid signature calculation
-    expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-    assert verify_webhook_signature(body, f"sha256={expected}", secret) is True
-    assert verify_webhook_signature(body, expected, secret) is True
-    assert verify_webhook_signature(body, "sha256=bad_sig", secret) is False
+    assert verify_webhook_token(secret, secret) is True
+    assert verify_webhook_token(secret[:-1], secret) is False
+    assert verify_webhook_token(secret + "x", secret) is False
+    assert verify_webhook_token(secret.upper(), secret) is False
+    # Non-ASCII input is compared as bytes rather than raising
+    assert verify_webhook_token("\u00e9" * 34, secret) is False
+
+
+@pytest.mark.parametrize(
+    ("secret", "usable"),
+    [
+        ("a" * 31, False),
+        ("a" * 32, True),
+        ("Zq8-tK3_vW1xY9aB2cD4eF6gH7jL0mN5pR", True),
+        ("has/slash" + "a" * 32, False),
+        ("has space" + "a" * 32, False),
+        ("has%25pct" + "a" * 32, False),
+        ("", False),
+    ],
+)
+def test_webhook_secret_is_usable(secret: str, usable: bool) -> None:
+    assert webhook_secret_is_usable(secret) is usable
 
 
 def test_record_and_get_recent_webhooks() -> None:
@@ -55,7 +70,7 @@ def test_record_and_get_recent_webhooks() -> None:
 @pytest.mark.asyncio
 async def test_process_incoming_webhook_success() -> None:
     payload = b'{"event_type": "scheduled_export", "id": "exp_100"}'
-    res = await process_incoming_webhook(payload, {"x-sigma-event": "scheduled_export"})
+    res = await process_incoming_webhook(payload, "application/json")
     assert res["status"] == "accepted"
     assert res["status_code"] == 200
 
@@ -63,39 +78,29 @@ async def test_process_incoming_webhook_success() -> None:
     assert len(recent) == 1
     assert recent[0]["payload"]["id"] == "exp_100"
 
-    # Test fallback event_type when no event_type is in body or header
-    res_fallback = await process_incoming_webhook(b'{"key": "val"}', {})
+    # Fallback event_type when the body names none
+    res_fallback = await process_incoming_webhook(b'{"key": "val"}', "application/json")
     assert res_fallback["status_code"] == 200
+    assert get_recent_webhooks()[0]["event_type"] == "general_event"
+
+    # "type" is used when "event_type" is absent
+    await process_incoming_webhook(b'{"type": "alert"}', "application/json")
+    assert get_recent_webhooks()[0]["event_type"] == "alert"
 
     # Test empty body
-    res_empty = await process_incoming_webhook(b"", {})
+    res_empty = await process_incoming_webhook(b"", "application/json")
     assert res_empty["status_code"] == 200
 
 
 @pytest.mark.asyncio
 async def test_process_incoming_webhook_errors() -> None:
-    secret = "test_secret_32"
-    payload = b'{"event_type": "alert", "id": "123"}'
-    expected_sig = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
-
-    # Valid signature pass case
-    res_valid = await process_incoming_webhook(
-        payload, {"x-sigma-signature": f"sha256={expected_sig}"}, webhook_secret=secret
-    )
-    assert res_valid["status_code"] == 200
-
-    # Invalid signature
-    res_sig = await process_incoming_webhook(payload, {"x-sigma-signature": "bad"}, webhook_secret=secret)
-    assert res_sig["status_code"] == 401
-    assert "Invalid webhook signature" in res_sig["error"]
-
     # Invalid JSON
-    res_json = await process_incoming_webhook(b"not json", {})
+    res_json = await process_incoming_webhook(b"not json", "application/json")
     assert res_json["status_code"] == 400
     assert "Invalid JSON payload" in res_json["error"]
 
     # Non-dict JSON payload
-    res_arr = await process_incoming_webhook(b"[1, 2, 3]", {})
+    res_arr = await process_incoming_webhook(b"[1, 2, 3]", "application/json")
     assert res_arr["status_code"] == 400
     assert "Payload must be a JSON object" in res_arr["error"]
 
@@ -109,7 +114,7 @@ async def test_webhook_listener_exception() -> None:
 
     webhooks._EVENT_LISTENERS.append(bad_listener)
     try:
-        res = await process_incoming_webhook(b'{"event_type": "test"}', {})
+        res = await process_incoming_webhook(b'{"event_type": "test"}', "application/json")
         assert res["status_code"] == 200
     finally:
         webhooks._EVENT_LISTENERS.remove(bad_listener)
