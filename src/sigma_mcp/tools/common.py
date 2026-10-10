@@ -12,7 +12,7 @@ from typing import Any, NoReturn
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from sigma_mcp.errors import SigmaAPIError, redact_secrets
+from sigma_mcp.errors import SigmaAPIError, redact_message
 
 logger = logging.getLogger("sigma_mcp")
 
@@ -33,7 +33,7 @@ def _tool_failure(error_type: str, message: str, **details: Any) -> NoReturn:
     ``sigma_tool`` re-raises it unchanged. Callers pass only fields they built themselves, never a
     raw upstream body.
     """
-    payload: dict[str, Any] = {"type": error_type, "message": redact_secrets(message)}
+    payload: dict[str, Any] = {"type": error_type, "message": redact_message(message)}
     for key, value in details.items():
         payload[key] = _redact_value(value)
     raise ToolError(json.dumps({"error": payload})) from None
@@ -42,7 +42,7 @@ def _tool_failure(error_type: str, message: str, **details: Any) -> NoReturn:
 def _redact_value(value: Any) -> Any:
     """Redact secrets in every string of a JSON-like value."""
     if isinstance(value, str):
-        return redact_secrets(value)
+        return redact_message(value)
     if isinstance(value, list):
         return [_redact_value(v) for v in value]
     if isinstance(value, dict):
@@ -180,14 +180,14 @@ def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
             logger.error("Tool failed with API error", extra={"tool_name": fn.__name__, "duration_ms": duration_ms})
             err = e.to_dict()
             if isinstance(err.get("detail"), str):
-                err["detail"] = redact_secrets(err["detail"])
+                err["detail"] = redact_message(err["detail"])
             failure = json.dumps({"error": err})
         except Exception as e:
             duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
             logger.error(
                 "Tool failed with internal error", extra={"tool_name": fn.__name__, "duration_ms": duration_ms}
             )
-            msg = redact_secrets(str(e))
+            msg = redact_message(str(e))
             failure = json.dumps({"error": {"type": "internal", "message": msg}})
         # Raised after the except blocks end, so the unredacted original exception is on neither
         # __cause__ nor __context__.

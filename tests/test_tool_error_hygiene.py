@@ -2,7 +2,7 @@
 
 The decorator raises ToolError ``from None`` so the unredacted original exception never
 rides along as ``__cause__`` or ``__context__`` (tracebacks, OpenTelemetry exception
-events). Its own ``redact_secrets`` call must scrub a secret from an unexpected
+events). Its own ``redact_message`` call must scrub a secret from an unexpected
 exception message before it reaches the client or the logs.
 """
 
