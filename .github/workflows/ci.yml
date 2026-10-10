@@ -58,7 +58,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --locked --extra dev --python ${{ matrix.python-version }}
+        run: uv sync --locked --extra dev --extra code-mode --python ${{ matrix.python-version }}
       - name: Unit and mocked tests
         run: uv run pytest --cov=src/sigma_mcp --cov-report=term-missing --cov-fail-under=100 -q
 

@@ -67,6 +67,16 @@ docker run --rm -i --env-file .env \
   ghcr.io/christianclaudio/mcp-server-sigma:latest
 ```
 
+The image's default command is stdio. To serve Streamable HTTP from the container, bind `0.0.0.0` inside it and pass a token. Keep the token off the command line (it shows up in shell history and `ps`): put `SIGMA_MCP_AUTH_TOKEN` in `.env`, or export it and pass the name alone with `-e`:
+
+```bash
+export SIGMA_MCP_AUTH_TOKEN="$(openssl rand -hex 32)"  # or read it from your secret store
+docker run --rm -p 8000:8000 --env-file .env \
+  -e SIGMA_MCP_AUTH_TOKEN \
+  ghcr.io/christianclaudio/mcp-server-sigma:latest \
+  --transport streamable-http --host 0.0.0.0 --port 8000 --allowed-host mcp.example.com
+```
+
 ### 2. Set Environment Variables
 
 ```bash
@@ -162,6 +172,12 @@ sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
 Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`. When `SIGMA_MCP_AUTH_TOKEN` is set, the client must send `Authorization: Bearer <token>`; requests without it, or with a different token, get HTTP 401.
+
+HTTP transports follow the MCP guidance that a local server binds to localhost, and require a bearer token whenever the server is reachable beyond it:
+
+* On `127.0.0.1`, `::1` or `localhost` (the `--host` default is `127.0.0.1`), HTTP runs with or without `SIGMA_MCP_AUTH_TOKEN`; without it, a warning says requests are not authenticated.
+* On any other host (`0.0.0.0`, `::`, a LAN address), the server refuses to start (exit code 2) unless `SIGMA_MCP_AUTH_TOKEN` is set, or `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1` accepts an unauthenticated bind (logged as a warning), for example behind a gateway that authenticates for you.
+* The token is attached when the server is built, so `fastmcp run src/sigma_mcp/server.py:mcp --transport http` and an ASGI host mounting `mcp.http_app()` enforce it too. Those entry points do not know the bind host, so they cannot refuse a public bind; use `sigma-mcp` for that policy.
 
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>
@@ -272,7 +288,8 @@ Configure behavior using environment variables:
 | `SIGMA_MCP_ENABLE_TOOL_SEARCH` | `0` | Set `1` (or `--enable-tool-search`) for Tool Search on `full` only. |
 | `SIGMA_MCP_TOOL_SEARCH_BACKEND` | `regex` | Tool Search backend: `regex` or `bm25` (or `--tool-search-backend`). |
 | `SIGMA_MCP_ENABLE_CODE_MODE` | `0` | Set `1` (or `--enable-code-mode`) for experimental Code Mode on `full` only; not with Tool Search. |
-| `SIGMA_MCP_AUTH_TOKEN` | *(unset)* | On `streamable-http` and `sse`, requires `Authorization: Bearer <token>` on every MCP request (FastMCP server auth; a missing or wrong token gets HTTP 401). Unset: HTTP requests are not authenticated and the server logs a warning. Ignored on `stdio`. |
+| `SIGMA_MCP_AUTH_TOKEN` | *(unset)* | On `streamable-http` and `sse`, requires `Authorization: Bearer <token>` on every MCP request (FastMCP server auth; a missing or wrong token gets HTTP 401). Leading and trailing whitespace is stripped; unset or blank: HTTP requests are not authenticated and the server logs a warning. Enforced on every HTTP entry point (`sigma-mcp`, `fastmcp run`, `http_app()`). Ignored on `stdio`. |
+| `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND` | `0` | Set to `1` (or `true`/`yes`/`on`) to let an HTTP transport bind a host other than `127.0.0.1`, `::1` or `localhost` with no token. Without it, such a bind exits at startup with code 2. |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
@@ -312,7 +329,7 @@ Nine tools are in no job profile and are reachable only in `full`: `workspace_de
 `tools/list` is flat by default. Discovery is opt-in and attaches **only on `full`**:
 
 * `--enable-tool-search` / `SIGMA_MCP_ENABLE_TOOL_SEARCH=1` replaces `tools/list` with `search_tools` and `call_tool`. The backend is `regex` (default) or `bm25` (`--tool-search-backend` / `SIGMA_MCP_TOOL_SEARCH_BACKEND`).
-* `--enable-code-mode` / `SIGMA_MCP_ENABLE_CODE_MODE=1` attaches FastMCP's experimental Code Mode (`search`, `get_schema`, `execute`). Code Mode needs the `fastmcp[code-mode]` extra, which ships its `pydantic-monty` sandbox, for example `uvx --with "fastmcp[code-mode]" mcp-server-sigma --enable-code-mode`. Without it, Code Mode is skipped with a warning and the flat catalog is served.
+* `--enable-code-mode` / `SIGMA_MCP_ENABLE_CODE_MODE=1` attaches FastMCP's experimental Code Mode (`search`, `get_schema`, `execute`). Code Mode needs the sandbox from the package's `code-mode` extra (`fastmcp[code-mode]`, which ships `pydantic-monty`): `pip install "mcp-server-sigma[code-mode]"` or `uvx "mcp-server-sigma[code-mode]" --enable-code-mode`. Without it, Code Mode is skipped with a warning and the flat catalog is served.
 * Turning on both raises `ValueError`. Asking for either on another profile logs a warning and keeps the flat list.
 * `search_tools`, `search` and `get_schema` only read the catalog and are annotated `readOnlyHint=true`. Under read-only, Code Mode `execute` is refused.
 

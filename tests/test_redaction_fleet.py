@@ -120,17 +120,14 @@ def test_redact_secrets_leaves_token_words_alone() -> None:
 def test_redact_secrets_bearer_tail_is_fully_redacted() -> None:
     """A bearer value with ``~``, ``/``, ``+`` and ``=`` padding is redacted with no tail left.
 
-    Sigma's own bearer pattern runs first and replaces the whole ``Bearer <value>``.
+    The house bearer rules (template v1.6.0) keep the scheme and mask the whole value.
     """
     out = redact_secrets("Authorization: Bearer abc.def~ghi/jk+l==")
-    assert out == "Authorization: ***REDACTED***"
+    assert out == "Authorization: Bearer ***REDACTED***"
 
 
-def test_redact_secrets_bearer_base64_tail(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The template's case, against the house bearer pattern alone (sigma's own bearer pattern off)."""
-    from sigma_mcp import errors
-
-    monkeypatch.setattr(errors, "_SECRET_PATTERNS", [p for p in errors._SECRET_PATTERNS if "bearer" not in p.pattern])
+def test_redact_secrets_bearer_base64_tail() -> None:
+    """The template's case: a bare ``Bearer`` value with base64 characters and padding."""
     assert redact_secrets("Bearer abc.def~ghi/jk+l==") == "Bearer ***REDACTED***"
 
 

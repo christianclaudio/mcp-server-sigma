@@ -19,6 +19,15 @@ from fastmcp.tools import ToolResult
 from sigma_mcp.server import main, mcp
 
 
+@pytest.fixture(autouse=True)
+def _no_shell_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests serve HTTP without a token; a token set in the shell must not leak in."""
+    monkeypatch.delenv("SIGMA_MCP_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND", raising=False)
+    # The module-level ``mcp`` was built at import, so a shell token is already attached to it.
+    monkeypatch.setattr(mcp, "auth", None)
+
+
 def test_stdio_initialize_handshake() -> None:
     """Verify end-to-end JSON-RPC initialization handshake over stdio."""
     repo_dir = Path(__file__).resolve().parent.parent

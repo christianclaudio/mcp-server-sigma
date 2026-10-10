@@ -1,17 +1,28 @@
-"""SIGMA_MCP_AUTH_TOKEN is enforced on HTTP transports through FastMCP auth (#39)."""
+"""HTTP bearer auth and the non-localhost bind policy (#69 PR 3)."""
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
 
 import sigma_mcp.server as srv
-from sigma_mcp.auth import SharedTokenVerifier
+from sigma_mcp.auth import (
+    ALLOW_UNAUTHENTICATED_BIND_ENV,
+    AUTH_TOKEN_ENV,
+    SharedTokenVerifier,
+    allow_unauthenticated_bind,
+    is_localhost,
+    read_auth_token,
+)
 
+ROOT = Path(__file__).resolve().parent.parent
 TOKEN = "correct-horse-battery-staple-39"
 HEADERS = {
     "Accept": "application/json",
@@ -32,10 +43,266 @@ DISCOVER = {
 }
 
 
-def _protected_server() -> Any:
-    server = srv.create_server()
-    server.auth = SharedTokenVerifier(TOKEN)
-    return server
+@pytest.fixture(autouse=True)
+def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(AUTH_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(ALLOW_UNAUTHENTICATED_BIND_ENV, raising=False)
+
+
+@pytest.fixture
+def run_args(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Fresh module-level server per test, with ``run`` captured instead of serving."""
+    captured: dict[str, Any] = {}
+    fresh = srv.create_server()
+    monkeypatch.setattr(srv, "mcp", fresh)
+    monkeypatch.setattr(fresh, "run", lambda **kwargs: captured.update(kwargs))
+    return captured
+
+
+def _main(monkeypatch: pytest.MonkeyPatch, *argv: str) -> None:
+    monkeypatch.setattr("sys.argv", ["sigma-mcp", *argv])
+    srv.main()
+
+
+PUBLIC_HTTP = (
+    "--transport",
+    "streamable-http",
+    "--host",
+    "0.0.0.0",
+    "--allowed-host",
+    "mcp.internal",
+)
+
+
+# ── Fix 1: whitespace-only token is unset; verifier refuses blank ──────────────
+
+
+@pytest.mark.parametrize("value", ["", "   ", "\t\n"])
+def test_whitespace_token_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    run_args: dict[str, Any],
+    caplog: pytest.LogCaptureFixture,
+    value: str,
+) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, value)
+    assert read_auth_token() == ""
+    with caplog.at_level(logging.WARNING, logger="sigma_mcp"):
+        _main(monkeypatch, "--transport", "streamable-http")
+    assert run_args["transport"] == "streamable-http"
+    assert srv.mcp.auth is None
+    assert f"{AUTH_TOKEN_ENV} is not set" in caplog.text
+
+
+def test_token_is_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, f"  {TOKEN}\n")
+    assert read_auth_token() == TOKEN
+
+
+@pytest.mark.parametrize("value", ["", "   ", "\n\t"])
+def test_verifier_refuses_blank_expected_token(value: str) -> None:
+    with pytest.raises(ValueError, match=AUTH_TOKEN_ENV):
+        SharedTokenVerifier(value)
+
+
+@pytest.mark.asyncio
+async def test_verifier_contract() -> None:
+    verifier = SharedTokenVerifier(f" {TOKEN} ")
+    assert TOKEN not in repr(verifier)
+    assert "REDACTED" in repr(verifier)
+    assert await verifier.verify_token("") is None
+    assert await verifier.verify_token("   ") is None
+    assert await verifier.verify_token("wrong") is None
+    ok = await verifier.verify_token(TOKEN)
+    assert ok is not None and ok.client_id == "sigma-mcp-shared-token"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["", " ", "\t\n"])
+async def test_verifier_rejects_blank_token_before_comparing(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    """A blank or whitespace token is refused up front, never reaching the digest compare."""
+    import sigma_mcp.auth as auth_mod
+
+    calls: list[tuple[bytes, bytes]] = []
+
+    def recording_compare(a: bytes, b: bytes) -> bool:
+        calls.append((a, b))
+        return False
+
+    monkeypatch.setattr(auth_mod.hmac, "compare_digest", recording_compare)
+    assert await SharedTokenVerifier(TOKEN).verify_token(value) is None
+    assert calls == []
+
+
+# ── Fix 2: bind policy ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "[::1]", "localhost", "LOCALHOST"])
+def test_is_localhost_true(host: str) -> None:
+    assert is_localhost(host)
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "10.0.0.5", "mcp.internal", "127.0.0.2"])
+def test_is_localhost_false(host: str) -> None:
+    assert not is_localhost(host)
+
+
+@pytest.mark.parametrize("value", ["1", "true", "YES", " on "])
+def test_allow_unauthenticated_bind_truthy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, value)
+    assert allow_unauthenticated_bind()
+
+
+@pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON"])
+def test_allow_unauthenticated_bind_accepts_every_case(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, value)
+    assert allow_unauthenticated_bind()
+
+
+def test_allow_unauthenticated_bind_accepts_only_the_four_values() -> None:
+    import sigma_mcp.auth as auth_mod
+
+    assert auth_mod._TRUTHY == frozenset({"1", "true", "yes", "on"})
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "0", "false", "no", "off", "2", "enabled", "y", "t", "ok", "allow", "truee", "1 1", "on!", "yes please"],
+)
+def test_allow_unauthenticated_bind_falsy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, value)
+    assert not allow_unauthenticated_bind()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        PUBLIC_HTTP,
+        ("--transport", "sse", "--host", "0.0.0.0", "--allowed-host", "mcp.internal"),
+        ("--transport", "streamable-http", "--host", "10.0.0.5"),
+        ("--transport", "sse", "--host", "::"),
+    ],
+)
+def test_non_localhost_without_token_refuses(
+    monkeypatch: pytest.MonkeyPatch,
+    run_args: dict[str, Any],
+    capsys: pytest.CaptureFixture[str],
+    argv: tuple[str, ...],
+) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, "   ")
+    with pytest.raises(SystemExit) as exc:
+        _main(monkeypatch, *argv)
+    assert exc.value.code == 2
+    assert run_args == {}
+    err = capsys.readouterr().err
+    assert "refusing to serve" in err
+    assert AUTH_TOKEN_ENV in err and ALLOW_UNAUTHENTICATED_BIND_ENV in err
+
+
+def test_refusal_message_has_no_secret(
+    monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any], capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, "0")
+    monkeypatch.setenv("TEMPLATE_API_KEY", "upstream-secret-69")
+    with pytest.raises(SystemExit):
+        _main(monkeypatch, *PUBLIC_HTTP)
+    assert "upstream-secret-69" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("transport", ["streamable-http", "sse"])
+def test_non_localhost_with_token_starts_with_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    run_args: dict[str, Any],
+    caplog: pytest.LogCaptureFixture,
+    transport: str,
+) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, TOKEN)
+    with caplog.at_level(logging.INFO, logger="sigma_mcp"):
+        _main(
+            monkeypatch,
+            "--transport",
+            transport,
+            "--host",
+            "0.0.0.0",
+            "--allowed-host",
+            "mcp.internal",
+        )
+    assert run_args["transport"] == transport
+    assert run_args["host"] == "0.0.0.0"
+    assert isinstance(srv.mcp.auth, SharedTokenVerifier)
+    assert "authentication is on" in caplog.text
+    assert TOKEN not in caplog.text
+
+
+def test_non_localhost_with_opt_in_starts_with_warning(
+    monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, "1")
+    with caplog.at_level(logging.WARNING, logger="sigma_mcp"):
+        _main(monkeypatch, *PUBLIC_HTTP)
+    assert run_args["transport"] == "streamable-http"
+    assert srv.mcp.auth is None
+    assert f"{ALLOW_UNAUTHENTICATED_BIND_ENV} is set" in caplog.text
+    assert f"{AUTH_TOKEN_ENV} is not set" in caplog.text
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "localhost"])
+@pytest.mark.parametrize("transport", ["streamable-http", "sse"])
+def test_localhost_without_token_allowed(
+    monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any], transport: str, host: str
+) -> None:
+    _main(monkeypatch, "--transport", transport, "--host", host)
+    assert run_args["transport"] == transport
+    assert srv.mcp.auth is None
+
+
+def test_stdio_ignores_bind_policy_and_token(monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any]) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, TOKEN)
+    _main(monkeypatch, "--transport", "stdio", "--host", "0.0.0.0")
+    assert run_args == {"transport": "stdio"}
+    assert srv.mcp.auth is None
+
+
+# ── Fix 3: the image's default command is stdio and passes the bind guard ──────
+
+
+def _dockerfile_default_argv() -> list[str]:
+    """Exec-form ENTRYPOINT + CMD of the Dockerfile's last stage, as the container runs it."""
+    text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    last_stage = re.split(r"^FROM\s", text, flags=re.MULTILINE)[-1]
+    found: dict[str, list[str]] = {}
+    for kind in ("ENTRYPOINT", "CMD"):
+        lines = re.findall(rf"^{kind}\s+(\[.*\])\s*$", last_stage, flags=re.MULTILINE)
+        if lines:
+            found[kind] = json.loads(lines[-1])
+    argv = found.get("ENTRYPOINT", []) + found.get("CMD", [])
+    assert argv, "Dockerfile runtime stage has no exec-form ENTRYPOINT/CMD"
+    return argv
+
+
+def test_image_default_command_is_stdio(monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any]) -> None:
+    argv = _dockerfile_default_argv()
+    assert argv[0] == "sigma-mcp"
+    monkeypatch.setattr("sys.argv", argv)
+    srv.main()
+    assert run_args == {"transport": "stdio"}
+    assert srv.mcp.auth is None
+
+
+def test_readme_image_http_command_needs_and_attaches_token(
+    monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any]
+) -> None:
+    """The README's `docker run` over HTTP passes the token and binds 0.0.0.0."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert re.search(rf"-e {AUTH_TOKEN_ENV}\s*\\\n", readme)
+    docker_lines = [line for line in readme.splitlines() if "docker run" in line or line.startswith("  -e ")]
+    assert not any(f"{AUTH_TOKEN_ENV}=" in line for line in docker_lines), "token value on the docker command line"
+    assert "--host 0.0.0.0" in readme
+    monkeypatch.setenv(AUTH_TOKEN_ENV, TOKEN)
+    _main(monkeypatch, *PUBLIC_HTTP)
+    assert isinstance(srv.mcp.auth, SharedTokenVerifier)
+
+
+# ── HTTP 401 / 401 / 200 ───────────────────────────────────────────────────────
 
 
 async def _client(app: Any) -> AsyncIterator[httpx.AsyncClient]:
@@ -49,10 +316,12 @@ async def _client(app: Any) -> AsyncIterator[httpx.AsyncClient]:
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("auth_header", "expected"),
-    [(None, 401), ("Bearer wrong-token", 401), ("Basic Zm9vOmJhcg==", 401), (f"Bearer {TOKEN}", 200)],
+    [(None, 401), ("Bearer wrong-token", 401), ("Bearer    ", 401), (f"Bearer {TOKEN}", 200)],
 )
 async def test_streamable_http_enforces_token(auth_header: str | None, expected: int) -> None:
-    app = _protected_server().streamable_http_app(stateless_http=True, json_response=True)
+    server = srv.create_server()
+    server.auth = SharedTokenVerifier(TOKEN)
+    app = server.streamable_http_app(stateless_http=True, json_response=True)
     headers = dict(HEADERS)
     if auth_header is not None:
         headers["Authorization"] = auth_header
@@ -66,6 +335,97 @@ async def test_streamable_http_enforces_token(auth_header: str | None, expected:
             assert res.headers["www-authenticate"].lower().startswith("bearer")
 
 
+# ── #69 item 1: the token is enforced on every HTTP entry point ────────────────
+
+INITIALIZE = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "t", "version": "1"},
+    },
+}
+
+
+def test_create_server_attaches_token_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, f"  {TOKEN}\n")
+    assert isinstance(srv.create_server().auth, SharedTokenVerifier)
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_create_server_blank_token_means_no_auth(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv(AUTH_TOKEN_ENV, value)
+    assert srv.create_server().auth is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("auth_header", "expected"),
+    [(None, 401), ("Bearer wrong-token", 401), (f"Bearer {TOKEN}", 200)],
+)
+async def test_plain_http_app_enforces_env_token(
+    monkeypatch: pytest.MonkeyPatch, auth_header: str | None, expected: int
+) -> None:
+    """``mcp.http_app()`` (what ASGI hosts mount) enforces the env token with no ``main()``."""
+    monkeypatch.setenv(AUTH_TOKEN_ENV, TOKEN)
+    app = srv.create_server().http_app(stateless_http=True, json_response=True)
+    headers = dict(HEADERS)
+    if auth_header is not None:
+        headers["Authorization"] = auth_header
+    async for client in _client(app):
+        res = await client.post("/mcp", json=DISCOVER, headers=headers)
+        assert res.status_code == expected
+        assert TOKEN not in res.text
+
+
+def test_fastmcp_run_entry_point_enforces_env_token() -> None:
+    """``fastmcp run server.py:mcp --transport http``: a fresh import with the token set.
+
+    ``fastmcp run`` imports the module and serves its ``mcp`` object without ``main()``,
+    so the module-level server must already carry the verifier. A subprocess import is
+    the same path, then ``initialize`` over the served ASGI app is refused without a token.
+    """
+    import subprocess
+    import sys
+
+    code = (
+        "import asyncio, httpx, json, sys\n"
+        "import sigma_mcp.server as s\n"
+        "app = s.mcp.http_app(transport='http', stateless_http=True, json_response=True)\n"
+        "async def go():\n"
+        "    async with app.router.lifespan_context(app):\n"
+        "        t = httpx.ASGITransport(app=app)\n"
+        "        async with httpx.AsyncClient(transport=t, base_url='http://127.0.0.1') as c:\n"
+        "            h = {'Accept': 'application/json, text/event-stream',\n"
+        "                 'Content-Type': 'application/json'}\n"
+        "            body = json.loads(sys.argv[1])\n"
+        "            a = await c.post('/mcp', json=body, headers=h)\n"
+        "            h['Authorization'] = 'Bearer ' + sys.argv[2]\n"
+        "            b = await c.post('/mcp', json=body, headers=h)\n"
+        "            print(int(a.status_code), int(b.status_code))\n"
+        "asyncio.run(go())\n"
+    )
+    env = {k: v for k, v in __import__("os").environ.items() if not k.startswith("TEMPLATE_")}
+    env[AUTH_TOKEN_ENV] = TOKEN
+    out = subprocess.run(
+        [sys.executable, "-c", code, json.dumps(INITIALIZE), TOKEN],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=True,
+    )
+    assert out.stdout.split() == ["401", "200"]
+
+
+def _protected_server_sse() -> Any:
+    server = srv.create_server()
+    server.auth = SharedTokenVerifier(TOKEN)
+    return server
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("auth_header", "expected"),
@@ -73,7 +433,7 @@ async def test_streamable_http_enforces_token(auth_header: str | None, expected:
     [(None, 401), ("Bearer wrong-token", 401), (f"Bearer {TOKEN}", 400)],
 )
 async def test_sse_enforces_token(auth_header: str | None, expected: int) -> None:
-    app = _protected_server().http_app(transport="sse", host_origin_protection=False)
+    app = _protected_server_sse().http_app(transport="sse", host_origin_protection=False)
     headers = {"Content-Type": "application/json"}
     if auth_header is not None:
         headers["Authorization"] = auth_header
@@ -86,62 +446,13 @@ async def test_sse_enforces_token(auth_header: str | None, expected: int) -> Non
             assert unauth.status_code == 401
 
 
-@pytest.mark.asyncio
-async def test_verifier_constant_time_and_redacted() -> None:
-    verifier = SharedTokenVerifier(TOKEN)
-    assert await verifier.verify_token("nope") is None
-    assert await verifier.verify_token(TOKEN[:-1]) is None
-    ok = await verifier.verify_token(TOKEN)
-    assert ok is not None and ok.client_id == "sigma-mcp-shared-token"
-    assert TOKEN not in repr(verifier)
-    with pytest.raises(ValueError, match="must be non-empty") as exc:
-        SharedTokenVerifier("")
-    with pytest.raises(ValueError, match="must be non-empty"):
-        SharedTokenVerifier(" \t\n ")
-    assert TOKEN not in str(exc.value)
-
-
-def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> Any:
-    server = srv.create_server()
-    monkeypatch.setattr(srv, "mcp", server)
-    monkeypatch.setattr(server, "run", lambda **kwargs: None)
-    monkeypatch.setattr("sys.argv", ["sigma-mcp", *argv])
-    srv.main()
-    return server
-
-
-@pytest.mark.parametrize("transport", ["streamable-http", "sse"])
-def test_main_wires_auth_on_http(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, transport: str
+def test_wildcard_bind_with_token_still_needs_allowed_host(
+    monkeypatch: pytest.MonkeyPatch, run_args: dict[str, Any], capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", TOKEN)
-    with caplog.at_level(logging.DEBUG):
-        server = _run_main(monkeypatch, ["--transport", transport])
-    assert isinstance(server.auth, SharedTokenVerifier)
-    assert f"Bearer token authentication is on for the {transport} transport" in caplog.text
-    assert TOKEN not in caplog.text
-
-
-def test_main_http_without_token_warns(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    monkeypatch.delenv("SIGMA_MCP_AUTH_TOKEN", raising=False)
-    with caplog.at_level(logging.WARNING):
-        server = _run_main(monkeypatch, ["--transport", "streamable-http"])
-    assert server.auth is None
-    assert "SIGMA_MCP_AUTH_TOKEN is not set" in caplog.text
-
-
-def test_main_http_whitespace_token_is_unset(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", "   ")
-    with caplog.at_level(logging.WARNING):
-        server = _run_main(monkeypatch, ["--transport", "streamable-http"])
-    assert server.auth is None
-    assert "SIGMA_MCP_AUTH_TOKEN is not set" in caplog.text
-
-
-def test_main_stdio_ignores_token(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-    monkeypatch.setenv("SIGMA_MCP_AUTH_TOKEN", TOKEN)
-    with caplog.at_level(logging.DEBUG):
-        server = _run_main(monkeypatch, [])
-    assert server.auth is None
-    assert "SIGMA_MCP_AUTH_TOKEN" not in caplog.text
-    assert "authentication" not in caplog.text.lower()
+    """Auth passes the bind policy; the DNS-rebinding guard still demands ``--allowed-host``."""
+    monkeypatch.setenv(AUTH_TOKEN_ENV, TOKEN)
+    with pytest.raises(SystemExit) as exc:
+        _main(monkeypatch, "--transport", "streamable-http", "--host", "0.0.0.0")
+    assert exc.value.code == 2
+    assert "--allowed-host is required" in capsys.readouterr().err
+    assert run_args == {}

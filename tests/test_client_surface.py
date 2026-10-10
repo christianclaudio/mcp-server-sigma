@@ -67,6 +67,8 @@ from sigma_mcp.config import settings
 from sigma_mcp.profiles import PROFILES
 from sigma_mcp.server import create_server
 
+CODE_MODE_SKIP_REASON = "needs the code-mode extra (fastmcp[code-mode] / pydantic-monty)"
+
 SURFACE_SETTINGS: dict[str, Any] = {}
 RESOURCE_TEMPLATE_URIS: dict[str, str] = {}
 PROMPT_ARGUMENTS: dict[str, dict[str, str]] = {}
@@ -213,7 +215,7 @@ async def test_full_tool_search_reaches_every_tool(surface_settings: None) -> No
 
 async def test_full_code_mode_reaches_every_tool(surface_settings: None) -> None:
     """With Code Mode on ``full``, ``search`` and ``get_schema`` reach every flat tool."""
-    pytest.importorskip("fastmcp.experimental.transforms.code_mode")
+    pytest.importorskip("pydantic_monty", reason=CODE_MODE_SKIP_REASON)
     expected = await _flat_full_tool_names()
     server = create_server(profile="full", enable_tool_search=False, enable_code_mode=True)
     failures: list[str] = []

@@ -2,7 +2,7 @@
 
 The decorator raises ToolError ``from None`` so the unredacted original exception never
 rides along as ``__cause__`` or ``__context__`` (tracebacks, OpenTelemetry exception
-events). Its own ``redact_secrets`` call must scrub a secret from an unexpected
+events). Its own ``redact_message`` call must scrub a secret from an unexpected
 exception message before it reaches the client or the logs.
 """
 
@@ -57,7 +57,7 @@ async def test_decorator_redacts_an_unexpected_exception(
         await handler()
     text = str(exc_info.value)
     assert json.loads(text) == {
-        "error": {"type": "internal", "message": "connect failed for ***REDACTED*** with ***REDACTED***"}
+        "error": {"type": "internal", "message": "connect failed for ***REDACTED*** with Bearer ***REDACTED***"}
     }
     assert _SECRET not in caplog.text
     assert "abc.def.ghi" not in caplog.text
