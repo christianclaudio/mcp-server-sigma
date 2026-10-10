@@ -497,3 +497,11 @@ def test_quoted_token_scan_is_linear() -> None:
     for text in hostile:
         redact_secrets(text)
     assert time.perf_counter() - start < 2.0
+
+
+def test_sigma_error_redacts_embedded_json_by_value() -> None:
+    """``SigmaError`` keeps a JSON body valid, closing ``"}`` included."""
+    err = SigmaError('HTTP 401: {"error": "bad", "password": "p w", "hint": "password=x y"}')
+    body = json.loads(err.message.removeprefix("HTTP 401: "))
+    assert body == {"error": "bad", "password": "***REDACTED***", "hint": "password=***REDACTED***"}
+    assert str(err) == err.message
