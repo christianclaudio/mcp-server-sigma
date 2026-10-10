@@ -497,7 +497,7 @@ def test_item_error_logs_only_index_and_error_type(caplog: pytest.LogCaptureFixt
     with caplog.at_level(logging.WARNING, logger="sigma_mcp"):
         err = _item_error(RuntimeError(message), index=7)
         reason = _item_error("missing file ID", "invalid_item", index=3)
-    assert err["message"] == "upload failed Authorization: ***REDACTED*** api_key=***REDACTED*** for joe@example.com"
+    assert err["message"] == "upload failed Authorization: Bearer ***REDACTED*** api_key=***REDACTED***"
     assert reason["message"] == "missing file ID"
     records = [r for r in caplog.records if r.getMessage().startswith("Batch item ")]
     assert [r.getMessage() for r in records] == [
@@ -536,7 +536,7 @@ async def test_admin_bulk_deactivate_runtime_error_is_redacted(
     api.deactivate_member = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), 200])
     data = await _call_ok("admin_bulk_deactivate_members", {"name_pattern": "Test", "dry_run": False, "confirm": True})
     assert data["status"] == "partial_success"
-    assert data["errors"][0]["error"] == {"type": "internal", "message": "boom Authorization: ***REDACTED***"}
+    assert data["errors"][0]["error"] == {"type": "internal", "message": "boom Authorization: Bearer ***REDACTED***"}
     _no_leak(data, caplog)
     assert "Batch item 0 failed: RuntimeError" in caplog.text
     assert "boom" not in caplog.text
@@ -564,7 +564,7 @@ async def test_workbooks_reassign_runtime_error_is_redacted(api: AsyncMock, capl
         {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com", "dry_run": False},
     )
     assert data["status"] == "partial_success"
-    assert data["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    assert data["errors"][0]["error"]["message"] == "boom Authorization: Bearer ***REDACTED***"
     _no_leak(data, caplog)
 
 
@@ -599,8 +599,8 @@ async def test_elements_scan_runtime_error_is_redacted(api: AsyncMock, caplog: p
     api.list_workbook_page_elements = AsyncMock(return_value={"entries": []})
     data = await _call_ok("elements_list_all_input_tables", {})
     assert data["status"] == "partial_success"
-    assert data["errors"][0]["error"] == "boom Authorization: ***REDACTED***"
-    assert data["errors"][0]["error_detail"]["message"] == "boom Authorization: ***REDACTED***"
+    assert data["errors"][0]["error"] == "boom Authorization: Bearer ***REDACTED***"
+    assert data["errors"][0]["error_detail"]["message"] == "boom Authorization: Bearer ***REDACTED***"
     _no_leak(data, caplog)
 
 
@@ -638,7 +638,7 @@ async def test_datasets_tenant_sync_runtime_error_is_redacted(api: AsyncMock, ca
     api.for_tenant = AsyncMock(side_effect=for_tenant)
     data = await _call_ok("datasets_bulk_sync_tenant_connections", {"dry_run": False})
     assert data["status"] == "partial_success"
-    assert data["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    assert data["errors"][0]["error"]["message"] == "boom Authorization: Bearer ***REDACTED***"
     _no_leak(data, caplog)
 
 
@@ -657,9 +657,11 @@ async def test_datasets_connection_non_api_exception_does_not_stop_batch(
     tenant = data["results"][0]["result"]
     _assert_batch_shape(tenant, "synced")
     assert tenant["synced_count"] == 1
-    assert tenant["errors"][0]["error"]["message"] == "boom Authorization: ***REDACTED***"
+    assert tenant["errors"][0]["error"]["message"] == "boom Authorization: Bearer ***REDACTED***"
     # As on main, the tenant entry lists its failed connections with the message string.
-    assert data["results"][0]["errors"] == [{"connectionId": "c1", "error": "boom Authorization: ***REDACTED***"}]
+    assert data["results"][0]["errors"] == [
+        {"connectionId": "c1", "error": "boom Authorization: Bearer ***REDACTED***"}
+    ]
     _no_leak(data, caplog)
 
 
@@ -838,7 +840,7 @@ async def test_onboard_member_team_add_error_is_redacted(api: AsyncMock, caplog:
     )
     assert set(data) == {"member", "teams_added"}
     assert data["teams_added"] == [
-        "t1: FAILED (boom Authorization: ***REDACTED***)",
+        "t1: FAILED (boom Authorization: Bearer ***REDACTED***)",
         "t2",
         "t3: FAILED (RuntimeError)",
     ]

@@ -22,7 +22,14 @@ error message.
 
 The JSON text of a failed call has one of four error shapes — never an unhandled exception or stack
 trace. Client secrets are redacted from all error messages before they reach the MCP
-client.
+client. Redaction follows the template v1.6.0 house rules (`errors.py`): a secret is masked
+whole with the fixed `***REDACTED***` marker, whatever its length. A quoted value is masked to
+its closing unescaped quote (spaces, commas and escaped quotes included), an unquoted
+`password=`/`api_key=`/`client_secret=`/`private_key=` value runs to the end of the line, any
+`-----BEGIN ...-----` PEM block is masked, and JSON inside a message is parsed and redacted value
+by value (`redact_message` / `redact_payload`) so it stays valid. Sigma-specific patterns
+(`subject_token`, raw JWTs, `ghs_` tokens, and the configured `SIGMA_CLIENT_SECRET` itself) run
+alongside them.
 
 ### 1. API errors (`SigmaAPIError`)
 
@@ -179,7 +186,7 @@ same context fields, `failed_count` and `errors`:
                    "path": "/v2/files/f0", "detail": null, "request_id": null,
                    "message": "Sigma API PATCH /v2/files/f0 returned 403" } },
       { "id": "f1", "name": "WB 1", "status": "failed",
-        "error": { "type": "internal", "message": "boom Authorization: ***REDACTED***" } }
+        "error": { "type": "internal", "message": "boom Authorization: Bearer ***REDACTED***" } }
     ]
   }
 }
