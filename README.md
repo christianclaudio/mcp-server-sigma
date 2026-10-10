@@ -67,6 +67,15 @@ docker run --rm -i --env-file .env \
   ghcr.io/christianclaudio/mcp-server-sigma:latest
 ```
 
+The image's default command is stdio. To serve Streamable HTTP from the container, bind `0.0.0.0` inside it and pass a token:
+
+```bash
+docker run --rm -p 8000:8000 --env-file .env \
+  -e SIGMA_MCP_AUTH_TOKEN=your-long-random-token \
+  ghcr.io/christianclaudio/mcp-server-sigma:latest \
+  --transport streamable-http --host 0.0.0.0 --port 8000 --allowed-host mcp.example.com
+```
+
 ### 2. Set Environment Variables
 
 ```bash
@@ -162,6 +171,12 @@ sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 ```
 
 Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`. When `SIGMA_MCP_AUTH_TOKEN` is set, the client must send `Authorization: Bearer <token>`; requests without it, or with a different token, get HTTP 401.
+
+HTTP transports and authentication follow the MCP guidance that a local server binds only to localhost and authenticates every connection:
+
+* On `127.0.0.1`, `::1` or `localhost` (the `--host` default is `127.0.0.1`), HTTP runs with or without `SIGMA_MCP_AUTH_TOKEN`; without it, a warning says requests are not authenticated.
+* On any other host (`0.0.0.0`, `::`, a LAN address), the server refuses to start (exit code 2) unless `SIGMA_MCP_AUTH_TOKEN` is set, or `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1` accepts an unauthenticated bind (logged as a warning), for example behind a gateway that authenticates for you.
+* The token is attached when the server is built, so `fastmcp run src/sigma_mcp/server.py:mcp --transport http` and an ASGI host mounting `mcp.http_app()` enforce it too. Those entry points do not know the bind host, so they cannot refuse a public bind; use `sigma-mcp` for that policy.
 
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>
@@ -272,7 +287,8 @@ Configure behavior using environment variables:
 | `SIGMA_MCP_ENABLE_TOOL_SEARCH` | `0` | Set `1` (or `--enable-tool-search`) for Tool Search on `full` only. |
 | `SIGMA_MCP_TOOL_SEARCH_BACKEND` | `regex` | Tool Search backend: `regex` or `bm25` (or `--tool-search-backend`). |
 | `SIGMA_MCP_ENABLE_CODE_MODE` | `0` | Set `1` (or `--enable-code-mode`) for experimental Code Mode on `full` only; not with Tool Search. |
-| `SIGMA_MCP_AUTH_TOKEN` | *(unset)* | On `streamable-http` and `sse`, requires `Authorization: Bearer <token>` on every MCP request (FastMCP server auth; a missing or wrong token gets HTTP 401). Unset: HTTP requests are not authenticated and the server logs a warning. Ignored on `stdio`. |
+| `SIGMA_MCP_AUTH_TOKEN` | *(unset)* | On `streamable-http` and `sse`, requires `Authorization: Bearer <token>` on every MCP request (FastMCP server auth; a missing or wrong token gets HTTP 401). Leading and trailing whitespace is stripped; unset or blank: HTTP requests are not authenticated and the server logs a warning. Enforced on every HTTP entry point (`sigma-mcp`, `fastmcp run`, `http_app()`). Ignored on `stdio`. |
+| `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND` | `0` | Set to `1` (or `true`/`yes`/`on`) to let an HTTP transport bind a host other than `127.0.0.1`, `::1` or `localhost` with no token. Without it, such a bind exits at startup with code 2. |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |

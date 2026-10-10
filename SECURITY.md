@@ -46,7 +46,7 @@ This lists only the **90 tools annotated `readOnlyHint=True`** and refuses every
 - **Bulk Deactivation Protections:** Includes `dry_run=True` default, `confirm=False` gate, rejection of catch-all regexes (`.*`, `.+`), and a 10-member safety cap.
 
 ### 5. Network Transport Exposure
-When using network transport (`--transport streamable-http`), bind to `127.0.0.1` or place an authenticating HTTPS proxy in front of the listener.
+When using network transport (`--transport streamable-http`), bind to `127.0.0.1` or place an authenticating HTTPS proxy in front of the listener. When `SIGMA_MCP_AUTH_TOKEN` is set, every HTTP entry point (`sigma-mcp`, `fastmcp run`, `http_app()`) requires `Authorization: Bearer <token>`. `sigma-mcp` refuses to start (exit code 2) an HTTP bind to any host other than `127.0.0.1`, `::1` or `localhost` without a token, unless `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1` accepts it (for example behind a gateway that authenticates for you).
 
 ---
 

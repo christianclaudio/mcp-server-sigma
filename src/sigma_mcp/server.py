@@ -45,7 +45,14 @@ from fastmcp.tools import FunctionTool, Tool
 from mcp.server.caching import CacheHint
 
 from sigma_mcp import __version__
-from sigma_mcp.auth import AUTH_TOKEN_ENV, SharedTokenVerifier
+from sigma_mcp.auth import (
+    ALLOW_UNAUTHENTICATED_BIND_ENV,
+    AUTH_TOKEN_ENV,
+    SharedTokenVerifier,
+    allow_unauthenticated_bind,
+    is_localhost,
+    read_auth_token,
+)
 from sigma_mcp.client import SigmaClient
 from sigma_mcp.config import readonly_enabled, settings
 from sigma_mcp.errors import redact_secrets
@@ -502,9 +509,15 @@ def create_server(
     if use_tool_search and use_code_mode:
         raise ValueError("Tool Search and Code Mode are mutually exclusive; enable only one discovery mode.")
 
+    # Bearer auth on every HTTP entry point (``main()``, ``fastmcp run``, ``http_app()``):
+    # FastMCP servers default to ``auth=None``, so the verifier is attached at build time
+    # whenever the stripped token env is non-blank. The localhost bind refusal stays in
+    # ``main()``, the only entry point that knows the bind host.
+    auth_token = read_auth_token()
     root = FastMCP(
         "mcp-server-sigma",
         version=__version__,
+        auth=SharedTokenVerifier(auth_token) if auth_token else None,
         lifespan=server_lifespan,
         cache_ttl=3600,
         cache_scope="public",
@@ -654,6 +667,42 @@ def _handle_shutdown(signum: int, frame: Any) -> None:
     sys.exit(0)
 
 
+def _apply_http_auth(parser: argparse.ArgumentParser, transport: str, host: str) -> None:
+    """Make sure bearer auth from the token env is on, or enforce the localhost-only bind policy.
+
+    ``create_server`` already attaches the verifier when the token env is set at build time;
+    this attaches it at serve time if the env was set after import and no verifier exists
+    yet. A token changed after the server is built is not picked up; rebuild the server.
+    A token that is empty after ``.strip()`` counts as unset. With no token, a bind to any
+    host other than 127.0.0.1, ::1 or localhost exits through ``parser.error`` unless
+    ``SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND`` opts in. Messages never include the token.
+    """
+    auth_token = read_auth_token()
+    if auth_token:
+        if not isinstance(mcp.auth, SharedTokenVerifier):
+            mcp.auth = SharedTokenVerifier(auth_token)
+        logger.info("Bearer token authentication is on for the %s transport", transport)
+        return
+    if not is_localhost(host):
+        if not allow_unauthenticated_bind():
+            parser.error(
+                f"refusing to serve {transport} on non-localhost host {host!r} without "
+                f"authentication: set {AUTH_TOKEN_ENV}, bind to 127.0.0.1, ::1 or localhost, "
+                f"or set {ALLOW_UNAUTHENTICATED_BIND_ENV}=1 to accept an unauthenticated bind"
+            )
+        logger.warning(
+            "%s is set: serving %s on non-localhost host %r without authentication.",
+            ALLOW_UNAUTHENTICATED_BIND_ENV,
+            transport,
+            host,
+        )
+    logger.warning(
+        "%s is not set, so MCP requests on the %s transport are not authenticated.",
+        AUTH_TOKEN_ENV,
+        transport,
+    )
+
+
 def main() -> None:
     """Run MCPServer with transport selection and graceful shutdown handling."""
     signal.signal(signal.SIGTERM, _handle_shutdown)
@@ -762,7 +811,6 @@ def main() -> None:
             tool_search_backend=backend,
         )
 
-    auth_token = os.environ.get(AUTH_TOKEN_ENV, "").strip()
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", 8000)
     stateless = getattr(args, "stateless", False)
@@ -775,15 +823,7 @@ def main() -> None:
             logger.warning("--json-response flag is only applicable to 'streamable-http' transport.")
 
     if args.transport in ("sse", "streamable-http"):
-        if auth_token:
-            mcp.auth = SharedTokenVerifier(auth_token)
-            logger.info("Bearer token authentication is on for the %s transport", args.transport)
-        else:
-            logger.warning(
-                "%s is not set, so MCP requests on the %s transport are not authenticated.",
-                AUTH_TOKEN_ENV,
-                args.transport,
-            )
+        _apply_http_auth(parser, args.transport, host)
 
     hosts = getattr(args, "allowed_hosts", None)
     if hosts is None:
