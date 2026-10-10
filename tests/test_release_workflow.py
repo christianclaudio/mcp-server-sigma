@@ -63,8 +63,20 @@ def test_docker_job_exposes_digest_and_pushes_a_plain_manifest() -> None:
     assert build["with"]["sbom"] is False
 
 
+_PINNED = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
+
+
 def test_every_action_is_pinned_to_a_commit_sha() -> None:
-    for job in _jobs().values():
+    """Step-level and job-level (reusable workflow) ``uses`` are both pinned to a full SHA."""
+    for name, job in _jobs().items():
+        if "uses" in job and not str(job["uses"]).startswith("./"):
+            assert _PINNED.fullmatch(job["uses"]), (name, job["uses"])
         for step in job.get("steps", []):
             if "uses" in step:
-                assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", step["uses"]), step["uses"]
+                assert _PINNED.fullmatch(step["uses"]), step["uses"]
+
+
+def test_workflow_level_permissions_are_read_only() -> None:
+    """The top-level block grants only ``contents: read``; each job asks for its own writes."""
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    assert workflow["permissions"] == {"contents": "read"}

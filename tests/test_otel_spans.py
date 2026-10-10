@@ -8,6 +8,7 @@ A chain-walking exporter would bring back an unredacted original if the redacted
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -22,11 +23,19 @@ import sigma_mcp.server as server
 EXPORTER = InMemorySpanExporter()
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _provider() -> None:
+@pytest.fixture(autouse=True)
+def _provider(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Install an in-memory provider for this test only, then restore the global one.
+
+    ``trace.set_tracer_provider`` can be called once per process, so the test patches the
+    module globals it sets (and the set-once guard) and monkeypatch puts them back after.
+    """
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(EXPORTER))
-    trace.set_tracer_provider(provider)
+    monkeypatch.setattr(trace, "_TRACER_PROVIDER", provider)
+    monkeypatch.setattr(trace, "_TRACER_PROVIDER_SET_ONCE", trace.Once())
+    yield
+    provider.shutdown()
 
 
 def _span_text(span: Any) -> str:

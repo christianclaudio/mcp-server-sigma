@@ -67,11 +67,12 @@ docker run --rm -i --env-file .env \
   ghcr.io/christianclaudio/mcp-server-sigma:latest
 ```
 
-The image's default command is stdio. To serve Streamable HTTP from the container, bind `0.0.0.0` inside it and pass a token:
+The image's default command is stdio. To serve Streamable HTTP from the container, bind `0.0.0.0` inside it and pass a token. Keep the token off the command line (it shows up in shell history and `ps`): put `SIGMA_MCP_AUTH_TOKEN` in `.env`, or export it and pass the name alone with `-e`:
 
 ```bash
+export SIGMA_MCP_AUTH_TOKEN="$(openssl rand -hex 32)"  # or read it from your secret store
 docker run --rm -p 8000:8000 --env-file .env \
-  -e SIGMA_MCP_AUTH_TOKEN=your-long-random-token \
+  -e SIGMA_MCP_AUTH_TOKEN \
   ghcr.io/christianclaudio/mcp-server-sigma:latest \
   --transport streamable-http --host 0.0.0.0 --port 8000 --allowed-host mcp.example.com
 ```
@@ -172,7 +173,7 @@ sigma-mcp --transport streamable-http --host 127.0.0.1 --port 8000
 
 Point your local Codex / Streamable HTTP client to `http://127.0.0.1:8000/mcp`. When `SIGMA_MCP_AUTH_TOKEN` is set, the client must send `Authorization: Bearer <token>`; requests without it, or with a different token, get HTTP 401.
 
-HTTP transports and authentication follow the MCP guidance that a local server binds only to localhost and authenticates every connection:
+HTTP transports follow the MCP guidance that a local server binds to localhost, and require a bearer token whenever the server is reachable beyond it:
 
 * On `127.0.0.1`, `::1` or `localhost` (the `--host` default is `127.0.0.1`), HTTP runs with or without `SIGMA_MCP_AUTH_TOKEN`; without it, a warning says requests are not authenticated.
 * On any other host (`0.0.0.0`, `::`, a LAN address), the server refuses to start (exit code 2) unless `SIGMA_MCP_AUTH_TOKEN` is set, or `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1` accepts an unauthenticated bind (logged as a warning), for example behind a gateway that authenticates for you.

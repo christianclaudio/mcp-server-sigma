@@ -293,7 +293,9 @@ def test_readme_image_http_command_needs_and_attaches_token(
 ) -> None:
     """The README's `docker run` over HTTP passes the token and binds 0.0.0.0."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert f"-e {AUTH_TOKEN_ENV}" in readme
+    assert re.search(rf"-e {AUTH_TOKEN_ENV}\s*\\\n", readme)
+    docker_lines = [line for line in readme.splitlines() if "docker run" in line or line.startswith("  -e ")]
+    assert not any(f"{AUTH_TOKEN_ENV}=" in line for line in docker_lines), "token value on the docker command line"
     assert "--host 0.0.0.0" in readme
     monkeypatch.setenv(AUTH_TOKEN_ENV, TOKEN)
     _main(monkeypatch, *PUBLIC_HTTP)
