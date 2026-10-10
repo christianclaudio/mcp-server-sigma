@@ -26,7 +26,8 @@ client. Redaction follows the template v1.6.0 house rules (`errors.py`): a secre
 whole with the fixed `***REDACTED***` marker, whatever its length. A quoted value is masked to
 its closing unescaped quote (spaces, commas and escaped quotes included), an unquoted
 `password=`/`api_key=`/`client_secret=`/`private_key=` value runs to the end of the line, any
-`-----BEGIN ...-----` PEM block is masked, and JSON inside a message is parsed and redacted value
+`-----BEGIN ...-----` PEM block is masked (labels in any case; a BEGIN with no END is masked
+to the end of the text), past 64 brackets that fail to parse the rest of a message is masked, and JSON inside a message is parsed and redacted value
 by value (`redact_message` / `redact_payload`) so it stays valid. Every tool error goes through `redact_message` (`sigma_tool` and `_tool_failure` in
 `tools/common.py`), so a number or other non-string value under a credential key, for example
 `{"password": 12345}`, is masked too. Sigma-specific patterns
