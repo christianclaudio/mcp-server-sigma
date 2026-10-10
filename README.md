@@ -178,6 +178,7 @@ HTTP transports follow the MCP guidance that a local server binds to localhost, 
 * On `127.0.0.1`, `::1` or `localhost` (the `--host` default is `127.0.0.1`), HTTP runs with or without `SIGMA_MCP_AUTH_TOKEN`; without it, a warning says requests are not authenticated.
 * On any other host (`0.0.0.0`, `::`, a LAN address), the server refuses to start (exit code 2) unless `SIGMA_MCP_AUTH_TOKEN` is set, or `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1` accepts an unauthenticated bind (logged as a warning), for example behind a gateway that authenticates for you.
 * The token is attached when the server is built, so `fastmcp run src/sigma_mcp/server.py:mcp --transport http` and an ASGI host mounting `mcp.http_app()` enforce it too. Those entry points do not know the bind host, so they cannot refuse a public bind; use `sigma-mcp` for that policy.
+* In the default (stateful) HTTP mode, a session idle for 30 minutes expires: its next request gets HTTP 404 and the client must start a new session. Change this with FastMCP's `session_idle_timeout` (on `http_app()`) or `FASTMCP_HTTP_SESSION_IDLE_TIMEOUT` (seconds, or `none` to never expire); see the [FastMCP 4.1.0 release](https://github.com/PrefectHQ/fastmcp/releases/tag/v4.1.0) and [#5229](https://github.com/PrefectHQ/fastmcp/pull/5229).
 
 *Note for hosted ChatGPT Actions or Custom GPTs:* Hosted cloud services cannot reach `localhost`. Place an authenticating HTTPS proxy (e.g., ngrok, Cloudflare Tunnel, or Caddy with TLS and Auth) in front of the server before connecting cloud services.
 </details>
