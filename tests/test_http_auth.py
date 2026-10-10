@@ -116,6 +116,23 @@ async def test_verifier_contract() -> None:
     assert ok is not None and ok.client_id == "sigma-mcp-shared-token"
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["", " ", "\t\n"])
+async def test_verifier_rejects_blank_token_before_comparing(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    """A blank or whitespace token is refused up front, never reaching the digest compare."""
+    import sigma_mcp.auth as auth_mod
+
+    calls: list[tuple[bytes, bytes]] = []
+
+    def recording_compare(a: bytes, b: bytes) -> bool:
+        calls.append((a, b))
+        return False
+
+    monkeypatch.setattr(auth_mod.hmac, "compare_digest", recording_compare)
+    assert await SharedTokenVerifier(TOKEN).verify_token(value) is None
+    assert calls == []
+
+
 # ── Fix 2: bind policy ──────────────────────────────────────────────────────────
 
 
@@ -135,7 +152,22 @@ def test_allow_unauthenticated_bind_truthy(monkeypatch: pytest.MonkeyPatch, valu
     assert allow_unauthenticated_bind()
 
 
-@pytest.mark.parametrize("value", ["", "0", "false", "no", "2"])
+@pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON"])
+def test_allow_unauthenticated_bind_accepts_every_case(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, value)
+    assert allow_unauthenticated_bind()
+
+
+def test_allow_unauthenticated_bind_accepts_only_the_four_values() -> None:
+    import sigma_mcp.auth as auth_mod
+
+    assert auth_mod._TRUTHY == frozenset({"1", "true", "yes", "on"})
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "0", "false", "no", "off", "2", "enabled", "y", "t", "ok", "allow", "truee", "1 1", "on!", "yes please"],
+)
 def test_allow_unauthenticated_bind_falsy(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setenv(ALLOW_UNAUTHENTICATED_BIND_ENV, value)
     assert not allow_unauthenticated_bind()
