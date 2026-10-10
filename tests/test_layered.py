@@ -19,6 +19,8 @@ from sigma_mcp.errors import SafetyViolationError
 from sigma_mcp.middleware import AdminDomainGuardMiddleware, ParentAuditMiddleware, ReadOnlyGateMiddleware
 from sigma_mcp.server import DOMAIN_SERVERS, create_server, main
 
+CODE_MODE_SKIP_REASON = "needs the code-mode extra (fastmcp[code-mode] / pydantic-monty)"
+
 
 @pytest.fixture(autouse=True)
 def _clean_gate_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
@@ -124,6 +126,7 @@ def test_tool_search_and_code_mode_are_mutually_exclusive() -> None:
 @pytest.mark.asyncio
 async def test_full_code_mode_attaches_when_available(caplog: pytest.LogCaptureFixture) -> None:
     """full + enable_code_mode attaches experimental meta-tools; job profiles refuse it."""
+    pytest.importorskip("pydantic_monty", reason=CODE_MODE_SKIP_REASON)
     app = create_server(profile="full", enable_code_mode=True, enable_tool_search=False)
     names = {t.name for t in await app.list_tools()}
     assert "execute" in names

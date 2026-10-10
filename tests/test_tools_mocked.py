@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastmcp.exceptions import ToolError
 
+CODE_MODE_SKIP_REASON = "needs the code-mode extra (fastmcp[code-mode] / pydantic-monty)"
+
 sys.path.insert(0, "src")
 
 
@@ -330,6 +332,7 @@ async def test_tool_failure_reaches_client_as_is_error(caplog):
 @pytest.mark.asyncio
 async def test_code_mode_execute_runs_real_tool():
     """execute runs Python in the Code Mode sandbox and reaches a real catalog tool."""
+    pytest.importorskip("pydantic_monty", reason=CODE_MODE_SKIP_REASON)
     from fastmcp import Client
 
     from sigma_mcp import server as srv

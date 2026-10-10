@@ -64,7 +64,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 - Gating:
   - Read-only mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) keeps only tools annotated `readOnlyHint=True` and refuses every other call, directly or through `call_tool`, with a `SafetyViolationError` (a FastMCP `ToolError`, so `isError: true`).
   - Bulk protection: `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are listed in `full` and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
-  - Profiles (`SIGMA_MCP_PROFILE` or `--profile`): `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin`. A new tool goes into the job profiles in `profiles.py` or into `FULL_ONLY_TOOLS`; unknown names fail at build. Tool Search and Code Mode attach on `full` only and never together.
+  - Profiles (`SIGMA_MCP_PROFILE` or `--profile`): `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin`. A new tool goes into the job profiles in `profiles.py` or into `FULL_ONLY_TOOLS`; unknown names fail at build. Tool Search and Code Mode attach on `full` only and never together. Code Mode's sandbox is the public `code-mode` extra (`fastmcp[code-mode]`, same floor as `dev`); Code Mode tests call `pytest.importorskip("pydantic_monty")`, and `tests/conftest.py` aborts a CI session (`CI` set) without it, so CI syncs `--extra dev --extra code-mode`.
 
 ### 4. Pure Offline Testing & Contract Sync (`tests/`)
 - Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
@@ -108,7 +108,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 
 ```bash
 # Install editable with dev dependencies
-uv sync --locked --extra dev
+uv sync --locked --extra dev --extra code-mode
 
 # Lint and formatting
 uv run ruff check . && uv run ruff format --check .

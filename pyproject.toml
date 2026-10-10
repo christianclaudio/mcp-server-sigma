@@ -30,6 +30,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Code Mode is optional: FastMCP ships its pydantic-monty sandbox as the code-mode extra.
+# Users install mcp-server-sigma[code-mode]; dev repeats the same pin so tests run execute.
+code-mode = [
+    "fastmcp[code-mode]>=4.0.11",
+]
 dev = [
     "fastmcp[code-mode]>=4.0.11",
     "jsonschema>=4.26.0",

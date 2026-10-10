@@ -30,6 +30,8 @@ from sigma_mcp.profiles import (
 )
 from sigma_mcp.server import create_server
 
+CODE_MODE_SKIP_REASON = "needs the code-mode extra (fastmcp[code-mode] / pydantic-monty)"
+
 JOB_PROFILES = [p for p in PROFILES.values() if p.is_allowlist]
 ANALYST = PROFILES["analyst"]
 
@@ -511,6 +513,7 @@ async def test_code_mode_discovery_read_only_and_execute_refused_under_readonly(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Code Mode search/get_schema are annotated read-only; execute is refused under readonly."""
+    pytest.importorskip("pydantic_monty", reason=CODE_MODE_SKIP_REASON)
     monkeypatch.setattr(settings, "MCP_READONLY", True)
     app = create_server(profile="full", enable_code_mode=True)
     listed = {t.name: t for t in await app.list_tools()}
