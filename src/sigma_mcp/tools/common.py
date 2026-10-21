@@ -141,55 +141,84 @@ def _require_body_fields(body: dict[str, Any], *fields: str) -> None:
         _invalid_request(f"body is missing required field(s): {', '.join(missing)}")
 
 
-# Fields of an API credential's ``credential`` that Sigma encrypts at rest and never returns
-# (request schemas of POST /v2/api-credentials and PATCH /v2/api-credentials/{id}).
-_CREDENTIAL_SECRET_FIELDS = frozenset({"password", "token", "value", "clientSecret", "secretAccessKey"})
+# Write-only fields Sigma never returns, by request schema. API credentials
+# (POST /v2/api-credentials, PATCH /v2/api-credentials/{id}): the basic password, bearer token,
+# apiKey value (also each temporaryCredentialsRequestParams value), OAuth client secret, and the
+# awsSigV4 secret access key and STS session token.
+API_CREDENTIAL_SECRET_FIELDS = frozenset(
+    {"password", "token", "value", "clientSecret", "secretAccessKey", "sessionToken"}
+)
+# Connections (POST /v2/connections ``details``): each may be a string or an object (a
+# ``{type, value}`` password, a secret-manager reference, ``pythonSecrets`` with user passwords).
+CONNECTION_SECRET_FIELDS = frozenset(
+    {"password", "privateKey", "privateKeyPassphrase", "clientSecret", "token", "pythonSecrets"}
+)
+# A sent secret shorter than this is masked only where it sits under a secret field: replacing
+# every occurrence of a short string in free text would mask unrelated words and IDs.
+_MIN_LITERAL = 8
 
 
-def _credential_secrets(body: dict[str, Any]) -> list[str]:
-    """Return the secret strings in *body*'s ``credential``, longest first."""
+def _secrets_in(node: Any, fields: frozenset[str]) -> list[str]:
+    """Return the strings under *fields* anywhere in *node*, longest first."""
     found: set[str] = set()
 
-    def walk(node: Any) -> None:
-        if isinstance(node, dict):
-            for key, value in node.items():
-                if key in _CREDENTIAL_SECRET_FIELDS and isinstance(value, str) and value:
-                    found.add(value)
+    def collect(value: Any) -> None:
+        if isinstance(value, str):
+            if value:
+                found.add(value)
+        elif isinstance(value, dict):
+            for v in value.values():
+                collect(v)
+        elif isinstance(value, list):
+            for v in value:
+                collect(v)
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, v in value.items():
+                if key in fields:
+                    collect(v)
                 else:
-                    walk(value)
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
+                    walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v)
 
-    walk(body.get("credential"))
-    return sorted(found, key=len, reverse=True)
+    walk(node)
+    return sorted(found, key=lambda s: (-len(s), s))
 
 
-def _mask_literals(value: Any, secrets: list[str]) -> Any:
-    """Replace every occurrence of each secret in the strings of *value* with ``MASK``."""
+def _mask_secrets(value: Any, fields: frozenset[str], secrets: list[str]) -> Any:
+    """Mask every non-None value under *fields*, and each long sent secret inside other strings."""
+    if isinstance(value, dict):
+        return {
+            k: (MASK if k in fields and v is not None else _mask_secrets(v, fields, secrets)) for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_mask_secrets(v, fields, secrets) for v in value]
     if isinstance(value, str):
         for secret in secrets:
-            value = value.replace(secret, MASK)
+            if len(secret) >= _MIN_LITERAL:
+                value = value.replace(secret, MASK)
         return value
-    if isinstance(value, dict):
-        return {k: _mask_literals(v, secrets) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_mask_literals(v, secrets) for v in value]
     return value
 
 
-async def _call_masking_secrets(call: Awaitable[Any], secrets: list[str]) -> Any:
-    """Await *call* and mask *secrets* in its result or in a ``SigmaAPIError`` detail.
+async def _call_masking_secrets(call: Awaitable[Any], fields: frozenset[str], sent: Any) -> Any:
+    """Await *call* and mask the secrets *sent* carried in its result or a ``SigmaAPIError`` detail.
 
-    The key-based redaction misses some credential fields (``value``, ``secretAccessKey``),
-    so the secrets a tool sent are masked literally wherever Sigma echoes them.
+    The result and detail are masked field by field (*fields*, wherever Sigma echoes them), and
+    a sent secret of at least ``_MIN_LITERAL`` characters is also masked inside other strings,
+    such as an error message that quotes it. A ``SigmaAPIError`` detail is masked before
+    ``to_dict`` redacts it and cuts it to 500 characters, so a cut never splits a secret.
     """
+    secrets = _secrets_in(sent, fields)
     try:
         result = await call
     except SigmaAPIError as exc:
-        exc.detail = _mask_literals(exc.detail, secrets)
+        exc.detail = _mask_secrets(exc.detail, fields, secrets)
         raise
-    return _mask_literals(result, secrets)
+    return _mask_secrets(result, fields, secrets)
 
 
 def _confirm_required(action: str) -> str:
@@ -218,6 +247,45 @@ def _summarize_list(data: Any, key_fields: list[str]) -> Any:
     if "nextPage" in data:
         res["nextPage"] = data["nextPage"]
     return res
+
+
+def _require_email(field: str, value: str) -> None:
+    """Refuse a value that is not an email address, before any request is sent.
+
+    ``GET /v2/members`` filters only by ``email``; Sigma removed its ``search`` (name) filter.
+    """
+    if "@" not in value:
+        _invalid_request(f"{field} must be an email address; Sigma looks members up by email only")
+
+
+async def _members_with_email(client: Any, email: str) -> list[dict[str, Any]]:
+    """The members whose ``email`` equals *email*, ignoring case.
+
+    Sigma's ``email`` filter is not documented as an exact match, so every result is compared
+    here and only an exact (case-insensitive) match counts.
+    """
+    results = await client.search_members(email)
+    entries = results.get("entries") if isinstance(results, dict) else results
+    want = email.casefold()
+    return [
+        e
+        for e in (entries if isinstance(entries, list) else [])
+        if isinstance(e, dict) and isinstance(e.get("email"), str) and e["email"].casefold() == want
+    ]
+
+
+async def _member_id_for_email(client: Any, field: str, email: str) -> str:
+    """The ID of the one member whose email is *email* (ignoring case), or a refused call.
+
+    No match fails with ``not_found`` and more than one with ``ambiguous_member``, so a caller
+    never acts on a first result it has not checked.
+    """
+    matches = await _members_with_email(client, email)
+    if not matches:
+        _tool_failure("not_found", f"No member has the email given in {field}")
+    if len(matches) > 1:
+        _tool_failure("ambiguous_member", f"More than one member has the email given in {field}", matches=len(matches))
+    return str(matches[0]["memberId"])
 
 
 def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:

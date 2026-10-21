@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from sigma_mcp.client import SigmaClient
 
@@ -85,27 +85,48 @@ class TestTenantsCursorPagination:
     async def test_cursor_pagination_terminates(self) -> None:
         from sigma_mcp.server import sigma_list_tenants_paginated
 
-        mc = MagicMock()
+        c = _preauth_client()
         pages = [
             {"entries": [{"orgId": "t1"}], "nextPageToken": "cursor-2"},
             {"entries": [{"orgId": "t2"}], "nextPageToken": "cursor-3"},
             {"entries": [{"orgId": "t3"}]},  # no nextPageToken
         ]
-        call_idx = [0]
+        calls: list[dict] = []
 
         async def mock_get(path: str, params: dict | None = None) -> dict:
-            idx = call_idx[0]
-            call_idx[0] += 1
-            return pages[idx]
+            assert path == "/v2/tenants"
+            calls.append(dict(params or {}))
+            return pages[len(calls) - 1]
 
-        mc.get = AsyncMock(side_effect=mock_get)
-
-        with patch("sigma_mcp.server.get_client", AsyncMock(return_value=mc)):
+        with (
+            patch.object(c, "get", side_effect=mock_get),
+            patch("sigma_mcp.server.get_client", AsyncMock(return_value=c)),
+        ):
             result_str = await sigma_list_tenants_paginated()
 
         result = json.loads(result_str)
         assert result["total"] == 3
         assert [t["orgId"] for t in result["tenants"]] == ["t1", "t2", "t3"]
+        # The spec's pageSize/pageToken; /v2/tenants takes no limit.
+        assert calls == [
+            {"pageSize": 200},
+            {"pageSize": 200, "pageToken": "cursor-2"},
+            {"pageSize": 200, "pageToken": "cursor-3"},
+        ]
+
+    async def test_stops_on_a_repeated_token(self) -> None:
+        from sigma_mcp.server import sigma_list_tenants_paginated
+
+        c = _preauth_client()
+        pages = [
+            {"entries": [{"orgId": "t1"}], "nextPageToken": "same"},
+            {"entries": [{"orgId": "t2"}], "nextPageToken": "same"},
+        ]
+        get = AsyncMock(side_effect=pages)
+        with patch.object(c, "get", get), patch("sigma_mcp.server.get_client", AsyncMock(return_value=c)):
+            result = json.loads(await sigma_list_tenants_paginated())
+        assert result == {"total": 2, "tenants": [{"orgId": "t1"}, {"orgId": "t2"}]}
+        assert get.await_count == 2
 
 
 # ─── list_all_* helpers ───────────────────────────────────────────────────────

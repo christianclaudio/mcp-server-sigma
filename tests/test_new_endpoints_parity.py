@@ -173,7 +173,7 @@ async def test_client_methods_direct(mock_client: SigmaClient):
     # list_org_workbook_agents
     http_mock.request.return_value = _mock_res(200, {"entries": []})
     res = await client.list_org_workbook_agents(page_token="tok1", page_size=25)
-    assert res == {"entries": []}
+    assert res == {"entries": [], "nextPageToken": None}
     assert "/v2/workbookAgents" in http_mock.request.call_args[0][1]
     assert http_mock.request.call_args[1]["params"] == {"pageToken": "tok1", "pageSize": 25}
 
@@ -204,7 +204,7 @@ async def test_client_methods_direct(mock_client: SigmaClient):
     # list_allowed_ips
     http_mock.request.return_value = _mock_res(200, {"entries": []})
     res = await client.list_allowed_ips(page_token="ip-tok", page_size=10)
-    assert res == {"entries": []}
+    assert res == {"entries": [], "nextPageToken": None}
     assert "/v3alpha/allowedIps" in http_mock.request.call_args[0][1]
     assert http_mock.request.call_args[1]["params"] == {"pageToken": "ip-tok", "pageSize": 10}
 
@@ -341,7 +341,7 @@ async def test_admin_tools(mock_client: SigmaClient):
     # sigma_list_org_workbook_agents
     http_mock.request.return_value = _mock_res(200, {"entries": []})
     out = await sigma_list_org_workbook_agents(page_token="tok", page_size=50)
-    assert json.loads(out) == {"entries": []}
+    assert json.loads(out) == {"entries": [], "nextPageToken": None}
 
     # sigma_get_org_setting
     with pytest.raises(ToolError, match="setting_name is required"):
@@ -379,7 +379,7 @@ async def test_admin_tools(mock_client: SigmaClient):
     # sigma_list_allowed_ips
     http_mock.request.return_value = _mock_res(200, {"entries": [{"ip": "10.0.0.1"}]})
     out = await sigma_list_allowed_ips()
-    assert json.loads(out) == {"entries": [{"ip": "10.0.0.1"}]}
+    assert json.loads(out) == {"entries": [{"ip": "10.0.0.1"}], "nextPageToken": None}
 
     # sigma_add_allowed_ips
     assert "confirm=true" in await sigma_add_allowed_ips([], confirm=False)

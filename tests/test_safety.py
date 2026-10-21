@@ -126,8 +126,8 @@ class TestReassignWorkbookSafety:
         mc = MagicMock()
         mc.search_members = AsyncMock(
             side_effect=[
-                {"entries": [{"memberId": "old-id"}]},
-                {"entries": [{"memberId": "new-id"}]},
+                {"entries": [{"memberId": "old-id", "email": "old@x.com"}]},
+                {"entries": [{"memberId": "new-id", "email": "new@x.com"}]},
             ]
         )
         mc.get = AsyncMock(

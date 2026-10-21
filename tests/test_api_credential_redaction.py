@@ -53,6 +53,19 @@ CREDENTIALS: dict[str, tuple[dict[str, Any], str]] = {
         },
         "sak-S3cret-aws",
     ),
+    # The awsSigV4 STS session token (temporary credentials) is a secret too.
+    "awsSigV4 sessionToken": (
+        {
+            "authMethod": "awsSigV4",
+            "awsSigV4": {
+                "accessKeyId": "ASIA1",
+                "secretAccessKey": "sak-S3cret-aws2",
+                "sessionToken": "st-S3cret-session",
+                "region": "us-east-1",
+            },
+        },
+        "st-S3cret-session",
+    ),
 }
 
 CALLS = [
@@ -116,10 +129,46 @@ async def test_secret_is_masked_in_an_echoed_result(
 
 
 def test_secrets_inside_lists_are_collected_longest_first() -> None:
-    from sigma_mcp.tools.common import _credential_secrets, _mask_literals
+    from sigma_mcp.tools.common import API_CREDENTIAL_SECRET_FIELDS, _secrets_in
 
-    body = {"credential": {"extra": [{"value": "ab"}, {"password": "abcd"}, "plain", {"value": ""}]}}
-    secrets = _credential_secrets(body)
-    assert secrets == ["abcd", "ab"]
-    assert _mask_literals({"x": ["abcd ab", 3]}, secrets) == {"x": [f"{MASK} {MASK}", 3]}
-    assert _credential_secrets({"name": "n"}) == []
+    node = {"extra": [{"value": "ab"}, {"password": "abcd"}, "plain", {"value": ""}], "token": {"x": ["deep"]}}
+    assert _secrets_in(node, API_CREDENTIAL_SECRET_FIELDS) == ["abcd", "deep", "ab"]
+    assert _secrets_in({"name": "n"}, API_CREDENTIAL_SECRET_FIELDS) == []
+    assert _secrets_in(None, API_CREDENTIAL_SECRET_FIELDS) == []
+
+
+def test_masking_is_field_scoped_for_short_secrets() -> None:
+    from sigma_mcp.tools.common import API_CREDENTIAL_SECRET_FIELDS, _mask_secrets
+
+    fields = API_CREDENTIAL_SECRET_FIELDS
+    # A short sent secret ("s3", e.g. a temporaryCredentialsRequestParams value) is masked in its
+    # field, not everywhere the two characters appear.
+    echo = {
+        "awsSigV4": {"service": "s3", "temporaryCredentialsRequestParams": [{"key": "k", "value": "s3"}]},
+        "sessionToken": None,
+        "note": "bucket s3 ok",
+    }
+    out = _mask_secrets(echo, fields, ["s3"])
+    assert out == {
+        "awsSigV4": {"service": "s3", "temporaryCredentialsRequestParams": [{"key": "k", "value": MASK}]},
+        "sessionToken": None,
+        "note": "bucket s3 ok",
+    }
+    # A long one is also masked inside other strings, such as a quoting error message.
+    assert _mask_secrets({"message": "bad key long-S3cret-1", "n": 3}, fields, ["long-S3cret-1"]) == {
+        "message": f"bad key {MASK}",
+        "n": 3,
+    }
+
+
+async def test_long_secret_is_masked_before_the_500_character_cut(http: AsyncMock) -> None:
+    # The secret straddles character 500 of a plain-text error body: it is masked first, so no
+    # prefix of it survives the cut.
+    secret = "sak-S3cret-straddling-the-cut-0123456789"
+    credential = {"authMethod": "awsSigV4", "awsSigV4": {"accessKeyId": "AKIA1", "secretAccessKey": secret}}
+    body = {"name": "n", "allowlist": ["*"], "credential": credential}
+    http.request.return_value = httpx.Response(400, text="x" * 490 + secret + " tail")
+    is_error, text = await _call("admin_create_api_credential", {"body": body})
+    assert is_error
+    assert secret[:10] not in text
+    assert MASK[:5] in text

@@ -136,7 +136,7 @@ async def test_reassign_workbook_ownership(monkeypatch: pytest.MonkeyPatch) -> N
     c = SigmaClient("test-id", "test-secret-32-bytes-long-key-123", "https://api.sigmacomputing.com")
     monkeypatch.setattr(srv, "_client", c)
 
-    c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
+    c.search_members = AsyncMock(side_effect=lambda email: {"entries": [{"memberId": "m1", "email": email}]})
     c.get = AsyncMock(
         return_value={
             "entries": [

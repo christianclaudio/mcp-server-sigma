@@ -830,7 +830,7 @@ DESTRUCTIVE_CASES: list[tuple[str, str]] = [
     ("admin", "revoke_member_tokens"),
 ]
 
-# List tools that follow Sigma's pagination and return ``{"entries": [...]}``.
+# List tools that follow Sigma's pagination and return the keys of Sigma's page (cursor null).
 PAGINATED = {
     "list_member_schedules",
     "list_connection_paths",
@@ -898,8 +898,11 @@ async def test_tool_calls_its_endpoint(
     if status_only:
         assert out == {"status": "deleted", "statusCode": 204}
     elif name in PAGINATED:
-        # A response with no ``entries`` is one empty page (tests/test_list_pagination.py).
-        assert out == {"entries": []}
+        # A response with no ``entries`` is one empty page (tests/test_list_pagination.py). Its
+        # other keys are kept and its paging style's cursor key reads null.
+        cursors = {"nextPage", "nextPageToken"} & set(out)
+        assert len(cursors) == 1 and out[cursors.pop()] is None
+        assert {k: v for k, v in out.items() if k not in ("nextPage", "nextPageToken")} == {"ok": True, "entries": []}
     else:
         assert out == {"ok": True}
 
@@ -947,13 +950,13 @@ async def test_set_user_attribute_for_users_rejects_empty_assignments(http: Asyn
 async def test_duplicate_tagged_tools_send_optional_fields(http: AsyncMock) -> None:
     http.request.return_value = httpx.Response(200, json={"workbookId": "new"})
     await _tool("workbooks", "duplicate_tagged_workbook")(
-        "wb-1", "Production", "folder-1", "Copy", description="d", copy_bookmarks=True
+        "wb-1", "Production", "folder-1", "Copy", description="d", copy_bookmarks="accessible"
     )
     assert http.request.call_args[1]["json"] == {
         "destinationFolderId": "folder-1",
         "name": "Copy",
         "description": "d",
-        "copyBookmarks": True,
+        "copyBookmarks": "accessible",
     }
     await _tool("workbooks", "duplicate_tagged_report")("rep-1", "Production", "folder-1", "Copy", description="d")
     assert http.request.call_args[0][1] == f"{BASE}/v2/reports/rep-1/tag/Production/copy"

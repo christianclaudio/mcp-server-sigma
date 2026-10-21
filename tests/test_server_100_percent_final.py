@@ -96,14 +96,16 @@ async def test_recipe_validation_edge_cases(monkeypatch: pytest.MonkeyPatch) -> 
 
     # sigma_reassign_workbook_ownership missing members & non-dict return
     c.search_members = AsyncMock(side_effect=[{"entries": []}, {"entries": []}])
-    with pytest.raises(ToolError, match="No member found for email: old@ex.com"):
+    with pytest.raises(ToolError, match="No member has the email given in old_owner_email"):
         await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
 
-    c.search_members = AsyncMock(side_effect=[{"entries": [{"memberId": "m1"}]}, {"entries": []}])
-    with pytest.raises(ToolError, match="No member found for email: new@ex.com"):
+    c.search_members = AsyncMock(
+        side_effect=[{"entries": [{"memberId": "m1", "email": "old@ex.com"}]}, {"entries": []}]
+    )
+    with pytest.raises(ToolError, match="No member has the email given in new_owner_email"):
         await srv.sigma_reassign_workbook_ownership("old@ex.com", "new@ex.com")
 
-    c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
+    c.search_members = AsyncMock(side_effect=lambda email: {"entries": [{"memberId": "m1", "email": email}]})
     c.get = AsyncMock(return_value=["non_dict_response"])
     res_non_dict = await srv.sigma_reassign_workbook_ownership("a@b.com", "c@d.com", dry_run=True)
     assert "workbooks_to_transfer" in res_non_dict
@@ -157,7 +159,7 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(srv, "_client", c)
 
     # sigma_reassign_workbook_ownership repeating cursor loop break
-    c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
+    c.search_members = AsyncMock(side_effect=lambda email: {"entries": [{"memberId": "m1", "email": email}]})
     c.get = AsyncMock(
         side_effect=[
             {"entries": [{"id": "f1", "ownerId": "m1", "name": "WB 1"}], "nextPage": "same_cursor"},
@@ -174,7 +176,7 @@ async def test_additional_server_error_branches(monkeypatch: pytest.MonkeyPatch)
     assert "FAILED" in res_onboard_err
 
     # sigma_bulk_remove_team_members exception
-    c.search_members = AsyncMock(return_value={"entries": [{"memberId": "m1"}]})
+    c.search_members = AsyncMock(side_effect=lambda email: {"entries": [{"memberId": "m1", "email": email}]})
     c.update_team_members = AsyncMock(side_effect=Exception("Team removal error"))
     with pytest.raises(ToolError, match="Team removal error"):
         await srv.sigma_bulk_remove_team_members("t1", ["a@b.com"], confirm=True)

@@ -102,7 +102,7 @@ async def test_bulk_deactivate_and_assign_branches(monkeypatch: pytest.MonkeyPat
         await srv.sigma_bulk_remove_team_members("t1", [], confirm=True)
 
     c.search_members = AsyncMock(return_value={"entries": []})
-    with pytest.raises(ToolError, match="No valid members found"):
+    with pytest.raises(ToolError, match="Every email must match exactly one member"):
         await srv.sigma_bulk_remove_team_members("t1", ["unknown@ex.com"], confirm=True)
 
     # bulk deactivate empty string matching pattern

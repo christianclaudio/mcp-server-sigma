@@ -555,7 +555,7 @@ async def test_workspace_pagination_coverage() -> None:
     with patch.object(client, "_request", new_callable=AsyncMock) as mock_req:
         mock_req.return_value = mock_resp
         res = await client.list_workspace_grants("ws1", page="p1", limit=10)
-        assert res == {"entries": [{"grantId": "g1"}]}
+        assert res == {"entries": [{"grantId": "g1"}], "nextPage": None}
         mock_req.assert_called_once_with("GET", "/v2/workspaces/ws1/grants", params={"limit": 10, "page": "p1"})
 
     # Test tools execution with pagination arguments

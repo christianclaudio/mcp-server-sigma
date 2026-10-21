@@ -143,7 +143,7 @@ async def test_workbooks_member_not_found_is_error_true(api: AsyncMock) -> None:
         "workbooks_reassign_workbook_ownership",
         {"old_owner_email": "old@example.com", "new_owner_email": "new@example.com"},
     )
-    assert err == {"type": "not_found", "message": "No member found for email: old@example.com"}
+    assert err == {"type": "not_found", "message": "No member has the email given in old_owner_email"}
     api.update_file.assert_not_called()
 
 
@@ -300,7 +300,10 @@ def _owned_files(n: int) -> dict[str, Any]:
 @pytest.mark.asyncio
 async def test_workbooks_reassign_all_failed_is_error_true(api: AsyncMock) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(2))
     api.update_file = AsyncMock(side_effect=Exception(f"forbidden {_SECRET}"))
@@ -320,7 +323,10 @@ async def test_workbooks_reassign_all_failed_is_error_true(api: AsyncMock) -> No
 @pytest.mark.asyncio
 async def test_workbooks_reassign_partial_is_normal_result(api: AsyncMock) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(2))
     api.update_file = AsyncMock(side_effect=[{}, Exception(f"forbidden {_SECRET}")])
@@ -555,7 +561,10 @@ async def test_admin_bulk_deactivate_non_api_exception_does_not_stop_batch(api: 
 @pytest.mark.asyncio
 async def test_workbooks_reassign_runtime_error_is_redacted(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(2))
     api.update_file = AsyncMock(side_effect=[RuntimeError(f"boom {_LEAK}"), {}])
@@ -571,7 +580,10 @@ async def test_workbooks_reassign_runtime_error_is_redacted(api: AsyncMock, capl
 @pytest.mark.asyncio
 async def test_workbooks_reassign_non_api_exception_does_not_stop_batch(api: AsyncMock) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(3))
     api.update_file = AsyncMock(side_effect=[TypeError("bad"), {}, {}])
@@ -722,7 +734,10 @@ async def test_admin_bulk_deactivate_partial_redacts_failed_item(
 @pytest.mark.asyncio
 async def test_workbooks_reassign_partial_redacts_failed_item(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(2))
     api.update_file = AsyncMock(side_effect=[{}, _leaky_api_error("/v2/files/f1")])
@@ -798,7 +813,10 @@ async def test_admin_bulk_deactivate_all_failed_redacts_tokens(
 @pytest.mark.asyncio
 async def test_workbooks_reassign_all_failed_redacts_tokens(api: AsyncMock, caplog: pytest.LogCaptureFixture) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(2))
     api.update_file = AsyncMock(side_effect=[_leaky_api_error("/v2/files/f0"), _leaky_api_error("/v2/files/f1")])
@@ -948,7 +966,10 @@ async def test_workbooks_reassign_cancellation_propagates(
     api: AsyncMock, caplog: pytest.LogCaptureFixture, item_errors: list[BaseException | str]
 ) -> None:
     api.search_members = AsyncMock(
-        side_effect=[{"entries": [{"memberId": "old-id"}]}, {"entries": [{"memberId": "new-id"}]}]
+        side_effect=[
+            {"entries": [{"memberId": "old-id", "email": "old@example.com"}]},
+            {"entries": [{"memberId": "new-id", "email": "new@example.com"}]},
+        ]
     )
     api.get = AsyncMock(return_value=_owned_files(3))
     api.update_file = AsyncMock(side_effect=[{}, asyncio.CancelledError(), {}])

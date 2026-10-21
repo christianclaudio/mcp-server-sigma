@@ -37,7 +37,12 @@ elements_server = FastMCP(
 )
 @sigma_tool
 async def sigma_list_workbook_page_elements(workbook_id: str, page_id: str) -> str:
-    """List elements on a specific page of a workbook."""
+    """List elements on a specific page of a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_page_elements(workbook_id, page_id), indent=2)
 
 
@@ -47,7 +52,12 @@ list_workbook_page_elements = sigma_list_workbook_page_elements
 @elements_server.tool(name="list_workbook_elements", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_elements(workbook_id: str) -> str:
-    """List all elements (tables, charts, controls, etc.) in a workbook."""
+    """List all elements (tables, charts, controls, etc.) in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_elements(workbook_id), indent=2)
 
 
@@ -57,7 +67,12 @@ list_workbook_elements = sigma_list_workbook_elements
 @elements_server.tool(name="list_workbook_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_columns(workbook_id: str) -> str:
-    """List all columns across all elements in a workbook, including formulas and types."""
+    """List all columns across all elements in a workbook, including formulas and types.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_columns(workbook_id), indent=2)
 
 
@@ -67,7 +82,12 @@ list_workbook_columns = sigma_list_workbook_columns
 @elements_server.tool(name="list_workbook_queries", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_queries(workbook_id: str) -> str:
-    """List generated SQL queries for all elements in a workbook."""
+    """List generated SQL queries for all elements in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_queries(workbook_id), indent=2)
 
 
@@ -77,7 +97,12 @@ list_workbook_queries = sigma_list_workbook_queries
 @elements_server.tool(name="list_workbook_controls", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_controls(workbook_id: str) -> str:
-    """List control elements (filters, parameters) in a workbook."""
+    """List control elements (filters, parameters) in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_controls(workbook_id), indent=2)
 
 
@@ -126,7 +151,12 @@ get_element_query = sigma_get_element_query
 @elements_server.tool(name="get_element_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_element_columns(workbook_id: str, element_id: str) -> str:
-    """List columns for a specific element in a workbook."""
+    """List columns for a specific element in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_element_columns(workbook_id, element_id), indent=2)
 
 
@@ -160,7 +190,9 @@ get_materialization_job = sigma_get_materialization_job
 async def sigma_list_materialization_schedules(workbook_id: str) -> str:
     """List every materialization schedule for a workbook.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     return json.dumps(await (await get_client()).list_materialization_schedules(workbook_id), indent=2)
 
@@ -192,7 +224,12 @@ swap_template_sources = sigma_swap_template_sources
 )
 @sigma_tool
 async def sigma_list_source_swap_policies() -> str:
-    """List all source swap policies (rules for automatic source swapping on deployment)."""
+    """List all source swap policies (rules for automatic source swapping on deployment).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_source_swap_policies(), indent=2)
 
 

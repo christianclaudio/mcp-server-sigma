@@ -49,7 +49,7 @@ async def test_follows_next_page_and_sends_limit(method: str, path: str) -> None
     )
     with patch.object(c, "get", get):
         result = await getattr(c, method)("wb-1")
-    assert result == {"entries": [{"id": "a"}, {"id": "b"}, {"id": "c"}]}
+    assert result == {"entries": [{"id": "a"}, {"id": "b"}, {"id": "c"}], "nextPage": None}
     assert [p for p, _ in calls] == [path, path]
     assert calls[0][1] == {"limit": 200}
     assert calls[1][1] == {"limit": 200, "page": "p2"}
@@ -60,7 +60,8 @@ async def test_legacy_array_response_is_kept() -> None:
     get, calls = _pages([{"id": "a"}, "not-an-entry", {"id": "b"}])
     with patch.object(c, "get", get):
         result = await c.list_workbook_schedules("wb-1")
-    assert result == {"entries": [{"id": "a"}, {"id": "b"}]}
+    # Returned as Sigma sent it, as before these lists read every page.
+    assert result == [{"id": "a"}, "not-an-entry", {"id": "b"}]
     assert len(calls) == 1
 
 
@@ -89,5 +90,5 @@ async def test_tools_return_every_page(module: str, tool: str, client_method: st
     )
     with patch.object(c, "get", get), patch.object(mod, "get_client", AsyncMock(return_value=c)):
         out = json.loads(await getattr(mod, tool)("wb-1"))
-    assert out == {"entries": [{"id": "a"}, {"id": "b"}]}
+    assert out == {"entries": [{"id": "a"}, {"id": "b"}], "nextPage": None}
     assert hasattr(c, client_method)

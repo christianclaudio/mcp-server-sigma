@@ -41,7 +41,12 @@ delete_file = sigma_delete_file
 @workspace_server.tool(name="list_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_files(parent_id: str | None = None, type_filter: str | None = None) -> str:
-    """List files/folders. Optionally filter by parentId or type ('workbook', 'folder', 'data-model', 'template')."""
+    """List files/folders. Optionally filter by parentId or type ('workbook', 'folder', 'data-model', 'template').
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     params: dict[str, Any] = {"limit": 200}
     if parent_id:
         params["parentId"] = parent_id
@@ -78,7 +83,13 @@ update_file = sigma_update_file
 @workspace_server.tool(name="list_tags", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_tags(page: str | None = None, limit: int = 200) -> str:
-    """List all tags in the organization. Supports pagination via page token."""
+    """List all tags in the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``page`` resumes
+    from a ``nextPage`` cursor; ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_tags(page=page, limit=limit), indent=2)
 
 
@@ -116,7 +127,13 @@ delete_tag = sigma_delete_tag
 @workspace_server.tool(name="list_workspaces", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workspaces(limit: int = 200, page: str | None = None) -> str:
-    """List all workspaces. Supports pagination via page token."""
+    """List all workspaces.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``page`` resumes
+    from a ``nextPage`` cursor; ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_workspaces(limit=limit, page=page), indent=2)
 
 
@@ -159,7 +176,13 @@ delete_workspace = sigma_delete_workspace
 @workspace_server.tool(name="list_workspace_grants", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workspace_grants(workspace_id: str, page: str | None = None, limit: int = 200) -> str:
-    """List permission grants on a workspace. Supports pagination via page token."""
+    """List permission grants on a workspace.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``page`` resumes
+    from a ``nextPage`` cursor; ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_workspace_grants(workspace_id, page=page, limit=limit), indent=2)
 
 
@@ -230,8 +253,9 @@ list_all_files = sigma_list_all_files
 async def sigma_list_member_files(member_id: str, limit: int = 200) -> str:
     """List the files (workbooks, data models, folders) a member can access.
 
-    Follows Sigma's pagination to the last page (``limit`` is the page size) and returns
-    ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
     """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_member_files(member_id, limit), indent=2)
@@ -245,7 +269,9 @@ list_member_files = sigma_list_member_files
 async def sigma_list_recent_files(member_id: str) -> str:
     """List the files a member opened recently.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_recent_files(member_id), indent=2)
@@ -284,7 +310,9 @@ update_tag = sigma_update_tag
 async def sigma_list_workbooks_for_tag(tag_id: str) -> str:
     """List the workbooks carrying a version tag.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     _require_ids(tag_id=tag_id)
     return json.dumps(await (await get_client()).list_workbooks_for_tag(tag_id), indent=2)
@@ -340,7 +368,9 @@ unfavorite_file = sigma_unfavorite_file
 async def sigma_list_favorites_for_member(member_id: str) -> str:
     """List a member's favorite documents.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_favorites_for_member(member_id), indent=2)

@@ -139,6 +139,15 @@ def extract_spec_endpoints_and_deprecations(
     return set(endpoints), deprecated_params
 
 
+# Client paging helpers and the query parameters each adds to every request.
+_PAGINATORS = {
+    "auto_paginate": ("limit", "page"),
+    "auto_paginate_token": ("pageSize", "pageToken"),
+    "paged_list": ("limit", "page"),
+    "paged_list_token": ("pageSize", "pageToken"),
+}
+
+
 class ClientVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.calls: list[ClientCall] = []
@@ -152,7 +161,25 @@ class ClientVisitor(ast.NodeVisitor):
 
         method_name = func.attr
         http_methods = {"_request", "get", "post", "put", "patch", "delete"}
-        if method_name in http_methods:
+        if method_name in _PAGINATORS:
+            # The paging helpers (``auto_paginate``, ``paged_list`` and their ``_token`` forms) GET
+            # the path page by page, adding their own paging parameters, so they are checked like
+            # ``self.get``.
+            raw_path = self._extract_path(node.args[0]) if node.args else ""
+            query_params = set(_PAGINATORS[method_name])
+            if len(node.args) >= 2:
+                query_params.update(self._extract_dict_keys(node.args[1]))
+            if raw_path.startswith("/"):
+                self.calls.append(
+                    ClientCall(
+                        method="GET",
+                        raw_path=raw_path,
+                        normalized_path=re.sub(r"\{[^}]*\}", "{}", raw_path),
+                        query_params=query_params,
+                        line_number=node.lineno,
+                    )
+                )
+        elif method_name in http_methods:
             method = ""
             raw_path = ""
             query_params: set[str] = set()

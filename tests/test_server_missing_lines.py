@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock
 
 import pytest
+from fastmcp.exceptions import ToolError
 from fastmcp.resources import ResourceResult
 
 from sigma_mcp import server as srv
@@ -18,8 +20,8 @@ async def test_reassign_workbook_ownership_owned_matching(monkeypatch: pytest.Mo
 
     c.search_members = AsyncMock(
         side_effect=[
-            {"entries": [{"memberId": "old_m1"}]},
-            {"entries": [{"memberId": "new_m1"}]},
+            {"entries": [{"memberId": "old_m1", "email": "old@ex.com"}]},
+            {"entries": [{"memberId": "new_m1", "email": "new@ex.com"}]},
         ]
     )
     c.get = AsyncMock(
@@ -44,15 +46,21 @@ async def test_bulk_remove_team_members_execution(monkeypatch: pytest.MonkeyPatc
 
     c.search_members = AsyncMock(
         side_effect=[
-            {"entries": [{"memberId": "m1"}]},
-            {"entries": []},
+            {"entries": [{"memberId": "m1", "email": "found@ex.com"}]},
+            {"entries": [{"memberId": "m2", "email": "other@ex.com"}]},
+            {"entries": [{"memberId": "m1", "email": "found@ex.com"}]},
         ]
     )
     c.update_team_members = AsyncMock(return_value={"status": "ok"})
 
-    res = await srv.sigma_bulk_remove_team_members("t1", ["found@ex.com", "missing@ex.com"], confirm=True)
-    assert "removed" in res
-    assert "not_found" in res
+    # One email matching no member refuses the whole call: nothing is removed.
+    with pytest.raises(ToolError, match="member_not_resolved"):
+        await srv.sigma_bulk_remove_team_members("t1", ["found@ex.com", "missing@ex.com"], confirm=True)
+    c.update_team_members.assert_not_called()
+
+    res = await srv.sigma_bulk_remove_team_members("t1", ["FOUND@ex.com"], confirm=True)
+    assert json.loads(res)["removed"] == ["m1"]
+    assert json.loads(res)["not_found"] == []
 
 
 @pytest.mark.asyncio

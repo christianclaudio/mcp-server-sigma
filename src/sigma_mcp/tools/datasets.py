@@ -16,7 +16,9 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    CONNECTION_SECRET_FIELDS,
     _batch_outcome,
+    _call_masking_secrets,
     _confirm_required,
     _invalid_request,
     _item_error,
@@ -38,7 +40,12 @@ datasets_server = FastMCP(
 @datasets_server.tool(name="list_connections", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_connections(summary_only: bool = False) -> str:
-    """List all connections in the Sigma organization. Pass summary_only=True for concise token-efficient response."""
+    """List all connections in the Sigma organization. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     data = await (await get_client()).list_connections()
     if summary_only:
         data = _summarize_list(data, ["connectionId", "name", "type"])
@@ -81,7 +88,11 @@ test_connection = sigma_test_connection
 @datasets_server.tool(name="list_columns_for_table", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_columns_for_table(table_id: str) -> str:
-    """List columns for a warehouse table by its tableId."""
+    """List columns for a warehouse table by its tableId.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_columns_for_table(table_id), indent=2)
 
 
@@ -91,7 +102,12 @@ list_columns_for_table = sigma_list_columns_for_table
 @datasets_server.tool(name="list_connection_grants", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_connection_grants(connection_id: str) -> str:
-    """List permission grants on a connection."""
+    """List permission grants on a connection.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_connection_grants(connection_id), indent=2)
 
 
@@ -135,7 +151,12 @@ delete_connection_path_grant = sigma_delete_connection_path_grant
 @datasets_server.tool(name="list_data_models", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_models(limit: int = 200, summary_only: bool = False) -> str:
-    """List all data models in the organization. Pass summary_only=True for concise token-efficient response."""
+    """List all data models in the organization. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     data = await (await get_client()).list_data_models(limit)
     if summary_only:
         data = _summarize_list(data, ["dataModelId", "name", "connectionId"])
@@ -188,7 +209,12 @@ update_data_model = sigma_update_data_model
 @datasets_server.tool(name="list_data_model_elements", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_elements(data_model_id: str) -> str:
-    """List elements in a data model."""
+    """List elements in a data model.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_data_model_elements(data_model_id), indent=2)
 
 
@@ -198,7 +224,12 @@ list_data_model_elements = sigma_list_data_model_elements
 @datasets_server.tool(name="list_data_model_columns", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_columns(data_model_id: str) -> str:
-    """List all columns across all elements in a data model."""
+    """List all columns across all elements in a data model.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_data_model_columns(data_model_id), indent=2)
 
 
@@ -218,7 +249,12 @@ swap_data_model_sources = sigma_swap_data_model_sources
 @datasets_server.tool(name="list_data_model_lineage", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_lineage(data_model_id: str) -> str:
-    """List lineage for a data model."""
+    """List lineage for a data model.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_data_model_lineage(data_model_id), indent=2)
 
 
@@ -430,10 +466,14 @@ async def sigma_create_connection(body: dict[str, Any]) -> str:
     """Create a data warehouse connection.
 
     body requires name and details (the warehouse type and its settings) and may set description, poolSizes,
-    timeoutSecs and useFriendlyNames.
+    timeoutSecs and useFriendlyNames. The details may hold write-only secrets (password, privateKey,
+    privateKeyPassphrase, clientSecret, token, pythonSecrets): pass them only from the user's own input.
+    They are masked wherever Sigma's result or error echoes them.
     """
     _require_body_fields(body, "name", "details")
-    return json.dumps(await (await get_client()).create_connection(body), indent=2)
+    client = await get_client()
+    result = await _call_masking_secrets(client.create_connection(body), CONNECTION_SECRET_FIELDS, body.get("details"))
+    return json.dumps(result, indent=2)
 
 
 create_connection = sigma_create_connection
@@ -456,9 +496,11 @@ delete_connection = sigma_delete_connection
 @datasets_server.tool(name="list_connection_paths", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_connection_paths() -> str:
-    """List connection paths (databases, schemas and tables) across all connections. Returns the first page of results.
+    """List connection paths (databases, schemas and tables) across all connections.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     return json.dumps(await (await get_client()).list_connection_paths(), indent=2)
 
@@ -505,7 +547,9 @@ delete_connection_grant = sigma_delete_connection_grant
 async def sigma_list_connection_path_grants(connection_path_id: str) -> str:
     """List grants on a connection path (database, schema or table).
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     _require_ids(connection_path_id=connection_path_id)
     return json.dumps(await (await get_client()).list_connection_path_grants(connection_path_id), indent=2)
@@ -536,7 +580,8 @@ add_connection_path_grant = sigma_add_connection_path_grant
 async def sigma_list_data_model_sources(data_model_id: str) -> str:
     """List the sources (tables, datasets, other data models) a data model reads from.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
     """
     _require_ids(data_model_id=data_model_id)
     return json.dumps(await (await get_client()).list_data_model_sources(data_model_id), indent=2)
@@ -582,7 +627,8 @@ get_data_model_materialization = sigma_get_data_model_materialization
 async def sigma_list_data_model_materialization_schedules(data_model_id: str) -> str:
     """List the materialization schedules of a data model.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
     """
     _require_ids(data_model_id=data_model_id)
     return json.dumps(await (await get_client()).list_data_model_materialization_schedules(data_model_id), indent=2)
@@ -596,7 +642,9 @@ list_data_model_materialization_schedules = sigma_list_data_model_materializatio
 async def sigma_list_data_model_tags(data_model_id: str) -> str:
     """List the version tags on a data model.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     _require_ids(data_model_id=data_model_id)
     return json.dumps(await (await get_client()).list_data_model_tags(data_model_id), indent=2)

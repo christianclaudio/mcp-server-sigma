@@ -13,13 +13,15 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    API_CREDENTIAL_SECRET_FIELDS,
     _batch_outcome,
     _call_masking_secrets,
     _confirm_required,
-    _credential_secrets,
     _invalid_request,
     _item_error,
+    _members_with_email,
     _require_body_fields,
+    _require_email,
     _require_ids,
     _summarize_list,
     _tool_failure,
@@ -39,7 +41,11 @@ admin_server.add_middleware(AdminDomainGuardMiddleware())
 @admin_server.tool(name="list_deployments", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployments() -> str:
-    """List all deployment policies."""
+    """List all deployment policies.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_deployments(), indent=2)
 
 
@@ -95,7 +101,11 @@ deactivate_member = sigma_deactivate_member
 @admin_server.tool(name="list_deployment_documents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployment_documents(policy_id: str) -> str:
-    """List documents in a deployment policy."""
+    """List documents in a deployment policy.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_deployment_documents(policy_id), indent=2)
 
 
@@ -115,7 +125,11 @@ add_deployment_documents = sigma_add_deployment_documents
 @admin_server.tool(name="list_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_tenants() -> str:
-    """List all tenant organizations (for multi-tenant deployments)."""
+    """List all tenant organizations (for multi-tenant deployments).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_tenants(), indent=2)
 
 
@@ -147,7 +161,11 @@ create_tenant = sigma_create_tenant
 @admin_server.tool(name="list_api_connectors", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_api_connectors() -> str:
-    """List all API connectors (custom data integrations)."""
+    """List all API connectors (custom data integrations).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_api_connectors(), indent=2)
 
 
@@ -167,7 +185,12 @@ get_api_connector = sigma_get_api_connector
 @admin_server.tool(name="list_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_members(limit: int = 200, summary_only: bool = False) -> str:
-    """List all members in the organization. Pass summary_only=True for concise token-efficient response."""
+    """List all members in the organization. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     data = await (await get_client()).list_members(limit)
     if summary_only:
         data = _summarize_list(data, ["memberId", "email", "firstName", "lastName", "memberType"])
@@ -225,7 +248,12 @@ get_current_user = sigma_get_current_user
 @admin_server.tool(name="list_member_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_member_teams(member_id: str) -> str:
-    """List teams a member belongs to."""
+    """List teams a member belongs to.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_member_teams(member_id), indent=2)
 
 
@@ -235,7 +263,12 @@ list_member_teams = sigma_list_member_teams
 @admin_server.tool(name="list_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_teams(limit: int = 200, summary_only: bool = False) -> str:
-    """List all teams. Pass summary_only=True for concise token-efficient response."""
+    """List all teams. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     data = await (await get_client()).list_teams(limit)
     if summary_only:
         data = _summarize_list(data, ["teamId", "name", "description"])
@@ -281,7 +314,12 @@ delete_team = sigma_delete_team
 @admin_server.tool(name="list_team_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_team_members(team_id: str) -> str:
-    """List members of a team."""
+    """List members of a team.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_team_members(team_id), indent=2)
 
 
@@ -306,7 +344,12 @@ update_team_members = sigma_update_team_members
 @admin_server.tool(name="list_user_attributes", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_user_attributes() -> str:
-    """List all user attributes (used for row-level security and dynamic parameters)."""
+    """List all user attributes (used for row-level security and dynamic parameters).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_user_attributes(), indent=2)
 
 
@@ -388,7 +431,12 @@ set_user_attribute_for_tenants = sigma_set_user_attribute_for_tenants
 @admin_server.tool(name="get_user_attribute_users", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_users(attribute_id: str) -> str:
-    """Get all user assignments for a user attribute."""
+    """Get all user assignments for a user attribute.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_user_attribute_user_assignments(attribute_id), indent=2)
 
 
@@ -398,7 +446,12 @@ get_user_attribute_users = sigma_get_user_attribute_users
 @admin_server.tool(name="get_user_attribute_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_teams(attribute_id: str) -> str:
-    """Get all team assignments for a user attribute."""
+    """Get all team assignments for a user attribute.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_user_attribute_team_assignments(attribute_id), indent=2)
 
 
@@ -408,7 +461,12 @@ get_user_attribute_teams = sigma_get_user_attribute_teams
 @admin_server.tool(name="get_user_attribute_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_tenants(attribute_id: str) -> str:
-    """Get all tenant assignments for a user attribute."""
+    """Get all tenant assignments for a user attribute.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_user_attribute_tenant_assignments(attribute_id), indent=2)
 
 
@@ -534,7 +592,11 @@ delete_user_attribute_for_tenant = sigma_delete_user_attribute_for_tenant
 @admin_server.tool(name="list_account_types", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_account_types() -> str:
-    """List all account types (license types) in the organization."""
+    """List all account types (license types) in the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_account_types(), indent=2)
 
 
@@ -544,7 +606,12 @@ list_account_types = sigma_list_account_types
 @admin_server.tool(name="list_grants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_grants(inode_id: str) -> str:
-    """List grants for a specific file/workbook/data model by inodeId. Required: inodeId."""
+    """List grants for a specific file/workbook/data model by inodeId. Required: inodeId.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_grants({"inodeId": inode_id, "limit": 200}), indent=2)
 
 
@@ -564,7 +631,12 @@ create_grant = sigma_create_grant
 @admin_server.tool(name="list_translations", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_translations() -> str:
-    """List organization translation files."""
+    """List organization translation files.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_translations(), indent=2)
 
 
@@ -779,6 +851,8 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     """Remove multiple members from a team by their email addresses.
 
     Resolves emails to member IDs, then sends a single PATCH to remove all. Requires confirm=True.
+    Each email must match exactly one member's email, ignoring case; if any is not an email
+    address, matches no member or matches more than one, the call fails and nothing is removed.
 
     Safety:
       - Always listed in the full profile, but refused at call time unless
@@ -794,20 +868,31 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     if len(member_emails) > 50:
         _invalid_request(f"Bulk removal cap exceeded ({len(member_emails)} > 50). Process in smaller batches.")
 
+    for email in member_emails:
+        _require_email("member_emails", email)
+
     c = await get_client()
     member_ids: list[str] = []
     not_found: list[str] = []
+    ambiguous: list[str] = []
 
     for email in member_emails:
-        results = await c.search_members(email)
-        entries = results.get("entries", []) if isinstance(results, dict) else []
-        if entries:
-            member_ids.append(entries[0]["memberId"])
+        matches = await _members_with_email(c, email)
+        if len(matches) == 1:
+            member_ids.append(str(matches[0]["memberId"]))
+        elif matches:
+            ambiguous.append(email)
         else:
             not_found.append(email)
 
-    if not member_ids:
-        _tool_failure("not_found", "No valid members found", not_found=not_found)
+    # Remove no one unless every email named exactly one member.
+    if not_found or ambiguous:
+        _tool_failure(
+            "member_not_resolved",
+            "Every email must match exactly one member; nothing was removed.",
+            not_found=not_found,
+            ambiguous=ambiguous,
+        )
 
     result = await c.update_team_members(team_id, {"remove": member_ids})
     return json.dumps(
@@ -827,27 +912,14 @@ bulk_remove_team_members = sigma_bulk_remove_team_members
 @admin_server.tool(name="list_tenants_paginated", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_tenants_paginated() -> str:
-    """List all tenants using cursor-based pagination (nextPageToken model).
+    """List all tenants, following Sigma's cursor pagination to the last page.
 
-    Unlike offset-based pagination, tenants use cursor tokens.
-    Returns the complete list of all tenant organizations.
+    ``GET /v2/tenants`` pages with ``pageSize``/``pageToken`` and answers ``nextPageToken``
+    (not ``limit``/``page``/``nextPage``). Returns ``{"total": N, "tenants": [...]}`` with every
+    tenant organization.
     """
     c = await get_client()
-    all_tenants: list[dict[str, Any]] = []
-    params: dict[str, Any] = {"limit": 50}
-    _seen_tokens: set[str] = set()
-    _MAX_PAGES = 200
-    for _ in range(_MAX_PAGES):
-        data = await c.get("/v2/tenants", params)
-        if isinstance(data, dict):
-            all_tenants.extend(data.get("entries", []))
-            next_token = data.get("nextPageToken")
-            if not next_token or next_token in _seen_tokens:
-                break
-            _seen_tokens.add(next_token)
-            params["pageToken"] = next_token
-        else:
-            break
+    all_tenants = await c.auto_paginate_token("/v2/tenants", max_pages=200)
     return json.dumps({"total": len(all_tenants), "tenants": all_tenants}, indent=2)
 
 
@@ -985,7 +1057,13 @@ VALID_ORG_SETTINGS = frozenset(
 @admin_server.tool(name="list_org_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_org_workbook_agents(page_token: str | None = None, page_size: int | None = None) -> str:
-    """List all workbook agents across the organization."""
+    """List all workbook agents across the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    ``page_token`` resumes from a ``nextPageToken``; ``page_size`` is the page size (spec
+    maximum 100, the default).
+    """
     c = await get_client()
     result = await c.list_org_workbook_agents(page_token, page_size)
     return json.dumps(result, indent=2)
@@ -1082,7 +1160,12 @@ reset_org_email_branding = sigma_reset_org_email_branding
 @admin_server.tool(name="list_allowed_ips", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_allowed_ips(page_token: str | None = None, page_size: int | None = None) -> str:
-    """List IP allowlist entries configured for the organization (v3alpha)."""
+    """List IP allowlist entries configured for the organization (v3alpha).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    ``page_token`` resumes from a ``nextPageToken``; ``page_size`` is the page size.
+    """
     c = await get_client()
     result = await c.list_allowed_ips(page_token, page_size)
     return json.dumps(result, indent=2)
@@ -1296,7 +1379,8 @@ remove_deployment_document = sigma_remove_deployment_document
 async def sigma_list_deployable_tenants() -> str:
     """List the tenant organizations deployments can target.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
     """
     return json.dumps(await (await get_client()).list_deployable_tenants(), indent=2)
 
@@ -1309,7 +1393,8 @@ list_deployable_tenants = sigma_list_deployable_tenants
 async def sigma_list_deployment_tenants(policy_id: str) -> str:
     """List the tenants a deployment policy deploys to.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
     """
     _require_ids(policy_id=policy_id)
     return json.dumps(await (await get_client()).list_deployment_tenants(policy_id), indent=2)
@@ -1382,7 +1467,8 @@ delete_tenant = sigma_delete_tenant
 async def sigma_list_tenant_deployment_capabilities(tenant_org_id: str) -> str:
     """List which tenant organizations a tenant can deploy to.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
     """
     _require_ids(tenant_org_id=tenant_org_id)
     return json.dumps(await (await get_client()).list_tenant_deployment_capabilities(tenant_org_id), indent=2)
@@ -1474,7 +1560,8 @@ delete_api_connector = sigma_delete_api_connector
 async def sigma_list_api_credentials() -> str:
     """List the API credentials API connectors use (metadata only).
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
     """
     return json.dumps(await (await get_client()).list_api_credentials(), indent=2)
 
@@ -1503,7 +1590,9 @@ async def sigma_create_api_credential(body: dict[str, Any]) -> str:
     """
     _require_body_fields(body, "name", "allowlist", "credential")
     client = await get_client()
-    result = await _call_masking_secrets(client.create_api_credential(body), _credential_secrets(body))
+    result = await _call_masking_secrets(
+        client.create_api_credential(body), API_CREDENTIAL_SECRET_FIELDS, body.get("credential")
+    )
     return json.dumps(result, indent=2)
 
 
@@ -1519,7 +1608,9 @@ async def sigma_update_api_credential(credential_id: str, body: dict[str, Any]) 
     """
     _require_ids(credential_id=credential_id)
     client = await get_client()
-    result = await _call_masking_secrets(client.update_api_credential(credential_id, body), _credential_secrets(body))
+    result = await _call_masking_secrets(
+        client.update_api_credential(credential_id, body), API_CREDENTIAL_SECRET_FIELDS, body.get("credential")
+    )
     return json.dumps(result, indent=2)
 
 
@@ -1639,7 +1730,9 @@ delete_translation_variant = sigma_delete_translation_variant
 async def sigma_list_member_schedules(member_id: str) -> str:
     """List the scheduled exports a member owns.
 
-    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
     """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_member_schedules(member_id), indent=2)

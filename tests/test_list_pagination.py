@@ -2,7 +2,7 @@
 
 Sigma pages its lists two ways: ``limit``/``page`` with a ``nextPage`` token, or
 ``pageSize``/``pageToken`` with a ``nextPageToken``. Each tool here uses the style its
-endpoint's spec names, follows it to the last page and returns ``{"entries": [...]}``.
+endpoint's spec names, follows it to the last page and returns the keys of Sigma's page with ``entries`` from every page.
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ async def test_client_follows_every_page(module: str, name: str, args: tuple[str
     get, calls = _pages(*_three_pages(style))
     with patch.object(c, "get", get):
         result = await getattr(c, name)(*args)
-    assert result == {"entries": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}]}
+    assert result == {"entries": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}], _NEXT[style][0]: None}
     _, size, cursor = _NEXT[style]
     assert [p for p, _ in calls] == [path, path, path]
     assert calls[0][1] == {size: 200}
@@ -109,7 +109,7 @@ async def test_tool_returns_every_page(module: str, name: str, args: tuple[str, 
     get, calls = _pages(*_three_pages(style))
     with patch.object(c, "get", get), patch.object(mod, "get_client", AsyncMock(return_value=c)):
         out = json.loads(await getattr(mod, f"sigma_{name}")(*args))
-    assert out == {"entries": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}]}
+    assert out == {"entries": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}], _NEXT[style][0]: None}
     assert len(calls) == 3
 
 
@@ -118,7 +118,7 @@ async def test_list_member_files_limit_is_the_page_size() -> None:
     get, calls = _pages({"entries": [{"id": "a"}], "nextPage": "p2"}, {"entries": [{"id": "b"}]})
     with patch.object(c, "get", get):
         result = await c.list_member_files("m-1", limit=25)
-    assert result == {"entries": [{"id": "a"}, {"id": "b"}]}
+    assert result == {"entries": [{"id": "a"}, {"id": "b"}], "nextPage": None}
     assert [params for _, params in calls] == [{"limit": 25}, {"limit": 25, "page": "p2"}]
 
 

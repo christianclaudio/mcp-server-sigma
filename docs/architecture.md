@@ -49,37 +49,43 @@ All other 4xx/5xx errors are raised immediately (no retry).
 
 ## Pagination Models
 
-### Cursor-based (nextPageToken)
+Each list endpoint pages the way Sigma's spec names, and the client follows it to the last
+page. The output keys are unchanged: each list tool returns the keys of Sigma's page
+(`SigmaClient.paged_list` / `paged_list_token`), with `entries` from every page, `total`
+passed through as the first page sent it (never computed, absent when Sigma omits it), and
+`nextPage` / `nextPageToken` null and `hasMore` false, because every page is read.
 
-Used by: `/v2/tenants`
+### Token-based (`pageSize` / `pageToken`, `nextPageToken`)
 
-```python
-results = []
-token = None
-while True:
-    params = {"nextPageToken": token} if token else {}
-    page = await client.get("/v2/tenants", params)
-    results.extend(page.get("entries", []))
-    token = page.get("nextPageToken")
-    if not token:
-        break
-```
-
-### Offset-based (limit/offset)
-
-Used by: `/v2/workbooks`, `/v2/members`, `/v2/teams`, `/v2/connections`
+Used by: `/v2/tenants`, `/v2/deploymentPolicies`, `/v2/api-connectors`,
+`/v2/api-credentials`, `/v2/accountTypes`, `/v2/workbookAgents` (100 per page at most),
+`/v3alpha/allowedIps`, the report lists (`/v2/reports/{id}/elements`, `queries`, `lineage`,
+`pages`, `columns`, `controls`, `tags`, `version-history`), data model sources and
+materialization schedules, and warehouse table columns.
 
 ```python
-results = []
-offset = 0
-limit = 200
-while True:
-    page = await client.get(path, {"limit": limit, "offset": offset})
-    results.extend(page.get("entries", []))
-    if not page.get("hasMore", False):
-        break
-    offset += limit
+entries = await client.auto_paginate_token(path)  # pageSize=200, then pageToken=<nextPageToken>
+result = await client.paged_list_token(path)  # {"entries": [...every page], "nextPageToken": None}
 ```
+
+### Page-based (`limit` / `page`, `nextPage`)
+
+Used by: `/v2/workbooks`, `/v2/members`, `/v2/teams`, `/v2/connections`, `/v2/files`,
+`/v2/grants`, `/v2/dataModels`, `/v2/templates`, `/v2/tags`, `/v2/workspaces`,
+`/v2/user-attributes`, the workbook and data model sub-lists, and most other v2 lists.
+
+```python
+entries = await client.auto_paginate(path, params)  # limit=200, then page=<nextPage>
+result = await client.paged_list(path, params)  # Sigma's keys; nextPage None, total as sent
+```
+
+Both stop when the response has no next cursor, repeats one, or after `max_pages`.
+`auto_paginate` also keeps a legacy bare-array response, and `paged_list` returns one as
+Sigma sent it. Neither model has an `offset`
+parameter: the cursor is the opaque `nextPage` or `nextPageToken` string. Tools that take a
+cursor (`page` or `page_token`) resume from it and follow to the last page;
+`workbooks_list_workbook_agents` returns Sigma's single response, because the spec documents
+no request parameter for its `nextPageToken`.
 
 ## Profiles and Build Order
 
