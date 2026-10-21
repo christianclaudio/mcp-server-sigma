@@ -106,6 +106,8 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 
 ## 🛠️ Development & Verification Commands
 
+uv 0.13.4 or later is required (`[tool.uv] required-version` in `pyproject.toml`, from FastMCP's [certificate authority incident notice](https://github.com/PrefectHQ/fastmcp/blob/main/SECURITY.md#certificate-authority-incident-october-2026)); older uv refuses to run, and CI's `setup-uv` installs from that setting. Following the same notice, `certifi>=2026.10.19` is a direct dependency, and the `Dockerfile` installs with `pip>=26.2.2` and fails the build below Debian's patched `ca-certificates` (`20250419+deb13u1`).
+
 ```bash
 # Install editable with dev dependencies
 uv sync --locked --extra dev --extra code-mode
