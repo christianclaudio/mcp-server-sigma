@@ -32,7 +32,8 @@ FROM python:3.12-slim AS runtime
 # The same notice says to update the container's OS trust store. Debian shipped the fix as
 # ca-certificates 20250419+deb13u1 in trixie-security; the build fails if the installed package
 # is older, so a stale or changed base image cannot drop the fix.
-# https://emudhra.we-have-a-problem.com/ (developer software and packages)
+# https://github.com/PrefectHQ/fastmcp/pull/5945 (notice) and
+# https://security-tracker.debian.org/tracker/DSA-6572-1 (Debian floor)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends --only-upgrade ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
