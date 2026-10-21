@@ -117,9 +117,8 @@ upstream response body is never included.
 
 | `type` | Raised by | Extra fields |
 |---|---|---|
-| `not_found` | `workbooks_reassign_workbook_ownership` (no member whose email equals the given one, ignoring case), `workbooks_copy_workbook_to_member` (member has no `homeFolderId`) | `member_id` where relevant |
+| `not_found` | `workbooks_reassign_workbook_ownership` (no member whose email equals the given one, ignoring case), `workbooks_copy_workbook_to_member` (member has no `homeFolderId`), `admin_bulk_remove_team_members` (no email matched exactly one member, ignoring case) | `member_id` or `not_found` where relevant |
 | `ambiguous_member` | `workbooks_reassign_workbook_ownership` (more than one member has the given email) | `matches` |
-| `member_not_resolved` | `admin_bulk_remove_team_members` (an email matched no member or more than one; nothing is removed) | `not_found`, `ambiguous` |
 | `timeout` | `workbooks_export_and_download` (export not ready within `timeout_seconds`) | `query_id`, `timeout_seconds` |
 | `upstream_response` | `workbooks_export_and_download` (no `queryId` in the export response), `elements_materialize_and_wait` (no job ID in the materialization response) | none |
 | `docs_search_failed` | `elements_search_docs` (docs host returned a non-200 status) | `status` |

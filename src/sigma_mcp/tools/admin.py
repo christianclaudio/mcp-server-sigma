@@ -851,8 +851,10 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     """Remove multiple members from a team by their email addresses.
 
     Resolves emails to member IDs, then sends a single PATCH to remove all. Requires confirm=True.
-    Each email must match exactly one member's email, ignoring case; if any is not an email
-    address, matches no member or matches more than one, the call fails and nothing is removed.
+    An email is removed only when exactly one member's email equals it, ignoring case. An email
+    that matches no member, or more than one, is listed in ``not_found`` and no one is removed
+    for it; the other emails are still removed. If no email resolves, the call fails with
+    ``not_found`` and nothing is sent.
 
     Safety:
       - Always listed in the full profile, but refused at call time unless
@@ -874,25 +876,17 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     c = await get_client()
     member_ids: list[str] = []
     not_found: list[str] = []
-    ambiguous: list[str] = []
 
     for email in member_emails:
         matches = await _members_with_email(c, email)
+        # Only one exact match is acted on; no match or several leave that email unresolved.
         if len(matches) == 1:
             member_ids.append(str(matches[0]["memberId"]))
-        elif matches:
-            ambiguous.append(email)
         else:
             not_found.append(email)
 
-    # Remove no one unless every email named exactly one member.
-    if not_found or ambiguous:
-        _tool_failure(
-            "member_not_resolved",
-            "Every email must match exactly one member; nothing was removed.",
-            not_found=not_found,
-            ambiguous=ambiguous,
-        )
+    if not member_ids:
+        _tool_failure("not_found", "No valid members found", not_found=not_found)
 
     result = await c.update_team_members(team_id, {"remove": member_ids})
     return json.dumps(

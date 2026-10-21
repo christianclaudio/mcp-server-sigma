@@ -6,7 +6,8 @@
 - N4: ``"entries": null`` is an empty page.
 - ``search_members`` sends only ``email`` (Sigma removed ``search``) and refuses a name before
   any request; the two recipes that act on members accept only one exact (case-insensitive)
-  email match and make no destructive call otherwise.
+  email match. Reassignment changes nothing otherwise; bulk removal removes the emails that
+  matched exactly one member and lists the rest in ``not_found``.
 """
 
 from __future__ import annotations
@@ -206,16 +207,38 @@ async def test_bulk_remove_refuses_a_name_before_any_request() -> None:
     api.update_team_members.assert_not_called()
 
 
-@pytest.mark.parametrize(("found", "field"), [(_LOOKALIKE, "not_found"), (_TWO, "ambiguous")])
-async def test_bulk_remove_refuses_no_match_or_many(found: list[dict[str, Any]], field: str) -> None:
-    api = _api({"old@example.com": found, "ok@example.com": [{"memberId": "ok-id", "email": "ok@example.com"}]})
+@pytest.mark.parametrize("found", [_LOOKALIKE, _TWO])
+async def test_bulk_remove_lists_no_match_or_many_in_not_found(found: list[dict[str, Any]]) -> None:
+    """An email with no exact match or several is not acted on; it is listed in not_found."""
+    api = _api({"old@example.com": found})
     with patch.object(admin, "get_client", AsyncMock(return_value=api)):
         with pytest.raises(ToolError) as exc:
-            await admin.sigma_bulk_remove_team_members("t1", ["ok@example.com", "old@example.com"], confirm=True)
+            await admin.sigma_bulk_remove_team_members("t1", ["old@example.com"], confirm=True)
     err = _err(exc)
-    assert err["type"] == "member_not_resolved"
-    assert err[field] == ["old@example.com"]
+    assert err["type"] == "not_found"
+    assert err["not_found"] == ["old@example.com"]
     api.update_team_members.assert_not_called()
+
+
+async def test_bulk_remove_removes_only_the_single_match() -> None:
+    """One match, one miss and one duplicate in one call: only the match is removed."""
+    api = _api(
+        {
+            "ok@example.com": [{"memberId": "ok-id", "email": "ok@example.com"}],
+            "old@example.com": _LOOKALIKE,
+            "dup@example.com": [
+                {"memberId": "a-id", "email": "dup@example.com"},
+                {"memberId": "b-id", "email": "DUP@example.com"},
+            ],
+        }
+    )
+    emails = ["ok@example.com", "old@example.com", "dup@example.com"]
+    with patch.object(admin, "get_client", AsyncMock(return_value=api)):
+        out = json.loads(await admin.sigma_bulk_remove_team_members("t1", emails, confirm=True))
+    assert out["removed"] == ["ok-id"]
+    assert out["not_found"] == ["old@example.com", "dup@example.com"]
+    assert set(out) == {"team_id", "removed", "not_found", "api_response"}
+    api.update_team_members.assert_awaited_once_with("t1", {"remove": ["ok-id"]})
 
 
 async def test_bulk_remove_matches_email_ignoring_case() -> None:

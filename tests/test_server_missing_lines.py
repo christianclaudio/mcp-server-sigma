@@ -6,7 +6,6 @@ import json
 from unittest.mock import AsyncMock
 
 import pytest
-from fastmcp.exceptions import ToolError
 from fastmcp.resources import ResourceResult
 
 from sigma_mcp import server as srv
@@ -53,10 +52,11 @@ async def test_bulk_remove_team_members_execution(monkeypatch: pytest.MonkeyPatc
     )
     c.update_team_members = AsyncMock(return_value={"status": "ok"})
 
-    # One email matching no member refuses the whole call: nothing is removed.
-    with pytest.raises(ToolError, match="member_not_resolved"):
-        await srv.sigma_bulk_remove_team_members("t1", ["found@ex.com", "missing@ex.com"], confirm=True)
-    c.update_team_members.assert_not_called()
+    # An email matching no member is listed in not_found; the match is still removed.
+    res = await srv.sigma_bulk_remove_team_members("t1", ["found@ex.com", "missing@ex.com"], confirm=True)
+    assert json.loads(res)["removed"] == ["m1"]
+    assert json.loads(res)["not_found"] == ["missing@ex.com"]
+    c.update_team_members.assert_awaited_once_with("t1", {"remove": ["m1"]})
 
     res = await srv.sigma_bulk_remove_team_members("t1", ["FOUND@ex.com"], confirm=True)
     assert json.loads(res)["removed"] == ["m1"]
