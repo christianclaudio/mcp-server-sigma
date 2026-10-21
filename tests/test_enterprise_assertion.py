@@ -19,7 +19,7 @@ async def _test_all_tools():
     for domain, sub in DOMAIN_SERVERS:
         for tool in await sub.list_tools():
             tools[f"{domain}_{tool.name}"] = tool
-    assert len(tools) == 172
+    assert len(tools) == 257
     print(f"Testing {len(tools)} registered tools with invalid args...")
     failures = []
     for name, tool_info in tools.items():

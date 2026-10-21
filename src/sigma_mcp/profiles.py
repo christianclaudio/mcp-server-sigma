@@ -30,7 +30,7 @@ ALL_DOMAINS: tuple[str, ...] = ("workbooks", "datasets", "elements", "workspace"
 # guard unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 BULK_DESTRUCTIVE_TOOLS: frozenset[str] = frozenset({"admin_bulk_deactivate_members", "admin_bulk_remove_team_members"})
 
-# Job profile ``analyst`` (31 tools), in catalog order.
+# Job profile ``analyst`` (50 tools), in catalog order.
 ANALYST_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -64,10 +64,29 @@ ANALYST_TOOLS: frozenset[str] = frozenset(
         "workspace_list_workspaces",
         "workspace_list_all_files",
         "admin_get_current_user",
+        "workbooks_send_workbook",
+        "workbooks_update_workbook_schedule",
+        "workbooks_update_workbook_bookmark",
+        "workbooks_delete_workbook_bookmark",
+        "workbooks_list_report_pages",
+        "workbooks_list_report_page_elements",
+        "workbooks_list_report_columns",
+        "workbooks_list_report_controls",
+        "workbooks_send_report",
+        "workbooks_update_report_schedule",
+        "workbooks_delete_report_schedule",
+        "workspace_list_member_files",
+        "workspace_list_recent_files",
+        "workspace_get_file",
+        "workspace_list_workbooks_for_tag",
+        "workspace_favorite_file",
+        "workspace_unfavorite_file",
+        "workspace_list_favorites_for_member",
+        "admin_list_member_schedules",
     }
 )
 
-# Job profile ``author`` (40 tools), in catalog order.
+# Job profile ``author`` (53 tools), in catalog order.
 AUTHOR_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -110,10 +129,23 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
         "elements_get_doc_page",
         "workspace_list_files",
         "admin_get_current_user",
+        "workbooks_duplicate_tagged_workbook",
+        "workbooks_duplicate_tagged_report",
+        "workbooks_list_report_pages",
+        "workbooks_list_report_page_elements",
+        "workbooks_list_report_columns",
+        "workbooks_get_report_element_query",
+        "workbooks_list_report_controls",
+        "workbooks_get_report_version_history",
+        "workbooks_list_report_tags",
+        "workbooks_tag_report",
+        "workbooks_remove_report_tag",
+        "elements_list_element_lineage",
+        "workspace_get_file",
     }
 )
 
-# Job profile ``modeler`` (33 tools), in catalog order.
+# Job profile ``modeler`` (42 tools), in catalog order.
 MODELER_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -149,10 +181,19 @@ MODELER_TOOLS: frozenset[str] = frozenset(
         "elements_materialize_and_wait",
         "elements_list_all_input_tables",
         "admin_get_current_user",
+        "datasets_create_connection",
+        "datasets_delete_connection",
+        "datasets_list_connection_paths",
+        "datasets_lookup_connection_path",
+        "datasets_list_data_model_sources",
+        "datasets_materialize_data_model",
+        "datasets_get_data_model_materialization",
+        "datasets_list_data_model_materialization_schedules",
+        "datasets_list_data_model_tags",
     }
 )
 
-# Job profile ``embed`` (50 tools), in catalog order.
+# Job profile ``embed`` (72 tools), in catalog order.
 EMBED_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -205,10 +246,32 @@ EMBED_TOOLS: frozenset[str] = frozenset(
         "admin_delete_user_attribute_for_tenant",
         "admin_list_tenants_paginated",
         "admin_get_tenant_scoped_info",
+        "workbooks_delete_workbook_embed",
+        "workbooks_share_workbook_cross_org",
+        "workbooks_delete_shared_template",
+        "elements_update_source_swap_policy",
+        "elements_delete_source_swap_policy",
+        "admin_get_user_attribute",
+        "admin_update_user_attribute",
+        "admin_delete_user_attribute",
+        "admin_update_deployment",
+        "admin_remove_deployment_document",
+        "admin_list_deployable_tenants",
+        "admin_list_deployment_tenants",
+        "admin_add_deployment_tenant",
+        "admin_remove_deployment_tenant",
+        "admin_update_tenant",
+        "admin_delete_tenant",
+        "admin_list_tenant_deployment_capabilities",
+        "admin_batch_add_tenant_capabilities",
+        "admin_batch_remove_tenant_capabilities",
+        "admin_create_api_connector",
+        "admin_update_api_connector",
+        "admin_delete_api_connector",
     }
 )
 
-# Job profile ``access_admin`` (52 tools), in catalog order.
+# Job profile ``access_admin`` (70 tools), in catalog order.
 ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbook_grants",
@@ -263,6 +326,24 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_list_allowed_ips",
         "admin_add_allowed_ips",
         "admin_remove_allowed_ips",
+        "workbooks_delete_workbook_grant",
+        "workbooks_create_report_grant",
+        "workbooks_delete_report_grant",
+        "datasets_delete_connection_grant",
+        "datasets_list_connection_path_grants",
+        "datasets_add_connection_path_grant",
+        "workspace_update_workspace",
+        "admin_update_team",
+        "admin_get_user_attribute",
+        "admin_update_user_attribute",
+        "admin_delete_user_attribute",
+        "admin_set_user_attribute_for_users",
+        "admin_create_account_type",
+        "admin_delete_account_type",
+        "admin_get_grant",
+        "admin_delete_grant",
+        "admin_list_member_schedules",
+        "admin_revoke_member_tokens",
     }
 )
 
@@ -279,6 +360,19 @@ FULL_ONLY_TOOLS: frozenset[str] = frozenset(
         "admin_bulk_remove_team_members",
         "admin_api_capabilities",
         "admin_list_recent_webhooks",
+        "workspace_update_tag",
+        "admin_list_api_credentials",
+        "admin_get_api_credential",
+        "admin_create_api_credential",
+        "admin_update_api_credential",
+        "admin_delete_api_credential",
+        "admin_get_translation",
+        "admin_get_translation_variant",
+        "admin_create_translation",
+        "admin_update_translation",
+        "admin_update_translation_variant",
+        "admin_delete_translation",
+        "admin_delete_translation_variant",
     }
 )
 

@@ -127,6 +127,20 @@ def _batch_outcome(
     )
 
 
+def _require_ids(**values: str) -> None:
+    """Fail with ``invalid_request`` when an ID argument is empty or blank."""
+    for name, value in values.items():
+        if not isinstance(value, str) or not value.strip():
+            _invalid_request(f"{name} is required")
+
+
+def _require_body_fields(body: dict[str, Any], *fields: str) -> None:
+    """Fail with ``invalid_request`` when *body* lacks a field the Sigma spec marks required."""
+    missing = [f for f in fields if f not in body]
+    if missing:
+        _invalid_request(f"body is missing required field(s): {', '.join(missing)}")
+
+
 def _confirm_required(action: str) -> str:
     """Return the confirm two-step prompt as a normal tool result (``isError: false``).
 
