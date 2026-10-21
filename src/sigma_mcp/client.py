@@ -402,6 +402,40 @@ def safe_int_or_zero(val: Any) -> int | None:
     return None
 
 
+# A failed dry run (``dryRun: true`` on POST /v2/workbooks or /v2/reports) answers 400 with
+# ``{dryRun, valid: false, errors, warnings}``, per the spec's "Failed dry run" response.
+_DRY_RUN_FAILED_STATUSES = frozenset({400})
+
+
+def _dry_run_body(body: dict[str, Any]) -> dict[str, Any]:
+    """Map the deprecated ``spec/verify`` body onto the create endpoint's dry-run body."""
+    out = {k: v for k, v in body.items() if k != "document"}
+    if "document" in body:
+        out["contents"] = body["document"]
+    out["dryRun"] = True
+    return out
+
+
+def _dry_run_result(r: Response, path: str) -> JSONValue:
+    """Translate a dry-run response into the ``{valid, errors, warnings}`` verify result."""
+    try:
+        data = r.json() if r.content else None
+    except ValueError:
+        data = None
+    if r.status_code == 400:
+        if isinstance(data, dict) and data.get("valid") is False:
+            return {"valid": False, "errors": data.get("errors", []), "warnings": data.get("warnings", [])}
+        raise SigmaAPIError(
+            status_code=400,
+            path=path,
+            method="POST",
+            detail=data if data is not None else (r.text[:500] or None),
+            request_id=r.headers.get("x-request-id"),
+        )
+    warnings = data.get("warnings", []) if isinstance(data, dict) else []
+    return {"valid": True, "errors": [], "warnings": warnings}
+
+
 class SigmaClient:
     extract_dict = staticmethod(extract_dict)
     extract_list = staticmethod(extract_list)
@@ -865,7 +899,17 @@ class SigmaClient:
         return await self.put(f"/v2/workbooks/{workbook_id}/contents", body)
 
     async def verify_workbook_spec(self, body: dict[str, Any]) -> JSONValue:
-        return await self.post("/v2/workbooks/spec/verify", body)
+        """Validate a workbook code representation without creating it.
+
+        ``POST /v2/workbooks/spec/verify`` is deprecated; the spec's replacement is
+        ``POST /v2/workbooks`` with ``contents`` and ``dryRun: true``. *body* keeps the old
+        ``{name, folderId, document[, description]}`` shape and the result keeps the old
+        ``{valid, errors}`` shape (plus the dry run's ``warnings``).
+        """
+        r = await self._request(
+            "POST", "/v2/workbooks", json_data=_dry_run_body(body), allow_statuses=_DRY_RUN_FAILED_STATUSES
+        )
+        return _dry_run_result(r, "/v2/workbooks")
 
     async def delete_file(self, inode_id: str) -> int:
         return await self.delete(f"/v2/files/{inode_id}")
@@ -1287,7 +1331,16 @@ class SigmaClient:
         return await self.put(f"/v2/reports/{report_id}/contents", body)
 
     async def verify_report_spec(self, body: dict[str, Any]) -> JSONValue:
-        return await self.post("/v2/reports/spec/verify", body)
+        """Validate a report code representation without creating it.
+
+        ``POST /v2/reports/spec/verify`` is deprecated; the spec's replacement is
+        ``POST /v2/reports`` with ``contents`` and ``dryRun: true``. Same body and result
+        shapes as :meth:`verify_workbook_spec`.
+        """
+        r = await self._request(
+            "POST", "/v2/reports", json_data=_dry_run_body(body), allow_statuses=_DRY_RUN_FAILED_STATUSES
+        )
+        return _dry_run_result(r, "/v2/reports")
 
     async def duplicate_tagged_report(
         self, report_id: str, tag_name: str, body: dict[str, Any] | None = None

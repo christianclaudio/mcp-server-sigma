@@ -926,7 +926,8 @@ async def sigma_verify_workbook_spec(
 ) -> str:
     """Verify a workbook code representation specification without saving.
 
-    Validates schema structure, syntax, and element layout.
+    Validates schema structure, syntax, and element layout through a dry run of workbook
+    creation (``dryRun: true``); nothing is created. Returns ``{valid, errors, warnings}``.
     """
     if not name or not name.strip():
         _invalid_request("name is required")
@@ -979,7 +980,11 @@ async def sigma_verify_report_spec(
     document: dict[str, Any],
     description: str | None = None,
 ) -> str:
-    """Verify a report code representation specification without saving."""
+    """Verify a report code representation specification without saving.
+
+    Runs report creation as a dry run (``dryRun: true``); nothing is created. Returns
+    ``{valid, errors, warnings}``.
+    """
     if not name or not name.strip():
         _invalid_request("name is required")
     if not folder_id or not folder_id.strip():
