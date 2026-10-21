@@ -784,6 +784,9 @@ class SigmaClient:
                 all_entries.extend(data.get("entries", []))
                 next_page = data.get("nextPage")
             else:
+                # A bare JSON array is the legacy unpaginated shape: keep it, there is no next page.
+                if isinstance(data, list):
+                    all_entries.extend(e for e in data if isinstance(e, dict))
                 break
             if not next_page:
                 break
@@ -930,7 +933,12 @@ class SigmaClient:
 
     # ─── Workbook Schedules ────────────────────────────────────────────────
     async def list_workbook_schedules(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/schedules")
+        """Every scheduled export for a workbook, following ``nextPage``.
+
+        Sigma returns only paginated responses (``limit``/``page``, 50 per page by default)
+        since 2026-06-02, so a single GET would silently stop at the first page.
+        """
+        return {"entries": await self.auto_paginate(f"/v2/workbooks/{workbook_id}/schedules")}
 
     async def add_workbook_schedule(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/schedules", body)
@@ -950,7 +958,11 @@ class SigmaClient:
         return await self.get(f"/v2/workbooks/{workbook_id}/materializations/{materialization_id}")
 
     async def list_materialization_schedules(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/materialization-schedules")
+        """Every materialization schedule for a workbook, following ``nextPage``.
+
+        Paginated-only since 2026-06-02 (``limit``/``page``), like ``list_workbook_schedules``.
+        """
+        return {"entries": await self.auto_paginate(f"/v2/workbooks/{workbook_id}/materialization-schedules")}
 
     # ─── Workbook Bookmarks ────────────────────────────────────────────────
     async def list_workbook_bookmarks(self, workbook_id: str) -> JSONValue:

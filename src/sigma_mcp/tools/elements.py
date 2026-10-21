@@ -155,7 +155,10 @@ get_materialization_job = sigma_get_materialization_job
 )
 @sigma_tool
 async def sigma_list_materialization_schedules(workbook_id: str) -> str:
-    """List materialization schedules for a workbook."""
+    """List every materialization schedule for a workbook.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     return json.dumps(await (await get_client()).list_materialization_schedules(workbook_id), indent=2)
 
 

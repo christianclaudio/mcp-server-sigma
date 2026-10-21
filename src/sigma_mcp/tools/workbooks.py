@@ -269,7 +269,10 @@ export_workbook = sigma_export_workbook
 )
 @sigma_tool
 async def sigma_list_workbook_schedules(workbook_id: str) -> str:
-    """List scheduled exports for a workbook."""
+    """List every scheduled export for a workbook.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     return json.dumps(await (await get_client()).list_workbook_schedules(workbook_id), indent=2)
 
 
