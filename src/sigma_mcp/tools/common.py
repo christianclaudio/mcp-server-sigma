@@ -6,13 +6,13 @@ import functools
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, NoReturn
 
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from sigma_mcp.errors import SigmaAPIError, redact_message
+from sigma_mcp.errors import MASK, SigmaAPIError, redact_message
 
 logger = logging.getLogger("sigma_mcp")
 
@@ -139,6 +139,57 @@ def _require_body_fields(body: dict[str, Any], *fields: str) -> None:
     missing = [f for f in fields if f not in body]
     if missing:
         _invalid_request(f"body is missing required field(s): {', '.join(missing)}")
+
+
+# Fields of an API credential's ``credential`` that Sigma encrypts at rest and never returns
+# (request schemas of POST /v2/api-credentials and PATCH /v2/api-credentials/{id}).
+_CREDENTIAL_SECRET_FIELDS = frozenset({"password", "token", "value", "clientSecret", "secretAccessKey"})
+
+
+def _credential_secrets(body: dict[str, Any]) -> list[str]:
+    """Return the secret strings in *body*'s ``credential``, longest first."""
+    found: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in _CREDENTIAL_SECRET_FIELDS and isinstance(value, str) and value:
+                    found.add(value)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(body.get("credential"))
+    return sorted(found, key=len, reverse=True)
+
+
+def _mask_literals(value: Any, secrets: list[str]) -> Any:
+    """Replace every occurrence of each secret in the strings of *value* with ``MASK``."""
+    if isinstance(value, str):
+        for secret in secrets:
+            value = value.replace(secret, MASK)
+        return value
+    if isinstance(value, dict):
+        return {k: _mask_literals(v, secrets) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask_literals(v, secrets) for v in value]
+    return value
+
+
+async def _call_masking_secrets(call: Awaitable[Any], secrets: list[str]) -> Any:
+    """Await *call* and mask *secrets* in its result or in a ``SigmaAPIError`` detail.
+
+    The key-based redaction misses some credential fields (``value``, ``secretAccessKey``),
+    so the secrets a tool sent are masked literally wherever Sigma echoes them.
+    """
+    try:
+        result = await call
+    except SigmaAPIError as exc:
+        exc.detail = _mask_literals(exc.detail, secrets)
+        raise
+    return _mask_literals(result, secrets)
 
 
 def _confirm_required(action: str) -> str:

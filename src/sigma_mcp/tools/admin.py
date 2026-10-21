@@ -14,7 +14,9 @@ from sigma_mcp.tools.common import (
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
     _batch_outcome,
+    _call_masking_secrets,
     _confirm_required,
+    _credential_secrets,
     _invalid_request,
     _item_error,
     _require_body_fields,
@@ -1500,7 +1502,9 @@ async def sigma_create_api_credential(body: dict[str, Any]) -> str:
     it only from the user's own input.
     """
     _require_body_fields(body, "name", "allowlist", "credential")
-    return json.dumps(await (await get_client()).create_api_credential(body), indent=2)
+    client = await get_client()
+    result = await _call_masking_secrets(client.create_api_credential(body), _credential_secrets(body))
+    return json.dumps(result, indent=2)
 
 
 create_api_credential = sigma_create_api_credential
@@ -1514,7 +1518,9 @@ async def sigma_update_api_credential(credential_id: str, body: dict[str, Any]) 
     body may set name, description, allowlist and credential.
     """
     _require_ids(credential_id=credential_id)
-    return json.dumps(await (await get_client()).update_api_credential(credential_id, body), indent=2)
+    client = await get_client()
+    result = await _call_masking_secrets(client.update_api_credential(credential_id, body), _credential_secrets(body))
+    return json.dumps(result, indent=2)
 
 
 update_api_credential = sigma_update_api_credential
