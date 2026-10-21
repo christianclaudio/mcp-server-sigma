@@ -228,7 +228,11 @@ list_all_files = sigma_list_all_files
 @workspace_server.tool(name="list_member_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_member_files(member_id: str, limit: int = 200) -> str:
-    """List the files (workbooks, data models, folders) a member can access."""
+    """List the files (workbooks, data models, folders) a member can access.
+
+    Follows Sigma's pagination to the last page (``limit`` is the page size) and returns
+    ``{"entries": [...]}``.
+    """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_member_files(member_id, limit), indent=2)
 
@@ -239,7 +243,10 @@ list_member_files = sigma_list_member_files
 @workspace_server.tool(name="list_recent_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_recent_files(member_id: str) -> str:
-    """List the files a member opened recently."""
+    """List the files a member opened recently.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_recent_files(member_id), indent=2)
 
@@ -275,7 +282,10 @@ update_tag = sigma_update_tag
 @workspace_server.tool(name="list_workbooks_for_tag", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workbooks_for_tag(tag_id: str) -> str:
-    """List the workbooks carrying a version tag."""
+    """List the workbooks carrying a version tag.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(tag_id=tag_id)
     return json.dumps(await (await get_client()).list_workbooks_for_tag(tag_id), indent=2)
 
@@ -328,7 +338,10 @@ unfavorite_file = sigma_unfavorite_file
 )
 @sigma_tool
 async def sigma_list_favorites_for_member(member_id: str) -> str:
-    """List a member's favorite documents."""
+    """List a member's favorite documents.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_favorites_for_member(member_id), indent=2)
 

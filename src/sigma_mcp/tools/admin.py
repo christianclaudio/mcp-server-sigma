@@ -1292,7 +1292,10 @@ remove_deployment_document = sigma_remove_deployment_document
 @admin_server.tool(name="list_deployable_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployable_tenants() -> str:
-    """List the tenant organizations deployments can target."""
+    """List the tenant organizations deployments can target.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     return json.dumps(await (await get_client()).list_deployable_tenants(), indent=2)
 
 
@@ -1302,7 +1305,10 @@ list_deployable_tenants = sigma_list_deployable_tenants
 @admin_server.tool(name="list_deployment_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployment_tenants(policy_id: str) -> str:
-    """List the tenants a deployment policy deploys to."""
+    """List the tenants a deployment policy deploys to.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(policy_id=policy_id)
     return json.dumps(await (await get_client()).list_deployment_tenants(policy_id), indent=2)
 
@@ -1372,7 +1378,10 @@ delete_tenant = sigma_delete_tenant
 )
 @sigma_tool
 async def sigma_list_tenant_deployment_capabilities(tenant_org_id: str) -> str:
-    """List which tenant organizations a tenant can deploy to."""
+    """List which tenant organizations a tenant can deploy to.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(tenant_org_id=tenant_org_id)
     return json.dumps(await (await get_client()).list_tenant_deployment_capabilities(tenant_org_id), indent=2)
 
@@ -1461,7 +1470,10 @@ delete_api_connector = sigma_delete_api_connector
 @admin_server.tool(name="list_api_credentials", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_api_credentials() -> str:
-    """List the API credentials API connectors use (metadata only)."""
+    """List the API credentials API connectors use (metadata only).
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     return json.dumps(await (await get_client()).list_api_credentials(), indent=2)
 
 
@@ -1619,7 +1631,10 @@ delete_translation_variant = sigma_delete_translation_variant
 @admin_server.tool(name="list_member_schedules", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_member_schedules(member_id: str) -> str:
-    """List the scheduled exports a member owns."""
+    """List the scheduled exports a member owns.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(member_id=member_id)
     return json.dumps(await (await get_client()).list_member_schedules(member_id), indent=2)
 

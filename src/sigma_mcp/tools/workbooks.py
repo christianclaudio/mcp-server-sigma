@@ -1259,7 +1259,10 @@ duplicate_tagged_report = sigma_duplicate_tagged_report
 @workbooks_server.tool(name="list_report_pages", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_pages(report_id: str) -> str:
-    """List the pages of a report. Returns the first page of results; nextPage in the response shows when more exist."""
+    """List the pages of a report. Returns the first page of results; nextPage in the response shows when more exist.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(report_id=report_id)
     return json.dumps(await (await get_client()).list_report_pages(report_id), indent=2)
 
@@ -1272,7 +1275,10 @@ list_report_pages = sigma_list_report_pages
 )
 @sigma_tool
 async def sigma_list_report_page_elements(report_id: str, page_id: str) -> str:
-    """List the elements on one page of a report. Retrieve page IDs with workbooks_list_report_pages."""
+    """List the elements on one page of a report. Retrieve page IDs with workbooks_list_report_pages.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(report_id=report_id, page_id=page_id)
     return json.dumps(await (await get_client()).list_report_page_elements(report_id, page_id), indent=2)
 
@@ -1283,7 +1289,10 @@ list_report_page_elements = sigma_list_report_page_elements
 @workbooks_server.tool(name="list_report_columns", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_columns(report_id: str) -> str:
-    """List the columns of every element in a report."""
+    """List the columns of every element in a report.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(report_id=report_id)
     return json.dumps(await (await get_client()).list_report_columns(report_id), indent=2)
 
@@ -1307,7 +1316,10 @@ get_report_element_query = sigma_get_report_element_query
 @workbooks_server.tool(name="list_report_controls", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_controls(report_id: str) -> str:
-    """List the controls (filters and parameters) in a report."""
+    """List the controls (filters and parameters) in a report.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(report_id=report_id)
     return json.dumps(await (await get_client()).list_report_controls(report_id), indent=2)
 
@@ -1320,7 +1332,10 @@ list_report_controls = sigma_list_report_controls
 )
 @sigma_tool
 async def sigma_get_report_version_history(report_id: str) -> str:
-    """Get the version history of a report (published versions, who and when)."""
+    """Get the version history of a report (published versions, who and when).
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(report_id=report_id)
     return json.dumps(await (await get_client()).get_report_version_history(report_id), indent=2)
 
@@ -1409,7 +1424,10 @@ delete_report_grant = sigma_delete_report_grant
 @workbooks_server.tool(name="list_report_tags", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_tags(report_id: str) -> str:
-    """List the version tags on a report."""
+    """List the version tags on a report.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(report_id=report_id)
     return json.dumps(await (await get_client()).list_report_tags(report_id), indent=2)
 

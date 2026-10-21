@@ -830,6 +830,30 @@ DESTRUCTIVE_CASES: list[tuple[str, str]] = [
     ("admin", "revoke_member_tokens"),
 ]
 
+# List tools that follow Sigma's pagination and return ``{"entries": [...]}``.
+PAGINATED = {
+    "list_member_schedules",
+    "list_connection_paths",
+    "list_connection_path_grants",
+    "list_data_model_tags",
+    "list_member_files",
+    "list_recent_files",
+    "list_workbooks_for_tag",
+    "list_favorites_for_member",
+    "list_deployable_tenants",
+    "list_deployment_tenants",
+    "list_tenant_deployment_capabilities",
+    "list_api_credentials",
+    "list_data_model_sources",
+    "list_data_model_materialization_schedules",
+    "list_report_pages",
+    "list_report_page_elements",
+    "list_report_columns",
+    "list_report_controls",
+    "get_report_version_history",
+    "list_report_tags",
+}
+
 _KWARGS = {(d, n): kw for d, n, kw, *_ in CASES}
 
 
@@ -873,6 +897,9 @@ async def test_tool_calls_its_endpoint(
     assert kw["json"] == body
     if status_only:
         assert out == {"status": "deleted", "statusCode": 204}
+    elif name in PAGINATED:
+        # A response with no ``entries`` is one empty page (tests/test_list_pagination.py).
+        assert out == {"entries": []}
     else:
         assert out == {"ok": True}
 

@@ -456,7 +456,10 @@ delete_connection = sigma_delete_connection
 @datasets_server.tool(name="list_connection_paths", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_connection_paths() -> str:
-    """List connection paths (databases, schemas and tables) across all connections. Returns the first page of results."""
+    """List connection paths (databases, schemas and tables) across all connections. Returns the first page of results.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     return json.dumps(await (await get_client()).list_connection_paths(), indent=2)
 
 
@@ -500,7 +503,10 @@ delete_connection_grant = sigma_delete_connection_grant
 )
 @sigma_tool
 async def sigma_list_connection_path_grants(connection_path_id: str) -> str:
-    """List grants on a connection path (database, schema or table)."""
+    """List grants on a connection path (database, schema or table).
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(connection_path_id=connection_path_id)
     return json.dumps(await (await get_client()).list_connection_path_grants(connection_path_id), indent=2)
 
@@ -528,7 +534,10 @@ add_connection_path_grant = sigma_add_connection_path_grant
 @datasets_server.tool(name="list_data_model_sources", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_sources(data_model_id: str) -> str:
-    """List the sources (tables, datasets, other data models) a data model reads from."""
+    """List the sources (tables, datasets, other data models) a data model reads from.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(data_model_id=data_model_id)
     return json.dumps(await (await get_client()).list_data_model_sources(data_model_id), indent=2)
 
@@ -571,7 +580,10 @@ get_data_model_materialization = sigma_get_data_model_materialization
 )
 @sigma_tool
 async def sigma_list_data_model_materialization_schedules(data_model_id: str) -> str:
-    """List the materialization schedules of a data model."""
+    """List the materialization schedules of a data model.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(data_model_id=data_model_id)
     return json.dumps(await (await get_client()).list_data_model_materialization_schedules(data_model_id), indent=2)
 
@@ -582,7 +594,10 @@ list_data_model_materialization_schedules = sigma_list_data_model_materializatio
 @datasets_server.tool(name="list_data_model_tags", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_tags(data_model_id: str) -> str:
-    """List the version tags on a data model."""
+    """List the version tags on a data model.
+
+    Follows Sigma's pagination to the last page and returns ``{"entries": [...]}``.
+    """
     _require_ids(data_model_id=data_model_id)
     return json.dumps(await (await get_client()).list_data_model_tags(data_model_id), indent=2)
 

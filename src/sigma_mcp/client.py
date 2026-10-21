@@ -830,6 +830,35 @@ class SigmaClient:
             p["page"] = next_page
         return all_entries
 
+    async def auto_paginate_token(
+        self, path: str, params: dict[str, Any] | None = None, page_size: int = 200, max_pages: int = 1000
+    ) -> list[dict[str, Any]]:
+        """Follow ``nextPageToken`` to retrieve all entries from a token-paginated endpoint.
+
+        Some Sigma lists page with ``pageSize``/``pageToken`` and answer ``nextPageToken``
+        (50 per page by default) instead of ``limit``/``page``/``nextPage``.
+        """
+        all_entries: list[dict[str, Any]] = []
+        p: dict[str, Any] = dict(params or {})
+        p.setdefault("pageSize", page_size)
+        seen_tokens: set[str] = set()
+        page_count = 0
+        while page_count < max_pages:
+            page_count += 1
+            data = await self.get(path, p)
+            if isinstance(data, dict):
+                all_entries.extend(data.get("entries", []))
+                next_token = data.get("nextPageToken")
+            else:
+                if isinstance(data, list):
+                    all_entries.extend(e for e in data if isinstance(e, dict))
+                break
+            if not next_token or next_token in seen_tokens:
+                break
+            seen_tokens.add(next_token)
+            p["pageToken"] = next_token
+        return all_entries
+
     # ─── Connections ───────────────────────────────────────────────────────
     async def list_connections(self) -> JSONValue:
         return await self.get("/v2/connections")
@@ -854,7 +883,7 @@ class SigmaClient:
 
     async def list_connection_paths(self) -> JSONValue:
         """List all connection paths (global, not per-connection)."""
-        return await self.get("/v2/connections/paths")
+        return {"entries": await self.auto_paginate("/v2/connections/paths")}
 
     async def list_columns_for_table(self, table_id: str) -> JSONValue:
         """Get columns for a table by tableId."""
@@ -874,7 +903,7 @@ class SigmaClient:
         return await self.delete(f"/v2/connections/{connection_id}/grants/{grant_id}")
 
     async def list_connection_path_grants(self, connection_path_id: str) -> JSONValue:
-        return await self.get(f"/v2/connections/paths/{connection_path_id}/grants")
+        return {"entries": await self.auto_paginate(f"/v2/connections/paths/{connection_path_id}/grants")}
 
     async def add_connection_path_grant(self, connection_path_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/connections/paths/{connection_path_id}/grants", body)
@@ -1078,7 +1107,7 @@ class SigmaClient:
         return await self.get(f"/v2/dataModels/{data_model_id}/columns", {"limit": 500})
 
     async def list_data_model_sources(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/sources")
+        return {"entries": await self.auto_paginate_token(f"/v2/dataModels/{data_model_id}/sources")}
 
     async def swap_data_model_sources(self, data_model_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/dataModels/{data_model_id}/swapSources", body)
@@ -1091,7 +1120,7 @@ class SigmaClient:
         return await self.get(f"/v2/dataModels/{data_model_id}/materializations/{materialization_id}")
 
     async def list_data_model_materialization_schedules(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/materializationSchedules")
+        return {"entries": await self.auto_paginate_token(f"/v2/dataModels/{data_model_id}/materializationSchedules")}
 
     async def list_data_model_lineage(self, data_model_id: str) -> JSONValue:
         return await self.get(f"/v2/dataModels/{data_model_id}/lineage")
@@ -1104,7 +1133,7 @@ class SigmaClient:
         return await self.post("/v2/dataModels/tag", {"dataModelId": data_model_id, "tag": tag_name})
 
     async def list_data_model_tags(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/tags")
+        return {"entries": await self.auto_paginate(f"/v2/dataModels/{data_model_id}/tags")}
 
     # ─── Members ───────────────────────────────────────────────────────────
     async def list_members(self, limit: int = 200) -> JSONValue:
@@ -1127,10 +1156,10 @@ class SigmaClient:
         return await self.get("/v2/whoami")
 
     async def list_member_files(self, member_id: str, limit: int = 200) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/files", {"limit": limit})
+        return {"entries": await self.auto_paginate(f"/v2/members/{member_id}/files", limit=limit)}
 
     async def list_recent_files(self, member_id: str) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/files/recents")
+        return {"entries": await self.auto_paginate(f"/v2/members/{member_id}/files/recents")}
 
     # ─── Teams ─────────────────────────────────────────────────────────────
     async def list_teams(self, limit: int = 200) -> JSONValue:
@@ -1187,7 +1216,7 @@ class SigmaClient:
         return await self.delete(f"/v2/tags/{tag_id}")
 
     async def list_workbooks_for_tag(self, tag_id: str) -> JSONValue:
-        return await self.get(f"/v2/tags/{tag_id}/workbooks")
+        return {"entries": await self.auto_paginate(f"/v2/tags/{tag_id}/workbooks")}
 
     # ─── User Attributes ───────────────────────────────────────────────────
     async def list_user_attributes(self) -> JSONValue:
@@ -1299,7 +1328,7 @@ class SigmaClient:
 
     async def list_favorites_for_member(self, member_id: str) -> JSONValue:
         """List a member's favorited files."""
-        return await self.get(f"/v2/favorites/member/{member_id}")
+        return {"entries": await self.auto_paginate(f"/v2/favorites/member/{member_id}")}
 
     # ─── Grants (generic) ─────────────────────────────────────────────────
     async def create_or_update_grant(self, body: dict[str, Any]) -> JSONValue:
@@ -1354,16 +1383,16 @@ class SigmaClient:
         return await self.post(f"/v2/reports/{report_id}/swapSources", body)
 
     async def list_report_pages(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/pages")
+        return {"entries": await self.auto_paginate_token(f"/v2/reports/{report_id}/pages")}
 
     async def list_report_page_elements(self, report_id: str, page_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/pages/{page_id}/elements")
+        return {"entries": await self.auto_paginate_token(f"/v2/reports/{report_id}/pages/{page_id}/elements")}
 
     async def list_report_elements(self, report_id: str) -> JSONValue:
         return await self.get(f"/v2/reports/{report_id}/elements", {"limit": 200})
 
     async def list_report_columns(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/columns", {"limit": 500})
+        return {"entries": await self.auto_paginate_token(f"/v2/reports/{report_id}/columns")}
 
     async def get_report_element_query(self, report_id: str, element_id: str) -> JSONValue:
         return await self.get(f"/v2/reports/{report_id}/elements/{element_id}/query")
@@ -1372,13 +1401,13 @@ class SigmaClient:
         return await self.get(f"/v2/reports/{report_id}/queries", {"limit": 50})
 
     async def list_report_controls(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/controls", {"limit": 50})
+        return {"entries": await self.auto_paginate_token(f"/v2/reports/{report_id}/controls")}
 
     async def list_report_lineage(self, report_id: str) -> JSONValue:
         return await self.get(f"/v2/reports/{report_id}/lineage")
 
     async def get_report_version_history(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/version-history")
+        return {"entries": await self.auto_paginate_token(f"/v2/reports/{report_id}/version-history")}
 
     async def export_report(self, report_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/reports/{report_id}/export", body)
@@ -1405,7 +1434,7 @@ class SigmaClient:
         return await self.delete(f"/v2/reports/{report_id}/grants/{grant_id}")
 
     async def list_report_tags(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/tags")
+        return {"entries": await self.auto_paginate_token(f"/v2/reports/{report_id}/tags")}
 
     async def tag_report(self, report_id: str, tag_name: str) -> JSONValue:
         """Apply a version tag to a report.
@@ -1448,10 +1477,10 @@ class SigmaClient:
         return await self.delete(f"/v2/deploymentPolicies/{policy_id}/files/{inode_id}")
 
     async def list_deployable_tenants(self) -> JSONValue:
-        return await self.get("/v2/deploymentPolicies/tenants")
+        return {"entries": await self.auto_paginate_token("/v2/deploymentPolicies/tenants")}
 
     async def list_deployment_tenants(self, policy_id: str) -> JSONValue:
-        return await self.get(f"/v2/deploymentPolicies/{policy_id}/tenants")
+        return {"entries": await self.auto_paginate_token(f"/v2/deploymentPolicies/{policy_id}/tenants")}
 
     async def add_deployment_tenant(self, policy_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/deploymentPolicies/{policy_id}/tenants", body)
@@ -1476,7 +1505,7 @@ class SigmaClient:
         return await self.delete(f"/v2/tenants/{tenant_id}")
 
     async def list_tenant_deployment_capabilities(self, tenant_org_id: str) -> JSONValue:
-        return await self.get(f"/v2/tenants/{tenant_org_id}/capabilities/deployments")
+        return {"entries": await self.auto_paginate_token(f"/v2/tenants/{tenant_org_id}/capabilities/deployments")}
 
     async def batch_add_tenant_capabilities(self, tenant_org_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/tenants/{tenant_org_id}/capabilities/deployments:batchAdd", body)
@@ -1502,7 +1531,7 @@ class SigmaClient:
 
     # ─── API Credentials ──────────────────────────────────────────────────
     async def list_api_credentials(self) -> JSONValue:
-        return await self.get("/v2/api-credentials")
+        return {"entries": await self.auto_paginate_token("/v2/api-credentials")}
 
     async def get_api_credential(self, credential_id: str) -> JSONValue:
         return await self.get(f"/v2/api-credentials/{credential_id}")
@@ -1574,7 +1603,7 @@ class SigmaClient:
         return await self.get(f"/v2/members/{member_id}/teams")
 
     async def list_member_schedules(self, member_id: str) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/schedules")
+        return {"entries": await self.auto_paginate(f"/v2/members/{member_id}/schedules")}
 
     async def revoke_member_tokens(self, member_id: str) -> JSONValue:
         return await self.post(f"/v2/members/{member_id}/revoke")
