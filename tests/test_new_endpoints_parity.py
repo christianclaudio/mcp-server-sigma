@@ -94,11 +94,11 @@ async def test_client_methods_direct(mock_client: SigmaClient):
     assert "/v2/workbooks/wb-1/contents" in http_mock.request.call_args[0][1]
 
     # verify_workbook_spec
-    http_mock.request.return_value = _mock_res(200, {"valid": True})
+    http_mock.request.return_value = _mock_res(200, {"dryRun": True, "warnings": [], "workbookId": None})
     res = await client.verify_workbook_spec({"name": "Test", "folderId": "f-1", "document": {}})
-    assert res == {"valid": True}
+    assert res == {"valid": True, "errors": [], "warnings": []}
     assert http_mock.request.call_args[0][0] == "POST"
-    assert "/v2/workbooks/spec/verify" in http_mock.request.call_args[0][1]
+    assert http_mock.request.call_args[0][1].endswith("/v2/workbooks")
 
     # update_report_contents
     http_mock.request.return_value = _mock_res(200, {"updatedReport": True})
@@ -108,11 +108,11 @@ async def test_client_methods_direct(mock_client: SigmaClient):
     assert "/v2/reports/rep-1/contents" in http_mock.request.call_args[0][1]
 
     # verify_report_spec
-    http_mock.request.return_value = _mock_res(200, {"validReport": True})
+    http_mock.request.return_value = _mock_res(200, {"dryRun": True, "warnings": [{"summary": "w"}]})
     res = await client.verify_report_spec({"name": "Report", "folderId": "f-1", "document": {}})
-    assert res == {"validReport": True}
+    assert res == {"valid": True, "errors": [], "warnings": [{"summary": "w"}]}
     assert http_mock.request.call_args[0][0] == "POST"
-    assert "/v2/reports/spec/verify" in http_mock.request.call_args[0][1]
+    assert http_mock.request.call_args[0][1].endswith("/v2/reports")
 
     # download_query_export 204 processing
     http_mock.request.return_value = _mock_res(204)
@@ -173,7 +173,7 @@ async def test_client_methods_direct(mock_client: SigmaClient):
     # list_org_workbook_agents
     http_mock.request.return_value = _mock_res(200, {"entries": []})
     res = await client.list_org_workbook_agents(page_token="tok1", page_size=25)
-    assert res == {"entries": []}
+    assert res == {"entries": [], "nextPageToken": None}
     assert "/v2/workbookAgents" in http_mock.request.call_args[0][1]
     assert http_mock.request.call_args[1]["params"] == {"pageToken": "tok1", "pageSize": 25}
 
@@ -204,7 +204,7 @@ async def test_client_methods_direct(mock_client: SigmaClient):
     # list_allowed_ips
     http_mock.request.return_value = _mock_res(200, {"entries": []})
     res = await client.list_allowed_ips(page_token="ip-tok", page_size=10)
-    assert res == {"entries": []}
+    assert res == {"entries": [], "nextPageToken": None}
     assert "/v3alpha/allowedIps" in http_mock.request.call_args[0][1]
     assert http_mock.request.call_args[1]["params"] == {"pageToken": "ip-tok", "pageSize": 10}
 
@@ -244,14 +244,15 @@ async def test_workbooks_tools(mock_client: SigmaClient):
         await sigma_verify_workbook_spec("", "f-1", {})
     with pytest.raises(ToolError, match="folder_id is required"):
         await sigma_verify_workbook_spec("Name", "", {})
-    http_mock.request.return_value = _mock_res(200, {"specValid": True})
+    http_mock.request.return_value = _mock_res(200, {"dryRun": True, "warnings": []})
     out = await sigma_verify_workbook_spec("Name", "f-1", {"doc": 1}, description="test desc")
-    assert json.loads(out) == {"specValid": True}
+    assert json.loads(out) == {"valid": True, "errors": [], "warnings": []}
     assert http_mock.request.call_args[1]["json"] == {
         "name": "Name",
         "folderId": "f-1",
-        "document": {"doc": 1},
+        "contents": {"doc": 1},
         "description": "test desc",
+        "dryRun": True,
     }
 
     # sigma_update_report_contents
@@ -270,9 +271,10 @@ async def test_workbooks_tools(mock_client: SigmaClient):
         await sigma_verify_report_spec("", "f-1", {})
     with pytest.raises(ToolError, match="folder_id is required"):
         await sigma_verify_report_spec("Rep", "", {})
-    http_mock.request.return_value = _mock_res(200, {"repValid": True})
+    http_mock.request.return_value = _mock_res(200, {"dryRun": True, "warnings": []})
     out = await sigma_verify_report_spec("Rep", "f-1", {}, description="report description")
-    assert json.loads(out) == {"repValid": True}
+    assert json.loads(out) == {"valid": True, "errors": [], "warnings": []}
+    assert http_mock.request.call_args[1]["json"]["dryRun"] is True
     assert http_mock.request.call_args[1]["json"]["description"] == "report description"
 
     # sigma_download_query_export
@@ -339,7 +341,7 @@ async def test_admin_tools(mock_client: SigmaClient):
     # sigma_list_org_workbook_agents
     http_mock.request.return_value = _mock_res(200, {"entries": []})
     out = await sigma_list_org_workbook_agents(page_token="tok", page_size=50)
-    assert json.loads(out) == {"entries": []}
+    assert json.loads(out) == {"entries": [], "nextPageToken": None}
 
     # sigma_get_org_setting
     with pytest.raises(ToolError, match="setting_name is required"):
@@ -377,7 +379,7 @@ async def test_admin_tools(mock_client: SigmaClient):
     # sigma_list_allowed_ips
     http_mock.request.return_value = _mock_res(200, {"entries": [{"ip": "10.0.0.1"}]})
     out = await sigma_list_allowed_ips()
-    assert json.loads(out) == {"entries": [{"ip": "10.0.0.1"}]}
+    assert json.loads(out) == {"entries": [{"ip": "10.0.0.1"}], "nextPageToken": None}
 
     # sigma_add_allowed_ips
     assert "confirm=true" in await sigma_add_allowed_ips([], confirm=False)

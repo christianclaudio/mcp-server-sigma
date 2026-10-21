@@ -24,32 +24,32 @@ REPO = Path(__file__).resolve().parent.parent
 # Expected (total tools, tools annotated readOnlyHint=True) per profile. ``full`` is exhaustive:
 # the two bulk tools are listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
-    "full": (172, 90),
-    "readonly": (90, 90),
+    "full": (257, 120),
+    "readonly": (120, 120),
     # Job (allowlist) profiles
-    "analyst": (31, 23),
-    "author": (40, 28),
-    "modeler": (33, 24),
-    "embed": (50, 27),
-    "access_admin": (52, 22),
+    "analyst": (50, 33),
+    "author": (53, 37),
+    "modeler": (42, 30),
+    "embed": (72, 31),
+    "access_admin": (70, 26),
 }
 JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
 
 # Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
 EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
-    "workbooks": 54,
-    "datasets": 22,
-    "elements": 21,
-    "workspace": 15,
-    "admin": 60,
+    "workbooks": 78,
+    "datasets": 34,
+    "elements": 24,
+    "workspace": 24,
+    "admin": 97,
 }
 
 # Expected annotation split on ``full``.
 EXPECTED_DEFAULT = EXPECTED_PROFILE_COUNTS["full"][0]
 EXPECTED_READONLY = EXPECTED_PROFILE_COUNTS["readonly"][0]
-EXPECTED_READ_ONLY = 90
-EXPECTED_DESTRUCTIVE = 20
-EXPECTED_IDEMPOTENT = 8
+EXPECTED_READ_ONLY = 120
+EXPECTED_DESTRUCTIVE = 43
+EXPECTED_IDEMPOTENT = 10
 
 BULK_TOOLS = ("admin_bulk_deactivate_members", "admin_bulk_remove_team_members")
 EXPECTED_FULL_ONLY = {
@@ -62,6 +62,19 @@ EXPECTED_FULL_ONLY = {
     "admin_bulk_remove_team_members",
     "admin_api_capabilities",
     "admin_list_recent_webhooks",
+    "workspace_update_tag",
+    "admin_list_api_credentials",
+    "admin_get_api_credential",
+    "admin_create_api_credential",
+    "admin_update_api_credential",
+    "admin_delete_api_credential",
+    "admin_get_translation",
+    "admin_get_translation_variant",
+    "admin_create_translation",
+    "admin_update_translation",
+    "admin_update_translation_variant",
+    "admin_delete_translation",
+    "admin_delete_translation_variant",
 }
 
 PROBE = """

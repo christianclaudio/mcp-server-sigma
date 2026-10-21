@@ -25,7 +25,7 @@ trace. Client secrets are redacted from all error messages before they reach the
 client. Redaction follows the template v1.6.0 house rules (`errors.py`): a secret is masked
 whole with the fixed `***REDACTED***` marker, whatever its length. A quoted value is masked to
 its closing unescaped quote (spaces, commas and escaped quotes included), an unquoted
-`password=`/`api_key=`/`client_secret=`/`private_key=` value runs to the end of the line, any
+`password=`/`api_key=`/`client_secret=`/`private_key=`/`privateKeyPassphrase=`/`pythonSecrets=`/`secretAccessKey=` value runs to the end of the line, any
 `-----BEGIN <label>-----` PEM block is masked to the `-----END <label>-----` with the same label
 (any case; an END with another label does not end it, and a BEGIN with no matching END is masked
 to the end of the text), a `{...}`/`[...]`/`(...)` value after a credential or token key, quoted
@@ -34,7 +34,11 @@ brackets inside single- or double-quoted strings skipped, a bare number, `True` 
 quoted key (`{'password': 12345}`) is masked while `None`/`null` stays, past 64 brackets that fail to parse the rest of a message is masked, and JSON inside a message is parsed and redacted value
 by value (`redact_message` / `redact_payload`) so it stays valid. Every tool error goes through `redact_message` (`sigma_tool` and `_tool_failure` in
 `tools/common.py`), so a number or other non-string value under a credential key, for example
-`{"password": 12345}`, is masked too. Sigma-specific patterns
+`{"password": 12345}`, is masked too. A structured `SigmaAPIError` detail (an upstream JSON
+error body) is redacted the same way, key by key, and a text detail with `redact_message`; the
+500-character cut of a detail string comes after that, so it never splits a secret. A bare `value` key is masked only in an API
+credential's `apiKey` object (a dict that also has `isQueryParam`), because elsewhere `value` is
+ordinary data such as a user attribute or control value. Sigma-specific patterns
 (`subject_token`, raw JWTs, `ghs_` tokens, and the configured `SIGMA_CLIENT_SECRET` itself) run
 alongside them.
 
@@ -113,7 +117,8 @@ upstream response body is never included.
 
 | `type` | Raised by | Extra fields |
 |---|---|---|
-| `not_found` | `workbooks_reassign_workbook_ownership` (no member for an email), `workbooks_copy_workbook_to_member` (member has no `homeFolderId`), `admin_bulk_remove_team_members` (no email resolved to a member) | `member_id` or `not_found` where relevant |
+| `not_found` | `workbooks_reassign_workbook_ownership` (no member whose email equals the given one, ignoring case), `workbooks_copy_workbook_to_member` (member has no `homeFolderId`), `admin_bulk_remove_team_members` (no email matched exactly one member, ignoring case) | `member_id` or `not_found` where relevant |
+| `ambiguous_member` | `workbooks_reassign_workbook_ownership` (more than one member has the given email) | `matches` |
 | `timeout` | `workbooks_export_and_download` (export not ready within `timeout_seconds`) | `query_id`, `timeout_seconds` |
 | `upstream_response` | `workbooks_export_and_download` (no `queryId` in the export response), `elements_materialize_and_wait` (no job ID in the materialization response) | none |
 | `docs_search_failed` | `elements_search_docs` (docs host returned a non-200 status) | `status` |

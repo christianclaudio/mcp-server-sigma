@@ -502,7 +502,7 @@ def test_all_tools_are_annotated():
 def test_annotation_counts_match_readme():
     """Guard the counts published in README against silent drift.
 
-    The default full profile lists all 172 tools; the two bulk-destructive tools are
+    The default full profile lists all 257 tools; the two bulk-destructive tools are
     listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
     """
     import asyncio
@@ -515,11 +515,11 @@ def test_annotation_counts_match_readme():
     idempotent = sum(1 for t in tools if t.annotations.idempotent_hint)
     open_world = sum(1 for t in tools if t.annotations.open_world_hint)
 
-    assert len(tools) == 172, f"tool count changed: {len(tools)} (expected 172 in full)"
-    assert ro == 90, f"read-only count changed: {ro}"
-    assert destructive == 20, f"destructive count changed: {destructive}"
-    assert idempotent == 8, f"idempotent count changed: {idempotent}"
-    assert open_world == 172, f"open_world count changed: {open_world}"
+    assert len(tools) == 257, f"tool count changed: {len(tools)} (expected 257 in full)"
+    assert ro == 120, f"read-only count changed: {ro}"
+    assert destructive == 43, f"destructive count changed: {destructive}"
+    assert idempotent == 10, f"idempotent count changed: {idempotent}"
+    assert open_world == 257, f"open_world count changed: {open_world}"
 
 
 def test_destructive_tools_are_not_marked_read_only():

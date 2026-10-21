@@ -37,13 +37,13 @@ ANALYST = PROFILES["analyst"]
 
 # Signed-off counts (total tools, read-only tools); Nexus gates on these.
 SIGNED_OFF = {
-    "full": (172, 90),
-    "readonly": (90, 90),
-    "analyst": (31, 23),
-    "author": (40, 28),
-    "modeler": (33, 24),
-    "embed": (50, 27),
-    "access_admin": (52, 22),
+    "full": (257, 120),
+    "readonly": (120, 120),
+    "analyst": (50, 33),
+    "author": (53, 37),
+    "modeler": (42, 30),
+    "embed": (72, 31),
+    "access_admin": (70, 26),
 }
 
 READ = "workbooks_list_workbooks"
@@ -123,9 +123,9 @@ async def test_full_is_exhaustive_and_every_tool_is_placed() -> None:
 
 
 def test_full_only_tools() -> None:
-    """The nine full-only tools: both bulk tools, four workspace file/tag mutators, three admin lookups."""
+    """The 22 full-only tools: both bulk tools, five workspace file/tag mutators, 15 admin tools."""
     assert FULL_ONLY_TOOLS == EXPECTED_FULL_ONLY
-    assert len(FULL_ONLY_TOOLS) == 9
+    assert len(FULL_ONLY_TOOLS) == 22
     assert BULK_DESTRUCTIVE_TOOLS <= FULL_ONLY_TOOLS
     assert server.FULL_ONLY_TOOLS is FULL_ONLY_TOOLS
 
@@ -153,8 +153,8 @@ async def test_every_tool_has_explicit_read_only_hint() -> None:
     assert missing == []
     reads = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is True}
     writes = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is False}
-    assert len(reads) == 90
-    assert len(writes) == 82
+    assert len(reads) == 120
+    assert len(writes) == 137
 
 
 @pytest.mark.asyncio
@@ -359,7 +359,7 @@ async def test_readonly_enforced_under_allowlist_profile(monkeypatch: pytest.Mon
     """SIGMA_MCP_READONLY=1 on an allowlist profile hides and refuses its write tools."""
     monkeypatch.setattr(settings, "MCP_READONLY", True)
     app = create_server(profile="author")
-    assert len(await _tool_names(app)) == 28
+    assert len(await _tool_names(app)) == 37
     with pytest.raises(SafetyViolationError, match=WRITE):
         await app.call_tool(WRITE, WRITE_ARGS)
     res = await app.call_tool(READ, {})

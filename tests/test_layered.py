@@ -45,7 +45,7 @@ def _clean_gate_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 async def test_full_mounts_every_domain() -> None:
     """full mounts all five domain sub-servers under their namespace prefix."""
     tools = await create_server(profile="full").list_tools()
-    assert len(tools) == 172
+    assert len(tools) == 257
     assert {t.name.split("_", 1)[0] for t in tools} == {domain for domain, _ in DOMAIN_SERVERS}
     assert {"admin_bulk_deactivate_members", "admin_bulk_remove_team_members"} <= {t.name for t in tools}
     assert not [t.name for t in tools if t.name.startswith("sigma_")]
@@ -60,8 +60,8 @@ async def test_create_server_does_not_mutate_domain_sub_servers() -> None:
     create_server(profile="full", enable_tool_search=True)
     after = {domain: len(await sub.list_tools()) for domain, sub in DOMAIN_SERVERS}
     assert after == before
-    assert sum(after.values()) == 172
-    assert len(await create_server(profile="full").list_tools()) == 172
+    assert sum(after.values()) == 257
+    assert len(await create_server(profile="full").list_tools()) == 257
 
 
 @pytest.mark.asyncio
@@ -109,9 +109,9 @@ async def test_job_profile_stays_flat_without_discovery_meta(caplog: pytest.LogC
         author = create_server(profile="author", enable_tool_search=True, enable_code_mode=False)
         readonly = create_server(profile="readonly", enable_tool_search=True)
     author_names = {t.name for t in await author.list_tools()}
-    assert len(author_names) == 40
+    assert len(author_names) == 53
     assert not author_names & {"search_tools", "call_tool", "search", "execute"}
-    assert len(await readonly.list_tools()) == 90
+    assert len(await readonly.list_tools()) == 120
     messages = [r.message for r in caplog.records]
     assert any("Tool Search requested with profile='author'" in m for m in messages)
     assert any("Tool Search requested with profile='readonly'" in m for m in messages)

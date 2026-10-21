@@ -14,6 +14,8 @@ from sigma_mcp.tools.common import (
     ANNOTATION_WRITE_SAFE,
     _confirm_required,
     _invalid_request,
+    _require_body_fields,
+    _require_ids,
     sigma_tool,
 )
 from sigma_mcp.tools.common import (
@@ -39,7 +41,12 @@ delete_file = sigma_delete_file
 @workspace_server.tool(name="list_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_files(parent_id: str | None = None, type_filter: str | None = None) -> str:
-    """List files/folders. Optionally filter by parentId or type ('workbook', 'folder', 'data-model', 'template')."""
+    """List files/folders. Optionally filter by parentId or type ('workbook', 'folder', 'data-model', 'template').
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     params: dict[str, Any] = {"limit": 200}
     if parent_id:
         params["parentId"] = parent_id
@@ -76,7 +83,13 @@ update_file = sigma_update_file
 @workspace_server.tool(name="list_tags", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_tags(page: str | None = None, limit: int = 200) -> str:
-    """List all tags in the organization. Supports pagination via page token."""
+    """List all tags in the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``page`` resumes
+    from a ``nextPage`` cursor; ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_tags(page=page, limit=limit), indent=2)
 
 
@@ -114,7 +127,13 @@ delete_tag = sigma_delete_tag
 @workspace_server.tool(name="list_workspaces", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workspaces(limit: int = 200, page: str | None = None) -> str:
-    """List all workspaces. Supports pagination via page token."""
+    """List all workspaces.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``page`` resumes
+    from a ``nextPage`` cursor; ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_workspaces(limit=limit, page=page), indent=2)
 
 
@@ -157,7 +176,13 @@ delete_workspace = sigma_delete_workspace
 @workspace_server.tool(name="list_workspace_grants", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
 @sigma_tool
 async def sigma_list_workspace_grants(workspace_id: str, page: str | None = None, limit: int = 200) -> str:
-    """List permission grants on a workspace. Supports pagination via page token."""
+    """List permission grants on a workspace.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``page`` resumes
+    from a ``nextPage`` cursor; ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_workspace_grants(workspace_id, page=page, limit=limit), indent=2)
 
 
@@ -218,3 +243,137 @@ async def sigma_list_all_files(parent_id: str | None = None, type_filter: str | 
 
 
 list_all_files = sigma_list_all_files
+
+
+# Tools for client methods that had none (API coverage audit, 2026-10-20).
+
+
+@workspace_server.tool(name="list_member_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@sigma_tool
+async def sigma_list_member_files(member_id: str, limit: int = 200) -> str:
+    """List the files (workbooks, data models, folders) a member can access.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
+    _require_ids(member_id=member_id)
+    return json.dumps(await (await get_client()).list_member_files(member_id, limit), indent=2)
+
+
+list_member_files = sigma_list_member_files
+
+
+@workspace_server.tool(name="list_recent_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@sigma_tool
+async def sigma_list_recent_files(member_id: str) -> str:
+    """List the files a member opened recently.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
+    _require_ids(member_id=member_id)
+    return json.dumps(await (await get_client()).list_recent_files(member_id), indent=2)
+
+
+list_recent_files = sigma_list_recent_files
+
+
+@workspace_server.tool(name="get_file", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@sigma_tool
+async def sigma_get_file(inode_id: str) -> str:
+    """Get a file's details (type, name, path, owner) by its inode ID."""
+    _require_ids(inode_id=inode_id)
+    return json.dumps(await (await get_client()).get_file(inode_id), indent=2)
+
+
+get_file = sigma_get_file
+
+
+@workspace_server.tool(name="update_tag", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@sigma_tool
+async def sigma_update_tag(tag_id: str, body: dict[str, Any]) -> str:
+    """Update a version tag.
+
+    body may set name, description and color.
+    """
+    _require_ids(tag_id=tag_id)
+    return json.dumps(await (await get_client()).update_tag(tag_id, body), indent=2)
+
+
+update_tag = sigma_update_tag
+
+
+@workspace_server.tool(name="list_workbooks_for_tag", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"})
+@sigma_tool
+async def sigma_list_workbooks_for_tag(tag_id: str) -> str:
+    """List the workbooks carrying a version tag.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
+    _require_ids(tag_id=tag_id)
+    return json.dumps(await (await get_client()).list_workbooks_for_tag(tag_id), indent=2)
+
+
+list_workbooks_for_tag = sigma_list_workbooks_for_tag
+
+
+@workspace_server.tool(name="update_workspace", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@sigma_tool
+async def sigma_update_workspace(workspace_id: str, body: dict[str, Any]) -> str:
+    """Update (rename) a workspace.
+
+    body requires name and may set noDuplicates.
+    """
+    _require_ids(workspace_id=workspace_id)
+    _require_body_fields(body, "name")
+    return json.dumps(await (await get_client()).update_workspace(workspace_id, body), indent=2)
+
+
+update_workspace = sigma_update_workspace
+
+
+@workspace_server.tool(name="favorite_file", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@sigma_tool
+async def sigma_favorite_file(member_id: str, inode_id: str) -> str:
+    """Add a document to a member's favorites."""
+    _require_ids(member_id=member_id, inode_id=inode_id)
+    return json.dumps(await (await get_client()).favorite(member_id, inode_id), indent=2)
+
+
+favorite_file = sigma_favorite_file
+
+
+@workspace_server.tool(name="unfavorite_file", annotations=ANNOTATION_DESTRUCTIVE, tags={"workspace", "destructive"})
+@sigma_tool
+async def sigma_unfavorite_file(member_id: str, inode_id: str, confirm: bool = False) -> str:
+    """Remove a document from a member's favorites. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(member_id=member_id, inode_id=inode_id)
+    code = await (await get_client()).unfavorite(member_id, inode_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+unfavorite_file = sigma_unfavorite_file
+
+
+@workspace_server.tool(
+    name="list_favorites_for_member", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"}
+)
+@sigma_tool
+async def sigma_list_favorites_for_member(member_id: str) -> str:
+    """List a member's favorite documents.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
+    _require_ids(member_id=member_id)
+    return json.dumps(await (await get_client()).list_favorites_for_member(member_id), indent=2)
+
+
+list_favorites_for_member = sigma_list_favorites_for_member

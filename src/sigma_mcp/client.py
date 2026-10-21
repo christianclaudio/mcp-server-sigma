@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
 import datetime
 import email.utils
 import ipaddress
@@ -23,12 +24,14 @@ import json
 import os
 import random
 import socket
+import ssl
 import time
 import uuid
 from collections.abc import Iterable
 from typing import Any
 from urllib.parse import quote, urlparse
 
+import httpcore
 import httpx
 from httpx import Response
 
@@ -36,6 +39,10 @@ from sigma_mcp import __version__
 from sigma_mcp.config import settings
 
 from .errors import SigmaAPIError
+
+# An upstream error body kept as text is capped here, not at the 500 characters a tool result
+# shows: SigmaAPIError.to_dict masks secrets first and cuts after, so a cut never splits one.
+_ERROR_TEXT_CAP = 65_536
 
 # JSON type alias for return annotations
 JSONValue = dict[str, Any] | list[Any] | str | int | float | bool | None
@@ -219,47 +226,40 @@ def _validate_base_url(
     )
 
 
-def _validate_hostname_dns(hostname: str) -> str:
-    """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
+def _validate_hostname_dns(hostname: str) -> tuple[str, ...]:
+    """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding.
+
+    Every address the name resolves to must be public. Returns the checked addresses once
+    each, in resolver order (the address itself for an IP literal); the transport connects
+    only to one of them, so the name is never resolved a second time.
+    """
     parsed_ip = _ip_from_hostname(hostname)
     if parsed_ip is not None:
         if _is_disallowed_ip(parsed_ip):
             raise ValueError(f"Blocked private/reserved IP address: {hostname}")
-        return str(_coerce_ip(parsed_ip))
+        return (str(_coerce_ip(parsed_ip)),)
 
     try:
         resolved_addrs = socket.getaddrinfo(hostname, None)
     except socket.gaierror as exc:
         raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
 
-    validated_ip: str | None = None
+    checked: list[str] = []
     for _, _, _, _, sockaddr in resolved_addrs:
         resolved_ip = ipaddress.ip_address(sockaddr[0])
         if _is_disallowed_ip(resolved_ip):
             msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
             raise ValueError(msg)
-        if validated_ip is None:
-            validated_ip = str(_coerce_ip(resolved_ip))
-    if not validated_ip:
+        address = str(_coerce_ip(resolved_ip))
+        if address not in checked:
+            checked.append(address)
+    if not checked:
         raise ValueError(f"No IP addresses resolved for hostname: {hostname}")
-    return validated_ip
+    return tuple(checked)
 
 
 _DNS_SEMAPHORE = asyncio.Semaphore(10)
 _DEFAULT_DNS_TIMEOUT_SECONDS = 5.0
-
-
-def _pin_request_to_validated_ip(request: httpx.Request, validated_ip: str) -> None:
-    """Connect to ``validated_ip`` while Host and TLS SNI stay on the original hostname.
-
-    Rewriting the URL host makes httpcore dial that address. ``sni_hostname`` is
-    the extension httpcore uses for certificate verification and the TLS handshake,
-    so the certificate is still checked against the name the caller asked for.
-    """
-    hostname = request.url.host
-    request.headers.setdefault("Host", hostname)
-    request.extensions["sni_hostname"] = hostname
-    request.url = request.url.copy_with(host=validated_ip)
 
 
 def _ssrf_blocked_error(request: httpx.Request, hostname: str, exc: ValueError) -> SigmaAPIError:
@@ -280,54 +280,149 @@ def _https_required_error(request: httpx.Request, hostname: str) -> SigmaAPIErro
     )
 
 
-class SSRFSafeTransport(httpx.HTTPTransport):
-    """Sync transport that dials the IP returned by the public-address DNS check."""
+# ---- Connect to the checked IP --------------------------------------------------------
+# The transport checks the host once per request and hands httpcore the addresses that
+# passed; the network backend dials one of them, so httpcore never resolves the name
+# again. The URL keeps the hostname, so the Host header, SNI and certificate
+# verification all use the original name, and httpcore pools connections per hostname.
 
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        """Resolve, reject non-global targets, and connect to the validated IP."""
-        hostname = request.url.host
-        if request.url.scheme.lower() != "https":
-            raise _https_required_error(request, hostname)
-        if hostname:
+_PINNED_IPS: contextvars.ContextVar[dict[str, tuple[str, ...]] | None] = contextvars.ContextVar(
+    "sigma_pinned_ips", default=None
+)
+
+
+class _PinRefusedError(ValueError):
+    """The pinned network backend refused to dial (no checked address, or a Unix socket)."""
+
+
+class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Dial only an address that passed ``_validate_hostname_dns`` for the requested host."""
+
+    def __init__(self, inner: httpcore.AsyncNetworkBackend | None = None) -> None:
+        self._inner = inner or httpcore.AnyIOBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Iterable[Any] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        pins = _PINNED_IPS.get() or {}
+        ips = pins.get(host.lower())
+        if not ips:
+            raise _PinRefusedError(f"no checked address for {host}")
+        last: Exception | None = None
+        for ip in ips:
             try:
-                validated_ip = _validate_hostname_dns(hostname)
-            except ValueError as exc:
-                raise _ssrf_blocked_error(request, hostname, exc) from exc
-            _pin_request_to_validated_ip(request, validated_ip)
-        return super().handle_request(request)
+                return await self._inner.connect_tcp(
+                    ip,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except (httpcore.ConnectError, httpcore.ConnectTimeout, OSError) as exc:
+                last = exc
+        assert last is not None
+        raise last
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: Iterable[Any] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        raise _PinRefusedError("unix sockets are not allowed")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._inner.sleep(seconds)
 
 
 class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
-    """Async HTTP transport enforcing DNS destination validation at request connection time."""
+    """Async transport that connects only to an address checked for the request's host.
 
-    def __init__(self, *args: Any, dns_timeout: float = _DEFAULT_DNS_TIMEOUT_SECONDS, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    The hostname is resolved once per request, in a worker thread, and every address is
+    checked. The connection pool is built with a network backend that dials only those
+    addresses, in resolver order, trying the next one if a connect fails, so a second DNS
+    answer cannot send the request somewhere unchecked. A host with no checked address is
+    refused, and so are Unix sockets. httpx ignores env proxies whenever a transport is
+    passed (``allow_env_proxies = trust_env and transport is None``), so connections always
+    go direct through the pin; egress-proxy deployments need a proxy-aware transport, which
+    isn't provided.
+    """
+
+    def __init__(
+        self,
+        verify: ssl.SSLContext | str | bool = True,
+        cert: Any = None,
+        trust_env: bool = True,
+        http1: bool = True,
+        http2: bool = False,
+        limits: httpx.Limits | None = None,
+        retries: int = 0,
+        local_address: str | None = None,
+        socket_options: Iterable[Any] | None = None,
+        *,
+        dns_timeout: float = _DEFAULT_DNS_TIMEOUT_SECONDS,
+    ) -> None:
+        limits = limits or httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        ssl_context = httpx.create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+        super().__init__(verify=ssl_context, limits=limits)
+        # httpcore documents ``network_backend`` as a public AsyncConnectionPool argument
+        # (https://www.encode.io/httpcore/network-backends/). httpx.AsyncHTTPTransport does
+        # not take one, so the pool it serves requests through is rebuilt here with the
+        # same settings plus the pinned backend.
+        self._pool = httpcore.AsyncConnectionPool(
+            ssl_context=ssl_context,
+            max_connections=limits.max_connections,
+            max_keepalive_connections=limits.max_keepalive_connections,
+            keepalive_expiry=limits.keepalive_expiry,
+            http1=http1,
+            http2=http2,
+            retries=retries,
+            local_address=local_address,
+            socket_options=socket_options,
+            network_backend=_PinnedNetworkBackend(),
+        )
         self.dns_timeout = dns_timeout
 
+    async def _checked_addresses(self, request: httpx.Request, hostname: str) -> tuple[str, ...]:
+        """Run the public-address check off the event loop, bounded by ``dns_timeout``."""
+        loop = asyncio.get_running_loop()
+        await _DNS_SEMAPHORE.acquire()
+        fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
+        fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
+        try:
+            return await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
+        except (asyncio.TimeoutError, TimeoutError) as exc:
+            raise SigmaAPIError(
+                400,
+                request.url.path,
+                request.method,
+                detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
+            ) from exc
+        except ValueError as exc:
+            raise _ssrf_blocked_error(request, hostname, exc) from exc
+
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Validate destination hostname via worker thread before dispatching HTTP request."""
-        hostname = request.url.host
+        """Check the destination off the event loop, then connect only to a checked address."""
+        # httpcore dials, and TLS checks, the ASCII (IDNA) form of the host, so the check
+        # resolves that same name and the pin is keyed by it.
+        hostname = request.url.raw_host.decode("ascii")
+        if not hostname:
+            return await super().handle_async_request(request)
         if request.url.scheme.lower() != "https":
             raise _https_required_error(request, hostname)
-        if hostname:
-            loop = asyncio.get_running_loop()
-            await _DNS_SEMAPHORE.acquire()
-            fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
-            fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
-            try:
-                validated_ip = await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
-            except (asyncio.TimeoutError, TimeoutError) as exc:
-                raise SigmaAPIError(
-                    400,
-                    request.url.path,
-                    request.method,
-                    detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
-                ) from exc
-            except ValueError as exc:
-                raise _ssrf_blocked_error(request, hostname, exc) from exc
-
-            _pin_request_to_validated_ip(request, validated_ip)
-        return await super().handle_async_request(request)
+        ips = await self._checked_addresses(request, hostname)
+        token = _PINNED_IPS.set({hostname.lower(): ips})
+        try:
+            return await super().handle_async_request(request)
+        except _PinRefusedError as exc:
+            raise _ssrf_blocked_error(request, hostname, exc) from exc
+        finally:
+            _PINNED_IPS.reset(token)
 
 
 def extract_dict(container: Any, key: str | None = None) -> dict[str, Any]:
@@ -400,6 +495,88 @@ def safe_int_or_zero(val: Any) -> int | None:
     if isinstance(val, str) and val.isdecimal():
         return int(val)
     return None
+
+
+# A failed dry run (``dryRun: true`` on POST /v2/workbooks or /v2/reports) answers 400 with
+# ``{dryRun, valid: false, errors, warnings}``, per the spec's "Failed dry run" response.
+_DRY_RUN_FAILED_STATUSES = frozenset({400})
+
+
+def _dry_run_body(body: dict[str, Any]) -> dict[str, Any]:
+    """Map the deprecated ``spec/verify`` body onto the create endpoint's dry-run body."""
+    out = {k: v for k, v in body.items() if k != "document"}
+    if "document" in body:
+        out["contents"] = body["document"]
+    out["dryRun"] = True
+    return out
+
+
+_CREATED_ID_KEYS = ("workbookId", "reportId", "workbookUrlId", "reportUrlId", "name", "path", "url")
+
+
+def _dry_run_result(r: Response, path: str) -> JSONValue:
+    """Translate a dry-run response into the ``{valid, errors, warnings}`` verify result."""
+    try:
+        data = r.json() if r.content else None
+    except ValueError:
+        data = None
+    if r.status_code == 400:
+        if isinstance(data, dict) and data.get("valid") is False:
+            return {"valid": False, "errors": data.get("errors", []), "warnings": data.get("warnings", [])}
+        raise SigmaAPIError(
+            status_code=400,
+            path=path,
+            method="POST",
+            detail=data if data is not None else (r.text[:_ERROR_TEXT_CAP] or None),
+            request_id=r.headers.get("x-request-id"),
+        )
+    # The spec's 200 is a oneOf: the dry-run result (``dryRun: true``) or a real created
+    # document. ``dryRun`` is Beta; a server that ignores it creates the document, so anything
+    # but ``dryRun: true`` is refused, naming any ID that came back so it can be deleted.
+    if not (isinstance(data, dict) and data.get("dryRun") is True):
+        created = {k: data[k] for k in _CREATED_ID_KEYS if k in data} if isinstance(data, dict) else {}
+        raise SigmaAPIError(
+            status_code=r.status_code,
+            path=path,
+            method="POST",
+            detail={
+                "type": "dry_run_not_honored",
+                "message": (
+                    "Sigma answered without dryRun: true, so the spec was not verified and a real "
+                    "document may have been created. Delete any ID listed here."
+                ),
+                **created,
+            },
+            request_id=r.headers.get("x-request-id"),
+        )
+    warnings = data.get("warnings", [])
+    return {"valid": True, "errors": [], "warnings": warnings}
+
+
+# Once every page is read, the keys that point at a further page say there is none.
+_LAST_PAGE_KEYS: dict[str, Any] = {"nextPage": None, "nextPageToken": None, "hasMore": False}
+
+
+def _all_pages(first: JSONValue, entries: list[dict[str, Any]], cursor_key: str, left: str | None = None) -> JSONValue:
+    """Sigma's first page with ``entries`` replaced by every page's entries.
+
+    Every other key the first page carried is kept (``total`` with Sigma's value; it is never
+    computed), the paging style's *cursor_key* is set to null, and ``nextPage``,
+    ``nextPageToken`` and ``hasMore`` read null or false wherever Sigma sent them. If the page
+    cap ran out with a cursor *left* to read, *cursor_key* carries it and ``hasMore`` is true,
+    so a caller can resume. A first page that is not an object (the legacy bare array, or no
+    body) is returned as Sigma sent it.
+    """
+    if not isinstance(first, dict):
+        return first
+    out: dict[str, Any] = {**first, "entries": entries, cursor_key: None}
+    for key, value in _LAST_PAGE_KEYS.items():
+        if key in out:
+            out[key] = value
+    if left is not None:
+        out[cursor_key] = left
+        out["hasMore"] = True
+    return out
 
 
 class SigmaClient:
@@ -539,7 +716,7 @@ class SigmaClient:
                 status_code=r.status_code,
                 path="/v2/auth/token",
                 method="POST",
-                detail=r.text[:500],
+                detail=r.text[:_ERROR_TEXT_CAP],
                 request_id=r.headers.get("x-request-id"),
             )
         data = r.json()
@@ -665,12 +842,12 @@ class SigmaClient:
                             try:
                                 detail = json.loads(err_content.decode("utf-8"))
                             except Exception:
-                                detail = err_content.decode("utf-8", errors="replace")[:500] if err_content else None
+                                detail = err_content.decode("utf-8", errors="replace") if err_content else None
                         else:
                             detail = r.json()
                     except Exception:
                         if max_bytes is None:
-                            detail = r.text[:500] if r.text else None
+                            detail = r.text[:_ERROR_TEXT_CAP] if r.text else None
                     finally:
                         if max_bytes is not None:
                             await r.aclose()
@@ -768,34 +945,91 @@ class SigmaClient:
         r = await self._request("DELETE", path)
         return r.status_code
 
+    async def _page_through(
+        self,
+        path: str,
+        params: dict[str, Any] | None,
+        size: tuple[str, int],
+        cursor: tuple[str, str],
+        max_pages: int,
+    ) -> tuple[JSONValue, list[dict[str, Any]], str | None]:
+        """GET *path* page by page.
+
+        Returns the first page as Sigma sent it, every entry, and the cursor still to read when
+        *max_pages* ran out (else ``None``). *size* is the page-size parameter and its default;
+        *cursor* is the response key that names the next page and the request parameter that
+        asks for it. A cursor the caller passed in counts as read, so a page that echoes it back
+        ends the loop instead of being read twice. ``"entries": null`` is an empty page.
+        """
+        all_entries: list[dict[str, Any]] = []
+        p: dict[str, Any] = dict(params or {})
+        p.setdefault(*size)
+        next_key, request_key = cursor
+        seen: set[str] = {p[request_key]} if p.get(request_key) else set()
+        first: JSONValue = None
+        for page_count in range(max_pages):
+            data = await self.get(path, p)
+            if page_count == 0:
+                first = data
+            if not isinstance(data, dict):
+                # A bare JSON array is the legacy unpaginated shape: keep it, there is no next page.
+                if isinstance(data, list):
+                    all_entries.extend(e for e in data if isinstance(e, dict))
+                return first, all_entries, None
+            all_entries.extend(data.get("entries") or [])
+            next_value = data.get(next_key)
+            if not next_value or next_value in seen:
+                return first, all_entries, None
+            seen.add(next_value)
+            p[request_key] = next_value
+        return first, all_entries, p.get(request_key)
+
     async def auto_paginate(
         self, path: str, params: dict[str, Any] | None = None, limit: int = 200, max_pages: int = 1000
     ) -> list[dict[str, Any]]:
         """Follow nextPage tokens to retrieve all entries from a paginated endpoint."""
-        all_entries: list[dict[str, Any]] = []
-        p: dict[str, Any] = dict(params or {})
-        p.setdefault("limit", limit)
-        seen_pages: set[str] = set()
-        page_count = 0
-        while page_count < max_pages:
-            page_count += 1
-            data = await self.get(path, p)
-            if isinstance(data, dict):
-                all_entries.extend(data.get("entries", []))
-                next_page = data.get("nextPage")
-            else:
-                break
-            if not next_page:
-                break
-            if next_page in seen_pages:
-                break
-            seen_pages.add(next_page)
-            p["page"] = next_page
-        return all_entries
+        return (await self._page_through(path, params, ("limit", limit), ("nextPage", "page"), max_pages))[1]
+
+    async def auto_paginate_token(
+        self, path: str, params: dict[str, Any] | None = None, page_size: int = 200, max_pages: int = 1000
+    ) -> list[dict[str, Any]]:
+        """Follow ``nextPageToken`` to retrieve all entries from a token-paginated endpoint.
+
+        Some Sigma lists page with ``pageSize``/``pageToken`` and answer ``nextPageToken``
+        (50 per page by default) instead of ``limit``/``page``/``nextPage``.
+        """
+        cursor = ("nextPageToken", "pageToken")
+        return (await self._page_through(path, params, ("pageSize", page_size), cursor, max_pages))[1]
+
+    async def paged_list(
+        self, path: str, params: dict[str, Any] | None = None, limit: int = 200, max_pages: int = 1000
+    ) -> JSONValue:
+        """Every page of a ``limit``/``page`` list, in the shape of Sigma's own page.
+
+        Returns the first page's keys with ``entries`` holding every page's entries, ``total``
+        as Sigma sent it (never computed), ``nextPage`` null and ``hasMore`` false (when Sigma
+        sends it), since every page has been read. If *max_pages* runs out first, ``nextPage``
+        is the next cursor and ``hasMore`` is true.
+        """
+        first, entries, left = await self._page_through(path, params, ("limit", limit), ("nextPage", "page"), max_pages)
+        return _all_pages(first, entries, "nextPage", left)
+
+    async def paged_list_token(
+        self, path: str, params: dict[str, Any] | None = None, page_size: int = 200, max_pages: int = 1000
+    ) -> JSONValue:
+        """Every page of a ``pageSize``/``pageToken`` list, in the shape of Sigma's own page.
+
+        Returns the first page's keys with ``entries`` holding every page's entries and
+        ``nextPageToken`` null, since every page has been read. If *max_pages* runs out first,
+        ``nextPageToken`` is the next cursor and ``hasMore`` is true.
+        """
+        cursor = ("nextPageToken", "pageToken")
+        first, entries, left = await self._page_through(path, params, ("pageSize", page_size), cursor, max_pages)
+        return _all_pages(first, entries, "nextPageToken", left)
 
     # ─── Connections ───────────────────────────────────────────────────────
     async def list_connections(self) -> JSONValue:
-        return await self.get("/v2/connections")
+        return await self.paged_list("/v2/connections")
 
     async def get_connection(self, connection_id: str) -> JSONValue:
         return await self.get(f"/v2/connections/{connection_id}")
@@ -817,18 +1051,18 @@ class SigmaClient:
 
     async def list_connection_paths(self) -> JSONValue:
         """List all connection paths (global, not per-connection)."""
-        return await self.get("/v2/connections/paths")
+        return await self.paged_list("/v2/connections/paths")
 
     async def list_columns_for_table(self, table_id: str) -> JSONValue:
         """Get columns for a table by tableId."""
-        return await self.get(f"/v2/connections/tables/{table_id}/columns")
+        return await self.paged_list_token(f"/v2/connections/tables/{table_id}/columns")
 
     async def lookup_connection_path(self, connection_id: str, path: list[str]) -> JSONValue:
         return await self.post(f"/v2/connection/{connection_id}/lookup", {"path": path})
 
     # ─── Connection Grants ─────────────────────────────────────────────────
     async def list_connection_grants(self, connection_id: str) -> JSONValue:
-        return await self.get(f"/v2/connections/{connection_id}/grants")
+        return await self.paged_list(f"/v2/connections/{connection_id}/grants")
 
     async def add_connection_grant(self, connection_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/connections/{connection_id}/grants", body)
@@ -837,7 +1071,7 @@ class SigmaClient:
         return await self.delete(f"/v2/connections/{connection_id}/grants/{grant_id}")
 
     async def list_connection_path_grants(self, connection_path_id: str) -> JSONValue:
-        return await self.get(f"/v2/connections/paths/{connection_path_id}/grants")
+        return await self.paged_list(f"/v2/connections/paths/{connection_path_id}/grants")
 
     async def add_connection_path_grant(self, connection_path_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/connections/paths/{connection_path_id}/grants", body)
@@ -847,7 +1081,7 @@ class SigmaClient:
 
     # ─── Workbooks ─────────────────────────────────────────────────────────
     async def list_workbooks(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/workbooks", {"limit": limit})
+        return await self.paged_list("/v2/workbooks", limit=limit)
 
     async def get_workbook(self, workbook_id: str) -> JSONValue:
         return await self.get(f"/v2/workbooks/{workbook_id}")
@@ -862,7 +1096,17 @@ class SigmaClient:
         return await self.put(f"/v2/workbooks/{workbook_id}/contents", body)
 
     async def verify_workbook_spec(self, body: dict[str, Any]) -> JSONValue:
-        return await self.post("/v2/workbooks/spec/verify", body)
+        """Validate a workbook code representation without creating it.
+
+        ``POST /v2/workbooks/spec/verify`` is deprecated; the spec's replacement is
+        ``POST /v2/workbooks`` with ``contents`` and ``dryRun: true``. *body* keeps the old
+        ``{name, folderId, document[, description]}`` shape and the result keeps the old
+        ``{valid, errors}`` shape (plus the dry run's ``warnings``).
+        """
+        r = await self._request(
+            "POST", "/v2/workbooks", json_data=_dry_run_body(body), allow_statuses=_DRY_RUN_FAILED_STATUSES
+        )
+        return _dry_run_result(r, "/v2/workbooks")
 
     async def delete_file(self, inode_id: str) -> int:
         return await self.delete(f"/v2/files/{inode_id}")
@@ -871,19 +1115,19 @@ class SigmaClient:
         return await self.get(f"/v2/workbooks/{workbook_id}/schema")
 
     async def list_workbook_pages(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/pages")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/pages")
 
     async def list_workbook_elements(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/elements", {"limit": 200})
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/elements")
 
     async def list_workbook_columns(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/columns", {"limit": 500})
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/columns")
 
     async def list_workbook_queries(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/queries", {"limit": 50})
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/queries")
 
     async def list_workbook_controls(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/controls", {"limit": 50})
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/controls")
 
     async def list_workbook_sources(self, workbook_id: str) -> JSONValue:
         r = await self._request("GET", f"/v2/workbooks/{workbook_id}/sources")
@@ -893,17 +1137,17 @@ class SigmaClient:
         return await self.post(f"/v2/workbooks/{workbook_id}/swapSources", body)
 
     async def get_workbook_version_history(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/version-history")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/version-history")
 
     async def restore_workbook_version(self, workbook_id: str, version: int) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/restoreVersion", {"version": version})
 
     async def list_workbook_lineage(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/lineage")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/lineage")
 
     # ─── Workbook Grants ───────────────────────────────────────────────────
     async def list_workbook_grants(self, workbook_id: str) -> JSONValue:
-        return await self.get("/v2/grants", {"inodeId": workbook_id, "limit": 200})
+        return await self.paged_list("/v2/grants", {"inodeId": workbook_id})
 
     async def grant_workbook_access(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/grants", body)
@@ -913,7 +1157,7 @@ class SigmaClient:
 
     # ─── Workbook Embeds ───────────────────────────────────────────────────
     async def list_workbook_embeds(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/embeds")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/embeds")
 
     async def create_workbook_embed(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/embeds", body)
@@ -930,7 +1174,12 @@ class SigmaClient:
 
     # ─── Workbook Schedules ────────────────────────────────────────────────
     async def list_workbook_schedules(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/schedules")
+        """Every scheduled export for a workbook, following ``nextPage``.
+
+        Sigma returns only paginated responses (``limit``/``page``, 50 per page by default)
+        since 2026-06-02, so a single GET would silently stop at the first page.
+        """
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/schedules")
 
     async def add_workbook_schedule(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/schedules", body)
@@ -950,11 +1199,15 @@ class SigmaClient:
         return await self.get(f"/v2/workbooks/{workbook_id}/materializations/{materialization_id}")
 
     async def list_materialization_schedules(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/materialization-schedules")
+        """Every materialization schedule for a workbook, following ``nextPage``.
+
+        Paginated-only since 2026-06-02 (``limit``/``page``), like ``list_workbook_schedules``.
+        """
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/materialization-schedules")
 
     # ─── Workbook Bookmarks ────────────────────────────────────────────────
     async def list_workbook_bookmarks(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/bookmarks")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/bookmarks")
 
     async def add_workbook_bookmark(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/bookmarks", body)
@@ -967,7 +1220,7 @@ class SigmaClient:
 
     # ─── Workbook Tags ─────────────────────────────────────────────────────
     async def get_workbook_tags(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/tags")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/tags")
 
     async def tag_workbook(self, workbook_id: str, tag_name: str) -> JSONValue:
         """Apply a version tag to a workbook.
@@ -982,7 +1235,7 @@ class SigmaClient:
 
     # ─── Templates ─────────────────────────────────────────────────────────
     async def list_templates(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/templates", {"limit": limit})
+        return await self.paged_list("/v2/templates", limit=limit)
 
     async def get_template(self, template_id: str) -> JSONValue:
         return await self.get(f"/v2/templates/{template_id}")
@@ -1001,7 +1254,7 @@ class SigmaClient:
 
     # ─── Data Models ───────────────────────────────────────────────────────
     async def list_data_models(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/dataModels", {"limit": limit})
+        return await self.paged_list("/v2/dataModels", limit=limit)
 
     async def get_data_model(self, data_model_id: str) -> JSONValue:
         return await self.get(f"/v2/dataModels/{data_model_id}")
@@ -1016,13 +1269,13 @@ class SigmaClient:
         return await self.put(f"/v2/dataModels/{data_model_id}/spec", spec)
 
     async def list_data_model_elements(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/elements", {"limit": 200})
+        return await self.paged_list(f"/v2/dataModels/{data_model_id}/elements")
 
     async def list_data_model_columns(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/columns", {"limit": 500})
+        return await self.paged_list(f"/v2/dataModels/{data_model_id}/columns")
 
     async def list_data_model_sources(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/sources")
+        return await self.paged_list_token(f"/v2/dataModels/{data_model_id}/sources")
 
     async def swap_data_model_sources(self, data_model_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/dataModels/{data_model_id}/swapSources", body)
@@ -1035,10 +1288,10 @@ class SigmaClient:
         return await self.get(f"/v2/dataModels/{data_model_id}/materializations/{materialization_id}")
 
     async def list_data_model_materialization_schedules(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/materializationSchedules")
+        return await self.paged_list_token(f"/v2/dataModels/{data_model_id}/materializationSchedules")
 
     async def list_data_model_lineage(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/lineage")
+        return await self.paged_list(f"/v2/dataModels/{data_model_id}/lineage")
 
     async def tag_data_model(self, data_model_id: str, tag_name: str) -> JSONValue:
         """Apply a version tag to a data model.
@@ -1048,11 +1301,11 @@ class SigmaClient:
         return await self.post("/v2/dataModels/tag", {"dataModelId": data_model_id, "tag": tag_name})
 
     async def list_data_model_tags(self, data_model_id: str) -> JSONValue:
-        return await self.get(f"/v2/dataModels/{data_model_id}/tags")
+        return await self.paged_list(f"/v2/dataModels/{data_model_id}/tags")
 
     # ─── Members ───────────────────────────────────────────────────────────
     async def list_members(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/members", {"limit": limit})
+        return await self.paged_list("/v2/members", limit=limit)
 
     async def get_member(self, member_id: str) -> JSONValue:
         return await self.get(f"/v2/members/{member_id}")
@@ -1071,14 +1324,14 @@ class SigmaClient:
         return await self.get("/v2/whoami")
 
     async def list_member_files(self, member_id: str, limit: int = 200) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/files", {"limit": limit})
+        return await self.paged_list(f"/v2/members/{member_id}/files", limit=limit)
 
     async def list_recent_files(self, member_id: str) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/files/recents")
+        return await self.paged_list(f"/v2/members/{member_id}/files/recents")
 
     # ─── Teams ─────────────────────────────────────────────────────────────
     async def list_teams(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/teams", {"limit": limit})
+        return await self.paged_list("/v2/teams", limit=limit)
 
     async def get_team(self, team_id: str) -> JSONValue:
         return await self.get(f"/v2/teams/{team_id}")
@@ -1093,14 +1346,14 @@ class SigmaClient:
         return await self.delete(f"/v2/teams/{team_id}")
 
     async def list_team_members(self, team_id: str) -> JSONValue:
-        return await self.get(f"/v2/teams/{team_id}/members")
+        return await self.paged_list(f"/v2/teams/{team_id}/members")
 
     async def update_team_members(self, team_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.patch(f"/v2/teams/{team_id}/members", body)
 
     # ─── Files / Folders ───────────────────────────────────────────────────
     async def list_files(self, params: dict[str, Any] | None = None) -> JSONValue:
-        return await self.get("/v2/files", params)
+        return await self.paged_list("/v2/files", params)
 
     async def get_file(self, inode_id: str) -> JSONValue:
         return await self.get(f"/v2/files/{inode_id}")
@@ -1113,13 +1366,9 @@ class SigmaClient:
 
     # ─── Tags ──────────────────────────────────────────────────────────────
     async def list_tags(self, page: str | None = None, limit: int | None = None) -> JSONValue:
-        params: dict[str, Any] = {}
-        if limit is not None:
-            params["limit"] = limit
-        if page:
-            params["page"] = page
-        r = await self._request("GET", "/v2/tags", params=params if params else None)
-        return self._parse_json_body(r)
+        """Every tag from ``page`` (or the first page) to the last; ``limit`` is the page size."""
+        params: dict[str, Any] = {"page": page} if page else {}
+        return await self.paged_list("/v2/tags", params, limit=limit or 200)
 
     async def create_tag(self, body: dict[str, Any]) -> JSONValue:
         return await self.post("/v2/tags", body)
@@ -1131,11 +1380,11 @@ class SigmaClient:
         return await self.delete(f"/v2/tags/{tag_id}")
 
     async def list_workbooks_for_tag(self, tag_id: str) -> JSONValue:
-        return await self.get(f"/v2/tags/{tag_id}/workbooks")
+        return await self.paged_list(f"/v2/tags/{tag_id}/workbooks")
 
     # ─── User Attributes ───────────────────────────────────────────────────
     async def list_user_attributes(self) -> JSONValue:
-        return await self.get("/v2/user-attributes")
+        return await self.paged_list("/v2/user-attributes")
 
     async def get_user_attribute(self, attr_id: str) -> JSONValue:
         return await self.get(f"/v2/user-attributes/{attr_id}")
@@ -1159,13 +1408,13 @@ class SigmaClient:
         return await self.post(f"/v2/user-attributes/{attr_id}/tenants", body)
 
     async def get_user_attribute_user_assignments(self, attr_id: str) -> JSONValue:
-        return await self.get(f"/v2/user-attributes/{attr_id}/users")
+        return await self.paged_list(f"/v2/user-attributes/{attr_id}/users")
 
     async def get_user_attribute_team_assignments(self, attr_id: str) -> JSONValue:
-        return await self.get(f"/v2/user-attributes/{attr_id}/teams")
+        return await self.paged_list(f"/v2/user-attributes/{attr_id}/teams")
 
     async def get_user_attribute_tenant_assignments(self, attr_id: str) -> JSONValue:
-        return await self.get(f"/v2/user-attributes/{attr_id}/tenants")
+        return await self.paged_list(f"/v2/user-attributes/{attr_id}/tenants")
 
     async def update_user_attribute_for_users(self, attr_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.patch(f"/v2/user-attributes/{attr_id}/users", body)
@@ -1187,7 +1436,7 @@ class SigmaClient:
 
     # ─── Account Types ─────────────────────────────────────────────────────
     async def list_account_types(self) -> JSONValue:
-        return await self.get("/v2/accountTypes")
+        return await self.paged_list_token("/v2/accountTypes")
 
     async def create_account_type(self, body: dict[str, Any]) -> JSONValue:
         return await self.post("/v2/accountTypes", body)
@@ -1197,11 +1446,9 @@ class SigmaClient:
 
     # ─── Workspaces ────────────────────────────────────────────────────────
     async def list_workspaces(self, limit: int = 200, page: str | None = None) -> JSONValue:
-        params: dict[str, Any] = {"limit": limit}
-        if page:
-            params["page"] = page
-        r = await self._request("GET", "/v2/workspaces", params=params)
-        return self._parse_json_body(r)
+        """Every workspace from ``page`` (or the first page) to the last; ``limit`` is the page size."""
+        params: dict[str, Any] = {"page": page} if page else {}
+        return await self.paged_list("/v2/workspaces", params, limit=limit)
 
     async def get_workspace(self, workspace_id: str) -> JSONValue:
         return await self.get(f"/v2/workspaces/{workspace_id}")
@@ -1218,13 +1465,9 @@ class SigmaClient:
     async def list_workspace_grants(
         self, workspace_id: str, page: str | None = None, limit: int | None = None
     ) -> JSONValue:
-        params: dict[str, Any] = {}
-        if limit is not None:
-            params["limit"] = limit
-        if page:
-            params["page"] = page
-        r = await self._request("GET", f"/v2/workspaces/{workspace_id}/grants", params=params if params else None)
-        return self._parse_json_body(r)
+        """Every grant from ``page`` (or the first page) to the last; ``limit`` is the page size."""
+        params: dict[str, Any] = {"page": page} if page else {}
+        return await self.paged_list(f"/v2/workspaces/{workspace_id}/grants", params, limit=limit or 200)
 
     async def grant_workspace_access(self, workspace_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workspaces/{workspace_id}/grants", body)
@@ -1243,7 +1486,7 @@ class SigmaClient:
 
     async def list_favorites_for_member(self, member_id: str) -> JSONValue:
         """List a member's favorited files."""
-        return await self.get(f"/v2/favorites/member/{member_id}")
+        return await self.paged_list(f"/v2/favorites/member/{member_id}")
 
     # ─── Grants (generic) ─────────────────────────────────────────────────
     async def create_or_update_grant(self, body: dict[str, Any]) -> JSONValue:
@@ -1256,11 +1499,11 @@ class SigmaClient:
         return await self.delete(f"/v2/grants/{grant_id}")
 
     async def list_grants(self, params: dict[str, Any] | None = None) -> JSONValue:
-        return await self.get("/v2/grants", params)
+        return await self.paged_list("/v2/grants", params)
 
     # ─── Reports ──────────────────────────────────────────────────────────
     async def list_reports(self, limit: int = 200) -> JSONValue:
-        return await self.get("/v2/reports", {"limit": limit})
+        return await self.paged_list("/v2/reports", limit=limit)
 
     async def get_report(self, report_id: str) -> JSONValue:
         return await self.get(f"/v2/reports/{report_id}")
@@ -1275,7 +1518,16 @@ class SigmaClient:
         return await self.put(f"/v2/reports/{report_id}/contents", body)
 
     async def verify_report_spec(self, body: dict[str, Any]) -> JSONValue:
-        return await self.post("/v2/reports/spec/verify", body)
+        """Validate a report code representation without creating it.
+
+        ``POST /v2/reports/spec/verify`` is deprecated; the spec's replacement is
+        ``POST /v2/reports`` with ``contents`` and ``dryRun: true``. Same body and result
+        shapes as :meth:`verify_workbook_spec`.
+        """
+        r = await self._request(
+            "POST", "/v2/reports", json_data=_dry_run_body(body), allow_statuses=_DRY_RUN_FAILED_STATUSES
+        )
+        return _dry_run_result(r, "/v2/reports")
 
     async def duplicate_tagged_report(
         self, report_id: str, tag_name: str, body: dict[str, Any] | None = None
@@ -1289,31 +1541,31 @@ class SigmaClient:
         return await self.post(f"/v2/reports/{report_id}/swapSources", body)
 
     async def list_report_pages(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/pages")
+        return await self.paged_list_token(f"/v2/reports/{report_id}/pages")
 
     async def list_report_page_elements(self, report_id: str, page_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/pages/{page_id}/elements")
+        return await self.paged_list_token(f"/v2/reports/{report_id}/pages/{page_id}/elements")
 
     async def list_report_elements(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/elements", {"limit": 200})
+        return await self.paged_list_token(f"/v2/reports/{report_id}/elements")
 
     async def list_report_columns(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/columns", {"limit": 500})
+        return await self.paged_list_token(f"/v2/reports/{report_id}/columns")
 
     async def get_report_element_query(self, report_id: str, element_id: str) -> JSONValue:
         return await self.get(f"/v2/reports/{report_id}/elements/{element_id}/query")
 
     async def list_report_queries(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/queries", {"limit": 50})
+        return await self.paged_list_token(f"/v2/reports/{report_id}/queries")
 
     async def list_report_controls(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/controls", {"limit": 50})
+        return await self.paged_list_token(f"/v2/reports/{report_id}/controls")
 
     async def list_report_lineage(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/lineage")
+        return await self.paged_list_token(f"/v2/reports/{report_id}/lineage")
 
     async def get_report_version_history(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/version-history")
+        return await self.paged_list_token(f"/v2/reports/{report_id}/version-history")
 
     async def export_report(self, report_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/reports/{report_id}/export", body)
@@ -1322,7 +1574,7 @@ class SigmaClient:
         return await self.post(f"/v2/reports/{report_id}/send", body)
 
     async def list_report_schedules(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/schedules")
+        return await self.paged_list(f"/v2/reports/{report_id}/schedules")
 
     async def create_report_schedule(self, report_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/reports/{report_id}/schedules", body)
@@ -1340,7 +1592,7 @@ class SigmaClient:
         return await self.delete(f"/v2/reports/{report_id}/grants/{grant_id}")
 
     async def list_report_tags(self, report_id: str) -> JSONValue:
-        return await self.get(f"/v2/reports/{report_id}/tags")
+        return await self.paged_list_token(f"/v2/reports/{report_id}/tags")
 
     async def tag_report(self, report_id: str, tag_name: str) -> JSONValue:
         """Apply a version tag to a report.
@@ -1358,7 +1610,7 @@ class SigmaClient:
 
     # ─── Deployment Policies ──────────────────────────────────────────────
     async def list_deployments(self) -> JSONValue:
-        return await self.get("/v2/deploymentPolicies")
+        return await self.paged_list_token("/v2/deploymentPolicies")
 
     async def get_deployment(self, policy_id: str) -> JSONValue:
         return await self.get(f"/v2/deploymentPolicies/{policy_id}")
@@ -1374,7 +1626,7 @@ class SigmaClient:
         return await self.delete(f"/v2/deploymentPolicies/{policy_id}")
 
     async def list_deployment_documents(self, policy_id: str) -> JSONValue:
-        return await self.get(f"/v2/deploymentPolicies/{policy_id}/files")
+        return await self.paged_list_token(f"/v2/deploymentPolicies/{policy_id}/files")
 
     async def add_deployment_documents(self, policy_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/deploymentPolicies/{policy_id}/files", body)
@@ -1383,10 +1635,10 @@ class SigmaClient:
         return await self.delete(f"/v2/deploymentPolicies/{policy_id}/files/{inode_id}")
 
     async def list_deployable_tenants(self) -> JSONValue:
-        return await self.get("/v2/deploymentPolicies/tenants")
+        return await self.paged_list_token("/v2/deploymentPolicies/tenants")
 
     async def list_deployment_tenants(self, policy_id: str) -> JSONValue:
-        return await self.get(f"/v2/deploymentPolicies/{policy_id}/tenants")
+        return await self.paged_list_token(f"/v2/deploymentPolicies/{policy_id}/tenants")
 
     async def add_deployment_tenant(self, policy_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/deploymentPolicies/{policy_id}/tenants", body)
@@ -1396,7 +1648,7 @@ class SigmaClient:
 
     # ─── Tenants ──────────────────────────────────────────────────────────
     async def list_tenants(self) -> JSONValue:
-        return await self.get("/v2/tenants")
+        return await self.paged_list_token("/v2/tenants")
 
     async def get_tenant(self, tenant_id: str) -> JSONValue:
         return await self.get(f"/v2/tenants/{tenant_id}")
@@ -1411,7 +1663,7 @@ class SigmaClient:
         return await self.delete(f"/v2/tenants/{tenant_id}")
 
     async def list_tenant_deployment_capabilities(self, tenant_org_id: str) -> JSONValue:
-        return await self.get(f"/v2/tenants/{tenant_org_id}/capabilities/deployments")
+        return await self.paged_list_token(f"/v2/tenants/{tenant_org_id}/capabilities/deployments")
 
     async def batch_add_tenant_capabilities(self, tenant_org_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/tenants/{tenant_org_id}/capabilities/deployments:batchAdd", body)
@@ -1421,7 +1673,7 @@ class SigmaClient:
 
     # ─── API Connectors ───────────────────────────────────────────────────
     async def list_api_connectors(self) -> JSONValue:
-        return await self.get("/v2/api-connectors")
+        return await self.paged_list_token("/v2/api-connectors")
 
     async def get_api_connector(self, connector_id: str) -> JSONValue:
         return await self.get(f"/v2/api-connectors/{connector_id}")
@@ -1437,7 +1689,7 @@ class SigmaClient:
 
     # ─── API Credentials ──────────────────────────────────────────────────
     async def list_api_credentials(self) -> JSONValue:
-        return await self.get("/v2/api-credentials")
+        return await self.paged_list_token("/v2/api-credentials")
 
     async def get_api_credential(self, credential_id: str) -> JSONValue:
         return await self.get(f"/v2/api-credentials/{credential_id}")
@@ -1453,7 +1705,7 @@ class SigmaClient:
 
     # ─── Source Swap Policies ─────────────────────────────────────────────
     async def list_source_swap_policies(self) -> JSONValue:
-        return await self.get("/v2/sourceSwapPolicies")
+        return await self.paged_list("/v2/sourceSwapPolicies")
 
     async def get_source_swap_policy(self, policy_id: str) -> JSONValue:
         return await self.get(f"/v2/sourceSwapPolicies/{policy_id}")
@@ -1469,7 +1721,7 @@ class SigmaClient:
 
     # ─── Shared Templates ─────────────────────────────────────────────────
     async def list_shared_templates(self) -> JSONValue:
-        return await self.get("/v2/shared_templates/shared_with_you")
+        return await self.paged_list("/v2/shared_templates/shared_with_you")
 
     async def accept_shared_template(self, share_id: str) -> JSONValue:
         """Accept a shared template. The shareId goes in the body."""
@@ -1480,7 +1732,7 @@ class SigmaClient:
 
     # ─── Translations ─────────────────────────────────────────────────────
     async def list_translations(self) -> JSONValue:
-        return await self.get("/v2/translations/organization")
+        return await self.paged_list("/v2/translations/organization")
 
     async def get_translation(self, lng: str) -> JSONValue:
         return await self.get(f"/v2/translations/organization/{lng}")
@@ -1506,10 +1758,10 @@ class SigmaClient:
 
     # ─── Member extended ──────────────────────────────────────────────────
     async def list_member_teams(self, member_id: str) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/teams")
+        return await self.paged_list(f"/v2/members/{member_id}/teams")
 
     async def list_member_schedules(self, member_id: str) -> JSONValue:
-        return await self.get(f"/v2/members/{member_id}/schedules")
+        return await self.paged_list(f"/v2/members/{member_id}/schedules")
 
     async def revoke_member_tokens(self, member_id: str) -> JSONValue:
         return await self.post(f"/v2/members/{member_id}/revoke")
@@ -1528,13 +1780,13 @@ class SigmaClient:
         return await self.post(f"/v2/workbooks/{workbook_id}/tag/{tag_name}/copy", body or {})
 
     async def list_workbook_page_elements(self, workbook_id: str, page_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/pages/{page_id}/elements")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/pages/{page_id}/elements")
 
     async def get_element_query(self, workbook_id: str, element_id: str) -> JSONValue:
         return await self.get(f"/v2/workbooks/{workbook_id}/elements/{element_id}/query")
 
     async def get_element_columns(self, workbook_id: str, element_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/elements/{element_id}/columns")
+        return await self.paged_list(f"/v2/workbooks/{workbook_id}/elements/{element_id}/columns")
 
     async def list_element_lineage(self, workbook_id: str, element_id: str) -> JSONValue:
         return await self.get(f"/v2/workbooks/{workbook_id}/lineage/elements/{element_id}")
@@ -1618,6 +1870,10 @@ class SigmaClient:
 
     # ─── Workbook Agents ──────────────────────────────────────────────────
     async def list_workbook_agents(self, workbook_id: str, version_tag_name: str | None = None) -> JSONValue:
+        """One GET. The response may carry ``nextPageToken``, but the spec documents no
+        ``pageToken``/``pageSize`` request parameter for ``/v2/workbooks/{id}/agents``, so it
+        cannot be paged per the spec; the token is returned as Sigma sent it.
+        """
         params: dict[str, Any] = {}
         if version_tag_name:
             params["versionTagName"] = version_tag_name
@@ -1627,12 +1883,12 @@ class SigmaClient:
         return await self.post(f"/v2/workbooks/{workbook_id}/agents/{agent_id}", body)
 
     async def list_org_workbook_agents(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
-        params: dict[str, Any] = {}
-        if page_token:
-            params["pageToken"] = page_token
-        if page_size is not None:
-            params["pageSize"] = page_size
-        return await self.get("/v2/workbookAgents", params=params or None)
+        """Every agent from ``page_token`` (or the first page) to the last.
+
+        ``page_size`` is the page size; the spec caps ``/v2/workbookAgents`` at 100 per page.
+        """
+        params: dict[str, Any] = {"pageToken": page_token} if page_token else {}
+        return await self.paged_list_token("/v2/workbookAgents", params, page_size=page_size or 100)
 
     # ─── Organization Settings & AI Configuration ──────────────────────────
     async def configure_org_ai(self, body: dict[str, Any]) -> JSONValue:
@@ -1649,12 +1905,9 @@ class SigmaClient:
 
     # ─── IP Allowlist (v3alpha) ────────────────────────────────────────────
     async def list_allowed_ips(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
-        params: dict[str, Any] = {}
-        if page_token:
-            params["pageToken"] = page_token
-        if page_size is not None:
-            params["pageSize"] = page_size
-        return await self.get("/v3alpha/allowedIps", params=params or None)
+        """Every allowlist entry from ``page_token`` (or the first page) to the last; ``page_size`` is the page size."""
+        params: dict[str, Any] = {"pageToken": page_token} if page_token else {}
+        return await self.paged_list_token("/v3alpha/allowedIps", params, page_size=page_size or 200)
 
     async def batch_create_allowed_ips(self, entries: list[dict[str, Any]]) -> JSONValue:
         return await self.post("/v3alpha/allowedIps:batchCreate", {"entries": entries})
@@ -1664,7 +1917,13 @@ class SigmaClient:
 
     # ─── Member search ────────────────────────────────────────────────────
     async def search_members(self, search: str, limit: int = 120) -> JSONValue:
-        """Lookup members. Uses 'email' query parameter when searching by email address per Sigma API deprecation."""
-        if "@" in search:
-            return await self.get("/v2/members", {"email": search, "limit": limit})
-        return await self.get("/v2/members", {"search": search, "limit": limit})
+        """Members filtered by email address (``GET /v2/members?email=``), every page.
+
+        Sigma removed the ``search`` (name) filter from ``GET /v2/members`` (release notes of
+        2026-03-20); the spec lists only ``email``. A value without ``@`` is refused before any
+        request. Sigma's filter is not documented as exact, so callers that act on a member
+        compare each result's ``email`` themselves.
+        """
+        if "@" not in search:
+            raise ValueError("search_members takes an email address; Sigma's member list filters only by email")
+        return await self.paged_list("/v2/members", {"email": search}, limit=limit)

@@ -6,13 +6,13 @@ import functools
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, NoReturn
 
 from fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from sigma_mcp.errors import SigmaAPIError, redact_message
+from sigma_mcp.errors import MASK, SigmaAPIError, redact_message
 
 logger = logging.getLogger("sigma_mcp")
 
@@ -127,6 +127,100 @@ def _batch_outcome(
     )
 
 
+def _require_ids(**values: str) -> None:
+    """Fail with ``invalid_request`` when an ID argument is empty or blank."""
+    for name, value in values.items():
+        if not isinstance(value, str) or not value.strip():
+            _invalid_request(f"{name} is required")
+
+
+def _require_body_fields(body: dict[str, Any], *fields: str) -> None:
+    """Fail with ``invalid_request`` when *body* lacks a field the Sigma spec marks required."""
+    missing = [f for f in fields if f not in body]
+    if missing:
+        _invalid_request(f"body is missing required field(s): {', '.join(missing)}")
+
+
+# Write-only fields Sigma never returns, by request schema. API credentials
+# (POST /v2/api-credentials, PATCH /v2/api-credentials/{id}): the basic password, bearer token,
+# apiKey value (also each temporaryCredentialsRequestParams value), OAuth client secret, and the
+# awsSigV4 secret access key and STS session token.
+API_CREDENTIAL_SECRET_FIELDS = frozenset(
+    {"password", "token", "value", "clientSecret", "secretAccessKey", "sessionToken"}
+)
+# Connections (POST /v2/connections ``details``): each may be a string or an object (a
+# ``{type, value}`` password, a secret-manager reference, ``pythonSecrets`` with user passwords).
+CONNECTION_SECRET_FIELDS = frozenset(
+    {"password", "privateKey", "privateKeyPassphrase", "clientSecret", "token", "pythonSecrets"}
+)
+# A sent secret shorter than this is masked only where it sits under a secret field: replacing
+# every occurrence of a short string in free text would mask unrelated words and IDs.
+_MIN_LITERAL = 8
+
+
+def _secrets_in(node: Any, fields: frozenset[str]) -> list[str]:
+    """Return the strings under *fields* anywhere in *node*, longest first."""
+    found: set[str] = set()
+
+    def collect(value: Any) -> None:
+        if isinstance(value, str):
+            if value:
+                found.add(value)
+        elif isinstance(value, dict):
+            for v in value.values():
+                collect(v)
+        elif isinstance(value, list):
+            for v in value:
+                collect(v)
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, v in value.items():
+                if key in fields:
+                    collect(v)
+                else:
+                    walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v)
+
+    walk(node)
+    return sorted(found, key=lambda s: (-len(s), s))
+
+
+def _mask_secrets(value: Any, fields: frozenset[str], secrets: list[str]) -> Any:
+    """Mask every non-None value under *fields*, and each long sent secret inside other strings."""
+    if isinstance(value, dict):
+        return {
+            k: (MASK if k in fields and v is not None else _mask_secrets(v, fields, secrets)) for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_mask_secrets(v, fields, secrets) for v in value]
+    if isinstance(value, str):
+        for secret in secrets:
+            if len(secret) >= _MIN_LITERAL:
+                value = value.replace(secret, MASK)
+        return value
+    return value
+
+
+async def _call_masking_secrets(call: Awaitable[Any], fields: frozenset[str], sent: Any) -> Any:
+    """Await *call* and mask the secrets *sent* carried in its result or a ``SigmaAPIError`` detail.
+
+    The result and detail are masked field by field (*fields*, wherever Sigma echoes them), and
+    a sent secret of at least ``_MIN_LITERAL`` characters is also masked inside other strings,
+    such as an error message that quotes it. A ``SigmaAPIError`` detail is masked before
+    ``to_dict`` redacts it and cuts it to 500 characters, so a cut never splits a secret.
+    """
+    secrets = _secrets_in(sent, fields)
+    try:
+        result = await call
+    except SigmaAPIError as exc:
+        exc.detail = _mask_secrets(exc.detail, fields, secrets)
+        raise
+    return _mask_secrets(result, fields, secrets)
+
+
 def _confirm_required(action: str) -> str:
     """Return the confirm two-step prompt as a normal tool result (``isError: false``).
 
@@ -153,6 +247,45 @@ def _summarize_list(data: Any, key_fields: list[str]) -> Any:
     if "nextPage" in data:
         res["nextPage"] = data["nextPage"]
     return res
+
+
+def _require_email(field: str, value: str) -> None:
+    """Refuse a value that is not an email address, before any request is sent.
+
+    ``GET /v2/members`` filters only by ``email``; Sigma removed its ``search`` (name) filter.
+    """
+    if "@" not in value:
+        _invalid_request(f"{field} must be an email address; Sigma looks members up by email only")
+
+
+async def _members_with_email(client: Any, email: str) -> list[dict[str, Any]]:
+    """The members whose ``email`` equals *email*, ignoring case.
+
+    Sigma's ``email`` filter is not documented as an exact match, so every result is compared
+    here and only an exact (case-insensitive) match counts.
+    """
+    results = await client.search_members(email)
+    entries = results.get("entries") if isinstance(results, dict) else results
+    want = email.casefold()
+    return [
+        e
+        for e in (entries if isinstance(entries, list) else [])
+        if isinstance(e, dict) and isinstance(e.get("email"), str) and e["email"].casefold() == want
+    ]
+
+
+async def _member_id_for_email(client: Any, field: str, email: str) -> str:
+    """The ID of the one member whose email is *email* (ignoring case), or a refused call.
+
+    No match fails with ``not_found`` and more than one with ``ambiguous_member``, so a caller
+    never acts on a first result it has not checked.
+    """
+    matches = await _members_with_email(client, email)
+    if not matches:
+        _tool_failure("not_found", f"No member has the email given in {field}")
+    if len(matches) > 1:
+        _tool_failure("ambiguous_member", f"More than one member has the email given in {field}", matches=len(matches))
+    return str(matches[0]["memberId"])
 
 
 def sigma_tool(fn: Callable[..., Any]) -> Callable[..., Any]:

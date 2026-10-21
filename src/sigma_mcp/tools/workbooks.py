@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from fastmcp import FastMCP
 
@@ -16,6 +16,10 @@ from sigma_mcp.tools.common import (
     _confirm_required,
     _invalid_request,
     _item_error,
+    _member_id_for_email,
+    _require_body_fields,
+    _require_email,
+    _require_ids,
     _summarize_list,
     _tool_failure,
     sigma_tool,
@@ -32,7 +36,12 @@ workbooks_server = FastMCP(
 @workbooks_server.tool(name="list_workbooks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbooks(limit: int = 200, summary_only: bool = False) -> str:
-    """List all workbooks in the organization. Pass summary_only=True for concise token-efficient response."""
+    """List all workbooks in the organization. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     data = await (await get_client()).list_workbooks(limit)
     if summary_only:
         data = _summarize_list(data, ["workbookId", "name", "folderId", "ownerId"])
@@ -97,7 +106,12 @@ duplicate_workbook = sigma_duplicate_workbook
 @workbooks_server.tool(name="list_workbook_pages", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_pages(workbook_id: str) -> str:
-    """List pages in a workbook."""
+    """List pages in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_pages(workbook_id), indent=2)
 
 
@@ -107,7 +121,12 @@ list_workbook_pages = sigma_list_workbook_pages
 @workbooks_server.tool(name="list_workbook_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_lineage(workbook_id: str) -> str:
-    """List data lineage for a workbook."""
+    """List data lineage for a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_lineage(workbook_id), indent=2)
 
 
@@ -119,7 +138,12 @@ list_workbook_lineage = sigma_list_workbook_lineage
 )
 @sigma_tool
 async def sigma_get_workbook_version_history(workbook_id: str) -> str:
-    """Get version history for a workbook."""
+    """Get version history for a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_workbook_version_history(workbook_id), indent=2)
 
 
@@ -167,7 +191,12 @@ convert_workbook_to_report = sigma_convert_workbook_to_report
 @workbooks_server.tool(name="list_workbook_grants", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_grants(workbook_id: str) -> str:
-    """List permission grants on a workbook."""
+    """List permission grants on a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_grants(workbook_id), indent=2)
 
 
@@ -191,7 +220,12 @@ grant_workbook_access = sigma_grant_workbook_access
 @workbooks_server.tool(name="list_workbook_embeds", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_embeds(workbook_id: str) -> str:
-    """List embed configurations for a workbook."""
+    """List embed configurations for a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_embeds(workbook_id), indent=2)
 
 
@@ -269,7 +303,12 @@ export_workbook = sigma_export_workbook
 )
 @sigma_tool
 async def sigma_list_workbook_schedules(workbook_id: str) -> str:
-    """List scheduled exports for a workbook."""
+    """List every scheduled export for a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_schedules(workbook_id), indent=2)
 
 
@@ -306,7 +345,12 @@ delete_workbook_schedule = sigma_delete_workbook_schedule
 )
 @sigma_tool
 async def sigma_list_workbook_bookmarks(workbook_id: str) -> str:
-    """List bookmarks (saved filter states) in a workbook."""
+    """List bookmarks (saved filter states) in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_bookmarks(workbook_id), indent=2)
 
 
@@ -326,7 +370,12 @@ add_workbook_bookmark = sigma_add_workbook_bookmark
 @workbooks_server.tool(name="get_workbook_tags", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_get_workbook_tags(workbook_id: str) -> str:
-    """List tags on a workbook."""
+    """List tags on a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_workbook_tags(workbook_id), indent=2)
 
 
@@ -361,7 +410,12 @@ remove_workbook_tag = sigma_remove_workbook_tag
 @workbooks_server.tool(name="list_templates", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_templates(limit: int = 200) -> str:
-    """List all templates in the organization."""
+    """List all templates in the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_templates(limit), indent=2)
 
 
@@ -408,7 +462,12 @@ save_template_from_workbook = sigma_save_template_from_workbook
 @workbooks_server.tool(name="list_reports", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_reports(limit: int = 200) -> str:
-    """List all reports in the organization."""
+    """List all reports in the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     return json.dumps(await (await get_client()).list_reports(limit), indent=2)
 
 
@@ -468,7 +527,11 @@ list_report_sources = sigma_list_report_sources
 @workbooks_server.tool(name="list_report_elements", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_elements(report_id: str) -> str:
-    """List elements in a report."""
+    """List elements in a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_report_elements(report_id), indent=2)
 
 
@@ -478,7 +541,11 @@ list_report_elements = sigma_list_report_elements
 @workbooks_server.tool(name="list_report_queries", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_queries(report_id: str) -> str:
-    """List SQL queries in a report."""
+    """List SQL queries in a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_report_queries(report_id), indent=2)
 
 
@@ -488,7 +555,11 @@ list_report_queries = sigma_list_report_queries
 @workbooks_server.tool(name="list_report_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_lineage(report_id: str) -> str:
-    """List lineage for a report."""
+    """List lineage for a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_report_lineage(report_id), indent=2)
 
 
@@ -508,7 +579,12 @@ export_report = sigma_export_report
 @workbooks_server.tool(name="list_report_schedules", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_report_schedules(report_id: str) -> str:
-    """List scheduled exports for a report."""
+    """List scheduled exports for a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_report_schedules(report_id), indent=2)
 
 
@@ -528,7 +604,12 @@ create_report_schedule = sigma_create_report_schedule
 @workbooks_server.tool(name="list_shared_templates", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_shared_templates() -> str:
-    """List templates shared with your organization from other orgs."""
+    """List templates shared with your organization from other orgs.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_shared_templates(), indent=2)
 
 
@@ -727,27 +808,22 @@ async def sigma_reassign_workbook_ownership(old_owner_email: str, new_owner_emai
 
     Resolves members by email, finds all workbooks owned by old owner, then
     PATCHes /v2/files/{id} to reassign. dry_run=True (default) reports what
-    would change without making changes.
+    would change without making changes. Both arguments must be email addresses (Sigma looks
+    members up by email only), and each must match exactly one member's email, ignoring case;
+    otherwise the call fails before any change.
     """
     if not old_owner_email or not old_owner_email.strip():
         _invalid_request("old_owner_email is required")
     if not new_owner_email or not new_owner_email.strip():
         _invalid_request("new_owner_email is required")
+    _require_email("old_owner_email", old_owner_email)
+    _require_email("new_owner_email", new_owner_email)
 
     c = await get_client()
 
-    # Resolve member IDs
-    old_results = await c.search_members(old_owner_email)
-    old_entries = old_results.get("entries", []) if isinstance(old_results, dict) else []
-    if not old_entries:
-        _tool_failure("not_found", f"No member found for email: {old_owner_email}")
-    old_member_id = old_entries[0]["memberId"]
-
-    new_results = await c.search_members(new_owner_email)
-    new_entries = new_results.get("entries", []) if isinstance(new_results, dict) else []
-    if not new_entries:
-        _tool_failure("not_found", f"No member found for email: {new_owner_email}")
-    new_member_id = new_entries[0]["memberId"]
+    # Resolve member IDs: exactly one member per email, compared ignoring case.
+    old_member_id = await _member_id_for_email(c, "old_owner_email", old_owner_email)
+    new_member_id = await _member_id_for_email(c, "new_owner_email", new_owner_email)
 
     # Get all workbooks owned by old member
     all_files: list[dict[str, Any]] = []
@@ -923,7 +999,10 @@ async def sigma_verify_workbook_spec(
 ) -> str:
     """Verify a workbook code representation specification without saving.
 
-    Validates schema structure, syntax, and element layout.
+    Validates schema structure, syntax, and element layout through a dry run of workbook
+    creation (``dryRun: true``). Returns ``{valid, errors, warnings}``. A success that does
+    not echo ``dryRun: true`` fails the call (``dry_run_not_honored``) and names any ID that
+    came back, since Sigma may then have created a real workbook.
     """
     if not name or not name.strip():
         _invalid_request("name is required")
@@ -976,7 +1055,12 @@ async def sigma_verify_report_spec(
     document: dict[str, Any],
     description: str | None = None,
 ) -> str:
-    """Verify a report code representation specification without saving."""
+    """Verify a report code representation specification without saving.
+
+    Runs report creation as a dry run (``dryRun: true``). Returns ``{valid, errors, warnings}``.
+    A success that does not echo ``dryRun: true`` fails the call (``dry_run_not_honored``) and
+    names any ID that came back, since Sigma may then have created a real report.
+    """
     if not name or not name.strip():
         _invalid_request("name is required")
     if not folder_id or not folder_id.strip():
@@ -1016,7 +1100,11 @@ download_query_export = sigma_download_query_export
 @workbooks_server.tool(name="list_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_agents(workbook_id: str, version_tag_name: str | None = None) -> str:
-    """List AI agents defined in a specific workbook (optionally filtering by version tag)."""
+    """List AI agents defined in a specific workbook (optionally filtering by version tag).
+
+    Returns Sigma's single response. The spec documents no page-token request parameter for
+    this endpoint, so a ``nextPageToken`` in the response cannot be followed.
+    """
     if not workbook_id or not workbook_id.strip():
         _invalid_request("workbook_id is required")
     c = await get_client()
@@ -1071,3 +1159,405 @@ async def sigma_run_workbook_agent(
 
 
 run_workbook_agent = sigma_run_workbook_agent
+
+
+# Tools for client methods that had none (API coverage audit, 2026-10-20).
+
+
+@workbooks_server.tool(
+    name="delete_workbook_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_workbook_grant(workbook_id: str, grant_id: str, confirm: bool = False) -> str:
+    """Delete a grant (a user's or team's permission) from a workbook. Requires confirm=True.
+
+    Retrieve grant IDs with workbooks_list_workbook_grants.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(workbook_id=workbook_id, grant_id=grant_id)
+    code = await (await get_client()).delete_workbook_grant(workbook_id, grant_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_workbook_grant = sigma_delete_workbook_grant
+
+
+@workbooks_server.tool(
+    name="delete_workbook_embed", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_workbook_embed(workbook_id: str, embed_id: str, confirm: bool = False) -> str:
+    """Delete an embed from a workbook. Requires confirm=True.
+
+    Retrieve embed IDs with workbooks_list_workbook_embeds. Embeds that use the embed URL stop working.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(workbook_id=workbook_id, embed_id=embed_id)
+    code = await (await get_client()).delete_workbook_embed(workbook_id, embed_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_workbook_embed = sigma_delete_workbook_embed
+
+
+@workbooks_server.tool(name="send_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@sigma_tool
+async def sigma_send_workbook(workbook_id: str, body: dict[str, Any]) -> str:
+    """Export (send) a workbook once to one or more targets: email, Slack, Google Sheets/Drive, or a webhook.
+
+    body follows Sigma's POST /v2/workbooks/{workbookId}/send: target (list of targets), configV2 (format and
+    element or page to export), plus optional parameters, conditions, timeout and sendAsUser.
+    """
+    _require_ids(workbook_id=workbook_id)
+    return json.dumps(await (await get_client()).send_workbook(workbook_id, body), indent=2)
+
+
+send_workbook = sigma_send_workbook
+
+
+@workbooks_server.tool(
+    name="update_workbook_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_update_workbook_schedule(workbook_id: str, schedule_id: str, body: dict[str, Any]) -> str:
+    """Update a workbook's scheduled export.
+
+    body may set target, schedule (cronSpec, timezone), configV2, description and suspensionAction. Retrieve
+    schedule IDs with workbooks_list_workbook_schedules.
+    """
+    _require_ids(workbook_id=workbook_id, schedule_id=schedule_id)
+    return json.dumps(await (await get_client()).update_workbook_schedule(workbook_id, schedule_id, body), indent=2)
+
+
+update_workbook_schedule = sigma_update_workbook_schedule
+
+
+@workbooks_server.tool(
+    name="update_workbook_bookmark", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_update_workbook_bookmark(workbook_id: str, bookmark_id: str, body: dict[str, Any]) -> str:
+    """Update a saved view (bookmark) in a workbook.
+
+    body may set name, isShared, isDefault and exploreKey. Retrieve bookmark IDs with
+    workbooks_list_workbook_bookmarks.
+    """
+    _require_ids(workbook_id=workbook_id, bookmark_id=bookmark_id)
+    return json.dumps(await (await get_client()).update_workbook_bookmark(workbook_id, bookmark_id, body), indent=2)
+
+
+update_workbook_bookmark = sigma_update_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="delete_workbook_bookmark", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_workbook_bookmark(workbook_id: str, bookmark_id: str, confirm: bool = False) -> str:
+    """Delete a saved view (bookmark) from a workbook. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(workbook_id=workbook_id, bookmark_id=bookmark_id)
+    code = await (await get_client()).delete_workbook_bookmark(workbook_id, bookmark_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_workbook_bookmark = sigma_delete_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="duplicate_tagged_workbook", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_duplicate_tagged_workbook(
+    workbook_id: str,
+    tag_name: str,
+    destination_folder_id: str,
+    name: str,
+    description: str | None = None,
+    copy_bookmarks: Literal["all", "accessible"] | None = None,
+) -> str:
+    """Duplicate the version of a workbook carrying a version tag into a folder as a new workbook.
+
+    tag_name is the version tag NAME (e.g. 'Production'). copy_bookmarks is "all" (every saved view; admins only)
+    or "accessible" (personal saved views and those shared with the caller); leave it unset to
+    copy none.
+    Returns the new workbook.
+    """
+    _require_ids(workbook_id=workbook_id, tag_name=tag_name, destination_folder_id=destination_folder_id, name=name)
+    body: dict[str, Any] = {"destinationFolderId": destination_folder_id, "name": name}
+    if description is not None:
+        body["description"] = description
+    if copy_bookmarks is not None:
+        body["copyBookmarks"] = copy_bookmarks
+    return json.dumps(await (await get_client()).duplicate_tagged_workbook(workbook_id, tag_name, body), indent=2)
+
+
+duplicate_tagged_workbook = sigma_duplicate_tagged_workbook
+
+
+@workbooks_server.tool(
+    name="share_workbook_cross_org", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_share_workbook_cross_org(workbook_id: str, body: dict[str, Any]) -> str:
+    """Share a workbook with other Sigma organizations.
+
+    body requires orgSlugs (list of organization slugs) and may set shareDatasets, copyInputTableData,
+    sendEmail and emailMessage.
+    """
+    _require_ids(workbook_id=workbook_id)
+    _require_body_fields(body, "orgSlugs")
+    return json.dumps(await (await get_client()).share_workbook_cross_org(workbook_id, body), indent=2)
+
+
+share_workbook_cross_org = sigma_share_workbook_cross_org
+
+
+@workbooks_server.tool(
+    name="duplicate_tagged_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_duplicate_tagged_report(
+    report_id: str, tag_name: str, destination_folder_id: str, name: str, description: str | None = None
+) -> str:
+    """Duplicate the version of a report carrying a version tag into a folder as a new report.
+
+    tag_name is the version tag NAME. Returns the new report.
+    """
+    _require_ids(report_id=report_id, tag_name=tag_name, destination_folder_id=destination_folder_id, name=name)
+    body: dict[str, Any] = {"destinationFolderId": destination_folder_id, "name": name}
+    if description is not None:
+        body["description"] = description
+    return json.dumps(await (await get_client()).duplicate_tagged_report(report_id, tag_name, body), indent=2)
+
+
+duplicate_tagged_report = sigma_duplicate_tagged_report
+
+
+@workbooks_server.tool(name="list_report_pages", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@sigma_tool
+async def sigma_list_report_pages(report_id: str) -> str:
+    """List the pages of a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(report_id=report_id)
+    return json.dumps(await (await get_client()).list_report_pages(report_id), indent=2)
+
+
+list_report_pages = sigma_list_report_pages
+
+
+@workbooks_server.tool(
+    name="list_report_page_elements", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_list_report_page_elements(report_id: str, page_id: str) -> str:
+    """List the elements on one page of a report. Retrieve page IDs with workbooks_list_report_pages.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(report_id=report_id, page_id=page_id)
+    return json.dumps(await (await get_client()).list_report_page_elements(report_id, page_id), indent=2)
+
+
+list_report_page_elements = sigma_list_report_page_elements
+
+
+@workbooks_server.tool(name="list_report_columns", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@sigma_tool
+async def sigma_list_report_columns(report_id: str) -> str:
+    """List the columns of every element in a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(report_id=report_id)
+    return json.dumps(await (await get_client()).list_report_columns(report_id), indent=2)
+
+
+list_report_columns = sigma_list_report_columns
+
+
+@workbooks_server.tool(
+    name="get_report_element_query", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_get_report_element_query(report_id: str, element_id: str) -> str:
+    """Get the SQL query Sigma generates for a report element."""
+    _require_ids(report_id=report_id, element_id=element_id)
+    return json.dumps(await (await get_client()).get_report_element_query(report_id, element_id), indent=2)
+
+
+get_report_element_query = sigma_get_report_element_query
+
+
+@workbooks_server.tool(name="list_report_controls", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@sigma_tool
+async def sigma_list_report_controls(report_id: str) -> str:
+    """List the controls (filters and parameters) in a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(report_id=report_id)
+    return json.dumps(await (await get_client()).list_report_controls(report_id), indent=2)
+
+
+list_report_controls = sigma_list_report_controls
+
+
+@workbooks_server.tool(
+    name="get_report_version_history", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_get_report_version_history(report_id: str) -> str:
+    """Get the version history of a report (published versions, who and when).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(report_id=report_id)
+    return json.dumps(await (await get_client()).get_report_version_history(report_id), indent=2)
+
+
+get_report_version_history = sigma_get_report_version_history
+
+
+@workbooks_server.tool(name="send_report", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@sigma_tool
+async def sigma_send_report(report_id: str, body: dict[str, Any]) -> str:
+    """Export (send) a report once to one or more targets.
+
+    body requires targets, config and attachments, and may set parameters and timeout, per Sigma's POST
+    /v2/reports/{reportId}/send.
+    """
+    _require_ids(report_id=report_id)
+    _require_body_fields(body, "targets", "config", "attachments")
+    return json.dumps(await (await get_client()).send_report(report_id, body), indent=2)
+
+
+send_report = sigma_send_report
+
+
+@workbooks_server.tool(name="update_report_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@sigma_tool
+async def sigma_update_report_schedule(report_id: str, schedule_id: str, body: dict[str, Any]) -> str:
+    """Update a report's scheduled export.
+
+    body may set target, schedule, configV2, description and suspensionAction. Retrieve schedule IDs with
+    workbooks_list_report_schedules.
+    """
+    _require_ids(report_id=report_id, schedule_id=schedule_id)
+    return json.dumps(await (await get_client()).update_report_schedule(report_id, schedule_id, body), indent=2)
+
+
+update_report_schedule = sigma_update_report_schedule
+
+
+@workbooks_server.tool(
+    name="delete_report_schedule", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_report_schedule(report_id: str, schedule_id: str, confirm: bool = False) -> str:
+    """Delete a report's scheduled export. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(report_id=report_id, schedule_id=schedule_id)
+    code = await (await get_client()).delete_report_schedule(report_id, schedule_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_report_schedule = sigma_delete_report_schedule
+
+
+@workbooks_server.tool(name="create_report_grant", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"})
+@sigma_tool
+async def sigma_create_report_grant(report_id: str, body: dict[str, Any]) -> str:
+    """Grant users or teams permission on a report.
+
+    body requires grants: a list of {grantee: {memberId} or {teamId}, permission: 'view' | 'edit'}.
+    """
+    _require_ids(report_id=report_id)
+    _require_body_fields(body, "grants")
+    return json.dumps(await (await get_client()).create_report_grant(report_id, body), indent=2)
+
+
+create_report_grant = sigma_create_report_grant
+
+
+@workbooks_server.tool(
+    name="delete_report_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_report_grant(report_id: str, grant_id: str, confirm: bool = False) -> str:
+    """Delete a grant from a report. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(report_id=report_id, grant_id=grant_id)
+    code = await (await get_client()).delete_report_grant(report_id, grant_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_report_grant = sigma_delete_report_grant
+
+
+@workbooks_server.tool(name="list_report_tags", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@sigma_tool
+async def sigma_list_report_tags(report_id: str) -> str:
+    """List the version tags on a report.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(report_id=report_id)
+    return json.dumps(await (await get_client()).list_report_tags(report_id), indent=2)
+
+
+list_report_tags = sigma_list_report_tags
+
+
+@workbooks_server.tool(name="tag_report", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"})
+@sigma_tool
+async def sigma_tag_report(report_id: str, tag_name: str) -> str:
+    """Apply a version tag to a report by tag NAME (e.g. 'Production'). The Sigma API takes the tag name here, not its ID."""
+    _require_ids(report_id=report_id, tag_name=tag_name)
+    return json.dumps(await (await get_client()).tag_report(report_id, tag_name), indent=2)
+
+
+tag_report = sigma_tag_report
+
+
+@workbooks_server.tool(name="remove_report_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"})
+@sigma_tool
+async def sigma_remove_report_tag(report_id: str, tag_id: str, confirm: bool = False) -> str:
+    """Remove a version tag from a report. Requires confirm=True. Retrieve tag IDs with workbooks_list_report_tags."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(report_id=report_id, tag_id=tag_id)
+    code = await (await get_client()).remove_report_tag(report_id, tag_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+remove_report_tag = sigma_remove_report_tag
+
+
+@workbooks_server.tool(
+    name="delete_shared_template", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_shared_template(share_id: str, confirm: bool = False) -> str:
+    """Delete a template share. Requires confirm=True. Retrieve share IDs with workbooks_list_shared_templates."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(share_id=share_id)
+    code = await (await get_client()).delete_shared_template(share_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_shared_template = sigma_delete_shared_template

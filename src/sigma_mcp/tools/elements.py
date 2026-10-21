@@ -11,11 +11,14 @@ from fastmcp import FastMCP
 
 from sigma_mcp.client import DOCS_ALLOWED_HOSTS, SSRFSafeAsyncTransport, validate_outbound_url
 from sigma_mcp.tools.common import (
+    ANNOTATION_DESTRUCTIVE,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
     _batch_outcome,
+    _confirm_required,
     _invalid_request,
     _item_error,
+    _require_ids,
     _tool_failure,
     sigma_tool,
 )
@@ -34,7 +37,12 @@ elements_server = FastMCP(
 )
 @sigma_tool
 async def sigma_list_workbook_page_elements(workbook_id: str, page_id: str) -> str:
-    """List elements on a specific page of a workbook."""
+    """List elements on a specific page of a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_page_elements(workbook_id, page_id), indent=2)
 
 
@@ -44,7 +52,12 @@ list_workbook_page_elements = sigma_list_workbook_page_elements
 @elements_server.tool(name="list_workbook_elements", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_elements(workbook_id: str) -> str:
-    """List all elements (tables, charts, controls, etc.) in a workbook."""
+    """List all elements (tables, charts, controls, etc.) in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_elements(workbook_id), indent=2)
 
 
@@ -54,7 +67,12 @@ list_workbook_elements = sigma_list_workbook_elements
 @elements_server.tool(name="list_workbook_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_columns(workbook_id: str) -> str:
-    """List all columns across all elements in a workbook, including formulas and types."""
+    """List all columns across all elements in a workbook, including formulas and types.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_columns(workbook_id), indent=2)
 
 
@@ -64,7 +82,12 @@ list_workbook_columns = sigma_list_workbook_columns
 @elements_server.tool(name="list_workbook_queries", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_queries(workbook_id: str) -> str:
-    """List generated SQL queries for all elements in a workbook."""
+    """List generated SQL queries for all elements in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_queries(workbook_id), indent=2)
 
 
@@ -74,7 +97,12 @@ list_workbook_queries = sigma_list_workbook_queries
 @elements_server.tool(name="list_workbook_controls", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_list_workbook_controls(workbook_id: str) -> str:
-    """List control elements (filters, parameters) in a workbook."""
+    """List control elements (filters, parameters) in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_workbook_controls(workbook_id), indent=2)
 
 
@@ -123,7 +151,12 @@ get_element_query = sigma_get_element_query
 @elements_server.tool(name="get_element_columns", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_element_columns(workbook_id: str, element_id: str) -> str:
-    """List columns for a specific element in a workbook."""
+    """List columns for a specific element in a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_element_columns(workbook_id, element_id), indent=2)
 
 
@@ -155,7 +188,12 @@ get_materialization_job = sigma_get_materialization_job
 )
 @sigma_tool
 async def sigma_list_materialization_schedules(workbook_id: str) -> str:
-    """List materialization schedules for a workbook."""
+    """List every materialization schedule for a workbook.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_materialization_schedules(workbook_id), indent=2)
 
 
@@ -186,7 +224,12 @@ swap_template_sources = sigma_swap_template_sources
 )
 @sigma_tool
 async def sigma_list_source_swap_policies() -> str:
-    """List all source swap policies (rules for automatic source swapping on deployment)."""
+    """List all source swap policies (rules for automatic source swapping on deployment).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_source_swap_policies(), indent=2)
 
 
@@ -509,3 +552,49 @@ def _doc_page_url(page_slug: str) -> str:
 
 
 get_doc_page = sigma_get_doc_page
+
+
+# Tools for client methods that had none (API coverage audit, 2026-10-20).
+
+
+@elements_server.tool(name="list_element_lineage", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
+@sigma_tool
+async def sigma_list_element_lineage(workbook_id: str, element_id: str) -> str:
+    """List the lineage (upstream sources and dependencies) of one workbook element."""
+    _require_ids(workbook_id=workbook_id, element_id=element_id)
+    return json.dumps(await (await get_client()).list_element_lineage(workbook_id, element_id), indent=2)
+
+
+list_element_lineage = sigma_list_element_lineage
+
+
+@elements_server.tool(
+    name="update_source_swap_policy", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+)
+@sigma_tool
+async def sigma_update_source_swap_policy(policy_id: str, body: dict[str, Any]) -> str:
+    """Update a source swap policy (Beta).
+
+    body may set type, name, fromConnectionId and swaps.
+    """
+    _require_ids(policy_id=policy_id)
+    return json.dumps(await (await get_client()).update_source_swap_policy(policy_id, body), indent=2)
+
+
+update_source_swap_policy = sigma_update_source_swap_policy
+
+
+@elements_server.tool(
+    name="delete_source_swap_policy", annotations=ANNOTATION_DESTRUCTIVE, tags={"elements", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_source_swap_policy(policy_id: str, confirm: bool = False) -> str:
+    """Delete a source swap policy (Beta). Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(policy_id=policy_id)
+    code = await (await get_client()).delete_source_swap_policy(policy_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_source_swap_policy = sigma_delete_source_swap_policy

@@ -12,8 +12,13 @@ from fastmcp.exceptions import ToolError
 _REDACT_KEYS = {"email", "userEmail", "memberEmail", "token", "access_token", "client_secret", "secret"}
 
 
-# Credential keys whose whole value is a secret.
-_KEYS = r"(?:api[_-]?key|client[_-]?secret|private[_-]?key|password)"
+# Credential keys whose whole value is a secret. ``secret_access_key`` is the AWS SigV4 secret an
+# API credential carries (``secretAccessKey``, also ``AWS_SECRET_ACCESS_KEY``);
+# ``privateKeyPassphrase`` and ``pythonSecrets`` are write-only fields of a connection's details.
+_KEYS = (
+    r"(?:api[_-]?key|client[_-]?secret|private[_-]?key[_-]?passphrase|private[_-]?key|password"
+    r"|secret[_-]?access[_-]?key|python[_-]?secrets)"
+)
 # Credential keys whose bracketed or bare (number, ``None``, ``True``) value is masked whole,
 # whether the key is quoted or not: ``_KEYS`` plus the token names the token rules cover. The
 # lookbehind keeps ``next_token``, ``page_token`` and ``max_tokens`` untouched.
@@ -344,20 +349,34 @@ _SECRET_KEY = re.compile(
 )
 
 
+# The sibling key that marks a dict as an API credential's ``apiKey`` object (``{key, value,
+# isQueryParam}`` in the POST /v2/api-credentials and PATCH /v2/api-credentials/{id} schemas).
+# Its ``value`` is the API key. ``value`` is masked only there: everywhere else in Sigma's API
+# (user attribute values, control and filter values, parameters) it is ordinary data.
+_API_KEY_MARKER = "isQueryParam"
+_API_KEY_VALUE = "value"
+
+
+def _secret_entry(key: Any, value: Any, credential_shaped: bool) -> bool:
+    """Return whether ``value`` under ``key`` is a secret to mask whole."""
+    if not isinstance(key, str) or value is None:
+        return False
+    return bool(_SECRET_KEY.fullmatch(key)) or (credential_shaped and key == _API_KEY_VALUE)
+
+
 def redact_payload(value: Any) -> Any:
     """Redact a structured payload value by value, before it is serialized.
 
     Every string is passed through ``redact_secrets`` on its decoded text, so a
     ``password=...`` inside a message is redacted whole and ``json.dumps`` then escapes the
     result: the serialized JSON stays valid. Any non-None value under a credential key
-    (``password``, ``api_key``, ``access_token``, ...), whether a string, number, list or
-    dict, is replaced by ``MASK`` outright.
+    (``password``, ``api_key``, ``access_token``, ``secretAccessKey``, ...), whether a string,
+    number, list or dict, is replaced by ``MASK`` outright. A bare ``value`` key is masked only
+    in an API credential's ``apiKey`` object (a dict that also has ``isQueryParam``).
     """
     if isinstance(value, dict):
-        return {
-            k: (MASK if isinstance(k, str) and v is not None and _SECRET_KEY.fullmatch(k) else redact_payload(v))
-            for k, v in value.items()
-        }
+        credential_shaped = _API_KEY_MARKER in value
+        return {k: (MASK if _secret_entry(k, v, credential_shaped) else redact_payload(v)) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [redact_payload(v) for v in value]
     if isinstance(value, str):
@@ -428,11 +447,19 @@ class SigmaAPIError(SigmaError):
         super().__init__(f"Sigma API {method} {path} returned {status_code}")
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the error as JSON-ready fields.
+
+        A structured ``detail`` (an upstream JSON error body) is redacted value by value
+        (``redact_payload``) and a string ``detail`` with ``redact_message``, so a credential it
+        echoes is masked before the body reaches a tool result. Strings are cut to 500
+        characters only after that, so a cut never leaves part of a secret unmasked.
+        """
+        detail = redact_message(self.detail) if isinstance(self.detail, str) else redact_payload(self.detail)
         return {
             "type": "sigma_api_error",
             "status_code": self.status_code,
             "method": self.method,
             "path": self.path,
-            "detail": _sanitize(self.detail),
+            "detail": _sanitize(detail),
             "request_id": self.request_id,
         }

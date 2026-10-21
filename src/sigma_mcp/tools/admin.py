@@ -13,10 +13,16 @@ from sigma_mcp.tools.common import (
     ANNOTATION_IDEMPOTENT,
     ANNOTATION_READ_ONLY,
     ANNOTATION_WRITE_SAFE,
+    API_CREDENTIAL_SECRET_FIELDS,
     _batch_outcome,
+    _call_masking_secrets,
     _confirm_required,
     _invalid_request,
     _item_error,
+    _members_with_email,
+    _require_body_fields,
+    _require_email,
+    _require_ids,
     _summarize_list,
     _tool_failure,
     sigma_tool,
@@ -35,7 +41,11 @@ admin_server.add_middleware(AdminDomainGuardMiddleware())
 @admin_server.tool(name="list_deployments", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployments() -> str:
-    """List all deployment policies."""
+    """List all deployment policies.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_deployments(), indent=2)
 
 
@@ -91,7 +101,11 @@ deactivate_member = sigma_deactivate_member
 @admin_server.tool(name="list_deployment_documents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_deployment_documents(policy_id: str) -> str:
-    """List documents in a deployment policy."""
+    """List documents in a deployment policy.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_deployment_documents(policy_id), indent=2)
 
 
@@ -111,7 +125,11 @@ add_deployment_documents = sigma_add_deployment_documents
 @admin_server.tool(name="list_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_tenants() -> str:
-    """List all tenant organizations (for multi-tenant deployments)."""
+    """List all tenant organizations (for multi-tenant deployments).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_tenants(), indent=2)
 
 
@@ -143,7 +161,11 @@ create_tenant = sigma_create_tenant
 @admin_server.tool(name="list_api_connectors", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_api_connectors() -> str:
-    """List all API connectors (custom data integrations)."""
+    """List all API connectors (custom data integrations).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_api_connectors(), indent=2)
 
 
@@ -163,7 +185,12 @@ get_api_connector = sigma_get_api_connector
 @admin_server.tool(name="list_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_members(limit: int = 200, summary_only: bool = False) -> str:
-    """List all members in the organization. Pass summary_only=True for concise token-efficient response."""
+    """List all members in the organization. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     data = await (await get_client()).list_members(limit)
     if summary_only:
         data = _summarize_list(data, ["memberId", "email", "firstName", "lastName", "memberType"])
@@ -221,7 +248,12 @@ get_current_user = sigma_get_current_user
 @admin_server.tool(name="list_member_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_member_teams(member_id: str) -> str:
-    """List teams a member belongs to."""
+    """List teams a member belongs to.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_member_teams(member_id), indent=2)
 
 
@@ -231,7 +263,12 @@ list_member_teams = sigma_list_member_teams
 @admin_server.tool(name="list_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_teams(limit: int = 200, summary_only: bool = False) -> str:
-    """List all teams. Pass summary_only=True for concise token-efficient response."""
+    """List all teams. Pass summary_only=True for concise token-efficient response.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read. ``limit`` is the page size.
+    """
     data = await (await get_client()).list_teams(limit)
     if summary_only:
         data = _summarize_list(data, ["teamId", "name", "description"])
@@ -277,7 +314,12 @@ delete_team = sigma_delete_team
 @admin_server.tool(name="list_team_members", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_team_members(team_id: str) -> str:
-    """List members of a team."""
+    """List members of a team.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_team_members(team_id), indent=2)
 
 
@@ -302,7 +344,12 @@ update_team_members = sigma_update_team_members
 @admin_server.tool(name="list_user_attributes", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_user_attributes() -> str:
-    """List all user attributes (used for row-level security and dynamic parameters)."""
+    """List all user attributes (used for row-level security and dynamic parameters).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_user_attributes(), indent=2)
 
 
@@ -384,7 +431,12 @@ set_user_attribute_for_tenants = sigma_set_user_attribute_for_tenants
 @admin_server.tool(name="get_user_attribute_users", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_users(attribute_id: str) -> str:
-    """Get all user assignments for a user attribute."""
+    """Get all user assignments for a user attribute.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_user_attribute_user_assignments(attribute_id), indent=2)
 
 
@@ -394,7 +446,12 @@ get_user_attribute_users = sigma_get_user_attribute_users
 @admin_server.tool(name="get_user_attribute_teams", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_teams(attribute_id: str) -> str:
-    """Get all team assignments for a user attribute."""
+    """Get all team assignments for a user attribute.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_user_attribute_team_assignments(attribute_id), indent=2)
 
 
@@ -404,7 +461,12 @@ get_user_attribute_teams = sigma_get_user_attribute_teams
 @admin_server.tool(name="get_user_attribute_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_get_user_attribute_tenants(attribute_id: str) -> str:
-    """Get all tenant assignments for a user attribute."""
+    """Get all tenant assignments for a user attribute.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).get_user_attribute_tenant_assignments(attribute_id), indent=2)
 
 
@@ -425,9 +487,7 @@ async def sigma_update_user_attribute_for_users(
     user_ids: List of user IDs whose attribute assignments should be removed.
     Example: ["user-uuid-1", "user-uuid-2"]
 
-    To assign (not revoke), use sigma_set_user_attribute_for_users instead
-    (direct POST to /v2/user-attributes/{id}/users not yet exposed as a
-    dedicated tool — use sigma_create_grant with a raw body as a workaround).
+    To assign (not revoke), use admin_set_user_attribute_for_users instead.
     """
     if not confirm:
         return _confirm_required("This destructive operation")
@@ -532,7 +592,11 @@ delete_user_attribute_for_tenant = sigma_delete_user_attribute_for_tenant
 @admin_server.tool(name="list_account_types", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_account_types() -> str:
-    """List all account types (license types) in the organization."""
+    """List all account types (license types) in the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
     return json.dumps(await (await get_client()).list_account_types(), indent=2)
 
 
@@ -542,7 +606,12 @@ list_account_types = sigma_list_account_types
 @admin_server.tool(name="list_grants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_grants(inode_id: str) -> str:
-    """List grants for a specific file/workbook/data model by inodeId. Required: inodeId."""
+    """List grants for a specific file/workbook/data model by inodeId. Required: inodeId.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_grants({"inodeId": inode_id, "limit": 200}), indent=2)
 
 
@@ -562,7 +631,12 @@ create_grant = sigma_create_grant
 @admin_server.tool(name="list_translations", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_translations() -> str:
-    """List organization translation files."""
+    """List organization translation files.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
     return json.dumps(await (await get_client()).list_translations(), indent=2)
 
 
@@ -777,6 +851,10 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     """Remove multiple members from a team by their email addresses.
 
     Resolves emails to member IDs, then sends a single PATCH to remove all. Requires confirm=True.
+    An email is removed only when exactly one member's email equals it, ignoring case. An email
+    that matches no member, or more than one, is listed in ``not_found`` and no one is removed
+    for it; the other emails are still removed. If no email resolves, the call fails with
+    ``not_found`` and nothing is sent.
 
     Safety:
       - Always listed in the full profile, but refused at call time unless
@@ -792,15 +870,18 @@ async def sigma_bulk_remove_team_members(team_id: str, member_emails: list[str],
     if len(member_emails) > 50:
         _invalid_request(f"Bulk removal cap exceeded ({len(member_emails)} > 50). Process in smaller batches.")
 
+    for email in member_emails:
+        _require_email("member_emails", email)
+
     c = await get_client()
     member_ids: list[str] = []
     not_found: list[str] = []
 
     for email in member_emails:
-        results = await c.search_members(email)
-        entries = results.get("entries", []) if isinstance(results, dict) else []
-        if entries:
-            member_ids.append(entries[0]["memberId"])
+        matches = await _members_with_email(c, email)
+        # Only one exact match is acted on; no match or several leave that email unresolved.
+        if len(matches) == 1:
+            member_ids.append(str(matches[0]["memberId"]))
         else:
             not_found.append(email)
 
@@ -825,27 +906,14 @@ bulk_remove_team_members = sigma_bulk_remove_team_members
 @admin_server.tool(name="list_tenants_paginated", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_tenants_paginated() -> str:
-    """List all tenants using cursor-based pagination (nextPageToken model).
+    """List all tenants, following Sigma's cursor pagination to the last page.
 
-    Unlike offset-based pagination, tenants use cursor tokens.
-    Returns the complete list of all tenant organizations.
+    ``GET /v2/tenants`` pages with ``pageSize``/``pageToken`` and answers ``nextPageToken``
+    (not ``limit``/``page``/``nextPage``). Returns ``{"total": N, "tenants": [...]}`` with every
+    tenant organization.
     """
     c = await get_client()
-    all_tenants: list[dict[str, Any]] = []
-    params: dict[str, Any] = {"limit": 50}
-    _seen_tokens: set[str] = set()
-    _MAX_PAGES = 200
-    for _ in range(_MAX_PAGES):
-        data = await c.get("/v2/tenants", params)
-        if isinstance(data, dict):
-            all_tenants.extend(data.get("entries", []))
-            next_token = data.get("nextPageToken")
-            if not next_token or next_token in _seen_tokens:
-                break
-            _seen_tokens.add(next_token)
-            params["pageToken"] = next_token
-        else:
-            break
+    all_tenants = await c.auto_paginate_token("/v2/tenants", max_pages=200)
     return json.dumps({"total": len(all_tenants), "tenants": all_tenants}, indent=2)
 
 
@@ -983,7 +1051,13 @@ VALID_ORG_SETTINGS = frozenset(
 @admin_server.tool(name="list_org_workbook_agents", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_org_workbook_agents(page_token: str | None = None, page_size: int | None = None) -> str:
-    """List all workbook agents across the organization."""
+    """List all workbook agents across the organization.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    ``page_token`` resumes from a ``nextPageToken``; ``page_size`` is the page size (spec
+    maximum 100, the default).
+    """
     c = await get_client()
     result = await c.list_org_workbook_agents(page_token, page_size)
     return json.dumps(result, indent=2)
@@ -1080,7 +1154,12 @@ reset_org_email_branding = sigma_reset_org_email_branding
 @admin_server.tool(name="list_allowed_ips", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_allowed_ips(page_token: str | None = None, page_size: int | None = None) -> str:
-    """List IP allowlist entries configured for the organization (v3alpha)."""
+    """List IP allowlist entries configured for the organization (v3alpha).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    ``page_token`` resumes from a ``nextPageToken``; ``page_size`` is the page size.
+    """
     c = await get_client()
     result = await c.list_allowed_ips(page_token, page_size)
     return json.dumps(result, indent=2)
@@ -1128,3 +1207,546 @@ async def sigma_remove_allowed_ips(entry_ids: list[str], confirm: bool = False) 
 
 
 remove_allowed_ips = sigma_remove_allowed_ips
+
+
+# Tools for client methods that had none (API coverage audit, 2026-10-20).
+
+
+@admin_server.tool(name="update_team", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_team(team_id: str, body: dict[str, Any]) -> str:
+    """Update a team.
+
+    body may set name, description and visibility.
+    """
+    _require_ids(team_id=team_id)
+    return json.dumps(await (await get_client()).update_team(team_id, body), indent=2)
+
+
+update_team = sigma_update_team
+
+
+@admin_server.tool(name="get_user_attribute", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_user_attribute(attribute_id: str) -> str:
+    """Get a user attribute's definition."""
+    _require_ids(attribute_id=attribute_id)
+    return json.dumps(await (await get_client()).get_user_attribute(attribute_id), indent=2)
+
+
+get_user_attribute = sigma_get_user_attribute
+
+
+@admin_server.tool(name="update_user_attribute", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_user_attribute(attribute_id: str, body: dict[str, Any]) -> str:
+    """Update a user attribute's definition.
+
+    body may set userAttributeName, description and defaultValue.
+    """
+    _require_ids(attribute_id=attribute_id)
+    return json.dumps(await (await get_client()).update_user_attribute(attribute_id, body), indent=2)
+
+
+update_user_attribute = sigma_update_user_attribute
+
+
+@admin_server.tool(name="delete_user_attribute", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_user_attribute(attribute_id: str, confirm: bool = False) -> str:
+    """Delete a user attribute and every assignment of it. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(attribute_id=attribute_id)
+    code = await (await get_client()).delete_user_attribute(attribute_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_user_attribute = sigma_delete_user_attribute
+
+
+@admin_server.tool(name="set_user_attribute_for_users", annotations=ANNOTATION_IDEMPOTENT, tags={"admin", "idempotent"})
+@sigma_tool
+async def sigma_set_user_attribute_for_users(attribute_id: str, assignments: list[dict[str, Any]]) -> str:
+    """Set a user attribute value for specific users.
+
+    assignments: List of objects, each with 'userId' (str) and 'value' (str).
+    Example: [{"userId": "abc123", "value": "US"}]
+    """
+    _require_ids(attribute_id=attribute_id)
+    if not assignments:
+        _invalid_request("assignments must list at least one {userId, value}")
+    body = {
+        "assignments": [
+            {"userId": a["userId"], "value": {"type": "string", "val": str(a["value"])}} for a in assignments
+        ]
+    }
+    return json.dumps(await (await get_client()).set_user_attribute_for_users(attribute_id, body), indent=2)
+
+
+set_user_attribute_for_users = sigma_set_user_attribute_for_users
+
+
+@admin_server.tool(name="create_account_type", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_account_type(body: dict[str, Any]) -> str:
+    """Create an account type.
+
+    body requires name, description and permissions.
+    """
+    _require_body_fields(body, "name", "description", "permissions")
+    return json.dumps(await (await get_client()).create_account_type(body), indent=2)
+
+
+create_account_type = sigma_create_account_type
+
+
+@admin_server.tool(name="delete_account_type", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_account_type(account_type_id: str, confirm: bool = False) -> str:
+    """Delete an account type. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(account_type_id=account_type_id)
+    code = await (await get_client()).delete_account_type(account_type_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_account_type = sigma_delete_account_type
+
+
+@admin_server.tool(name="get_grant", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_grant(grant_id: str) -> str:
+    """Get a grant by ID."""
+    _require_ids(grant_id=grant_id)
+    return json.dumps(await (await get_client()).get_grant(grant_id), indent=2)
+
+
+get_grant = sigma_get_grant
+
+
+@admin_server.tool(name="delete_grant", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_grant(grant_id: str, confirm: bool = False) -> str:
+    """Delete a grant by ID. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(grant_id=grant_id)
+    code = await (await get_client()).delete_grant(grant_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_grant = sigma_delete_grant
+
+
+@admin_server.tool(name="update_deployment", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_deployment(policy_id: str, body: dict[str, Any]) -> str:
+    """Update a deployment policy.
+
+    body may set name, nameInTenant, sourceSwapPolicies, copyInputTableData and useDependenciesWorkspace.
+    """
+    _require_ids(policy_id=policy_id)
+    return json.dumps(await (await get_client()).update_deployment(policy_id, body), indent=2)
+
+
+update_deployment = sigma_update_deployment
+
+
+@admin_server.tool(name="remove_deployment_document", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_remove_deployment_document(policy_id: str, inode_id: str, confirm: bool = False) -> str:
+    """Remove a document from a deployment policy. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(policy_id=policy_id, inode_id=inode_id)
+    code = await (await get_client()).remove_deployment_document(policy_id, inode_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+remove_deployment_document = sigma_remove_deployment_document
+
+
+@admin_server.tool(name="list_deployable_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_deployable_tenants() -> str:
+    """List the tenant organizations deployments can target.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    return json.dumps(await (await get_client()).list_deployable_tenants(), indent=2)
+
+
+list_deployable_tenants = sigma_list_deployable_tenants
+
+
+@admin_server.tool(name="list_deployment_tenants", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_deployment_tenants(policy_id: str) -> str:
+    """List the tenants a deployment policy deploys to.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(policy_id=policy_id)
+    return json.dumps(await (await get_client()).list_deployment_tenants(policy_id), indent=2)
+
+
+list_deployment_tenants = sigma_list_deployment_tenants
+
+
+@admin_server.tool(name="add_deployment_tenant", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_add_deployment_tenant(policy_id: str, body: dict[str, Any]) -> str:
+    """Add a tenant to a deployment policy.
+
+    body requires tenantOrganizationId.
+    """
+    _require_ids(policy_id=policy_id)
+    _require_body_fields(body, "tenantOrganizationId")
+    return json.dumps(await (await get_client()).add_deployment_tenant(policy_id, body), indent=2)
+
+
+add_deployment_tenant = sigma_add_deployment_tenant
+
+
+@admin_server.tool(name="remove_deployment_tenant", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_remove_deployment_tenant(policy_id: str, tenant_org_id: str, confirm: bool = False) -> str:
+    """Remove a tenant from a deployment policy. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(policy_id=policy_id, tenant_org_id=tenant_org_id)
+    code = await (await get_client()).remove_deployment_tenant(policy_id, tenant_org_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+remove_deployment_tenant = sigma_remove_deployment_tenant
+
+
+@admin_server.tool(name="update_tenant", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_tenant(tenant_id: str, body: dict[str, Any]) -> str:
+    """Update a tenant organization.
+
+    body may set tenantOrganizationName and tenantOrganizationSlug.
+    """
+    _require_ids(tenant_id=tenant_id)
+    return json.dumps(await (await get_client()).update_tenant(tenant_id, body), indent=2)
+
+
+update_tenant = sigma_update_tenant
+
+
+@admin_server.tool(name="delete_tenant", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_tenant(tenant_id: str, confirm: bool = False) -> str:
+    """Delete a tenant organization. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(tenant_id=tenant_id)
+    code = await (await get_client()).delete_tenant(tenant_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_tenant = sigma_delete_tenant
+
+
+@admin_server.tool(
+    name="list_tenant_deployment_capabilities", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"}
+)
+@sigma_tool
+async def sigma_list_tenant_deployment_capabilities(tenant_org_id: str) -> str:
+    """List which tenant organizations a tenant can deploy to.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    _require_ids(tenant_org_id=tenant_org_id)
+    return json.dumps(await (await get_client()).list_tenant_deployment_capabilities(tenant_org_id), indent=2)
+
+
+list_tenant_deployment_capabilities = sigma_list_tenant_deployment_capabilities
+
+
+@admin_server.tool(name="batch_add_tenant_capabilities", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_batch_add_tenant_capabilities(tenant_org_id: str, body: dict[str, Any]) -> str:
+    """Let a tenant deploy to more tenant organizations.
+
+    body requires deployToTenantOrganizationIds (list of tenant organization IDs).
+    """
+    _require_ids(tenant_org_id=tenant_org_id)
+    _require_body_fields(body, "deployToTenantOrganizationIds")
+    return json.dumps(await (await get_client()).batch_add_tenant_capabilities(tenant_org_id, body), indent=2)
+
+
+batch_add_tenant_capabilities = sigma_batch_add_tenant_capabilities
+
+
+@admin_server.tool(
+    name="batch_remove_tenant_capabilities", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+)
+@sigma_tool
+async def sigma_batch_remove_tenant_capabilities(
+    tenant_org_id: str, body: dict[str, Any], confirm: bool = False
+) -> str:
+    """Stop a tenant deploying to some tenant organizations. Requires confirm=True.
+
+    body requires deployToTenantOrganizationIds (list of tenant organization IDs).
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(tenant_org_id=tenant_org_id)
+    _require_body_fields(body, "deployToTenantOrganizationIds")
+    return json.dumps(await (await get_client()).batch_remove_tenant_capabilities(tenant_org_id, body), indent=2)
+
+
+batch_remove_tenant_capabilities = sigma_batch_remove_tenant_capabilities
+
+
+@admin_server.tool(name="create_api_connector", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_api_connector(body: dict[str, Any]) -> str:
+    """Create an API connector.
+
+    body requires name and params and may set description, config and authId.
+    """
+    _require_body_fields(body, "name", "params")
+    return json.dumps(await (await get_client()).create_api_connector(body), indent=2)
+
+
+create_api_connector = sigma_create_api_connector
+
+
+@admin_server.tool(name="update_api_connector", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_api_connector(connector_id: str, body: dict[str, Any]) -> str:
+    """Update an API connector.
+
+    body may set name, description, params, config and authId.
+    """
+    _require_ids(connector_id=connector_id)
+    return json.dumps(await (await get_client()).update_api_connector(connector_id, body), indent=2)
+
+
+update_api_connector = sigma_update_api_connector
+
+
+@admin_server.tool(name="delete_api_connector", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_api_connector(connector_id: str, confirm: bool = False) -> str:
+    """Delete an API connector. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(connector_id=connector_id)
+    code = await (await get_client()).delete_api_connector(connector_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_api_connector = sigma_delete_api_connector
+
+
+@admin_server.tool(name="list_api_credentials", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_api_credentials() -> str:
+    """List the API credentials API connectors use (metadata only).
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page and ``nextPageToken`` null, since every page is read.
+    """
+    return json.dumps(await (await get_client()).list_api_credentials(), indent=2)
+
+
+list_api_credentials = sigma_list_api_credentials
+
+
+@admin_server.tool(name="get_api_credential", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_api_credential(credential_id: str) -> str:
+    """Get an API credential's metadata."""
+    _require_ids(credential_id=credential_id)
+    return json.dumps(await (await get_client()).get_api_credential(credential_id), indent=2)
+
+
+get_api_credential = sigma_get_api_credential
+
+
+@admin_server.tool(name="create_api_credential", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_api_credential(body: dict[str, Any]) -> str:
+    """Create an API credential for API connectors.
+
+    body requires name, allowlist and credential, and may set description. The credential holds a secret: pass
+    it only from the user's own input.
+    """
+    _require_body_fields(body, "name", "allowlist", "credential")
+    client = await get_client()
+    result = await _call_masking_secrets(
+        client.create_api_credential(body), API_CREDENTIAL_SECRET_FIELDS, body.get("credential")
+    )
+    return json.dumps(result, indent=2)
+
+
+create_api_credential = sigma_create_api_credential
+
+
+@admin_server.tool(name="update_api_credential", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_api_credential(credential_id: str, body: dict[str, Any]) -> str:
+    """Update an API credential.
+
+    body may set name, description, allowlist and credential.
+    """
+    _require_ids(credential_id=credential_id)
+    client = await get_client()
+    result = await _call_masking_secrets(
+        client.update_api_credential(credential_id, body), API_CREDENTIAL_SECRET_FIELDS, body.get("credential")
+    )
+    return json.dumps(result, indent=2)
+
+
+update_api_credential = sigma_update_api_credential
+
+
+@admin_server.tool(name="delete_api_credential", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_api_credential(credential_id: str, confirm: bool = False) -> str:
+    """Delete an API credential. Requires confirm=True. API connectors that use it stop authenticating."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(credential_id=credential_id)
+    code = await (await get_client()).delete_api_credential(credential_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_api_credential = sigma_delete_api_credential
+
+
+@admin_server.tool(name="get_translation", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_translation(lng: str) -> str:
+    """Get the organization translation file for a language code (e.g. 'fr')."""
+    _require_ids(lng=lng)
+    return json.dumps(await (await get_client()).get_translation(lng), indent=2)
+
+
+get_translation = sigma_get_translation
+
+
+@admin_server.tool(name="get_translation_variant", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_translation_variant(lng: str, variant: str) -> str:
+    """Get the organization translation file for a language code and variant."""
+    _require_ids(lng=lng, variant=variant)
+    return json.dumps(await (await get_client()).get_translation_variant(lng, variant), indent=2)
+
+
+get_translation_variant = sigma_get_translation_variant
+
+
+@admin_server.tool(name="create_translation", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_translation(lng: str, body: dict[str, Any]) -> str:
+    """Create the organization translation file for a language code.
+
+    body may set translations (key to translated string) and lng_variant.
+    """
+    _require_ids(lng=lng)
+    return json.dumps(await (await get_client()).create_translation(lng, body), indent=2)
+
+
+create_translation = sigma_create_translation
+
+
+@admin_server.tool(name="update_translation", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_translation(lng: str, body: dict[str, Any]) -> str:
+    """Replace the organization translation file for a language code.
+
+    body requires translations.
+    """
+    _require_ids(lng=lng)
+    _require_body_fields(body, "translations")
+    return json.dumps(await (await get_client()).update_translation(lng, body), indent=2)
+
+
+update_translation = sigma_update_translation
+
+
+@admin_server.tool(name="update_translation_variant", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_translation_variant(lng: str, variant: str, body: dict[str, Any]) -> str:
+    """Replace the organization translation file for a language code and variant.
+
+    body requires translations.
+    """
+    _require_ids(lng=lng, variant=variant)
+    _require_body_fields(body, "translations")
+    return json.dumps(await (await get_client()).update_translation_variant(lng, variant, body), indent=2)
+
+
+update_translation_variant = sigma_update_translation_variant
+
+
+@admin_server.tool(name="delete_translation", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_translation(lng: str, confirm: bool = False) -> str:
+    """Delete the organization translation file for a language code. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(lng=lng)
+    code = await (await get_client()).delete_translation(lng)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_translation = sigma_delete_translation
+
+
+@admin_server.tool(name="delete_translation_variant", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_translation_variant(lng: str, variant: str, confirm: bool = False) -> str:
+    """Delete the organization translation file for a language code and variant. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(lng=lng, variant=variant)
+    code = await (await get_client()).delete_translation_variant(lng, variant)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_translation_variant = sigma_delete_translation_variant
+
+
+@admin_server.tool(name="list_member_schedules", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_member_schedules(member_id: str) -> str:
+    """List the scheduled exports a member owns.
+
+    Follows Sigma's pagination to the last page and returns the keys of Sigma's page: ``entries``
+    from every page, ``total`` when Sigma sends it (Sigma's value), and ``nextPage`` null (``hasMore``
+    false where Sigma sends it) since every page is read.
+    """
+    _require_ids(member_id=member_id)
+    return json.dumps(await (await get_client()).list_member_schedules(member_id), indent=2)
+
+
+list_member_schedules = sigma_list_member_schedules
+
+
+@admin_server.tool(name="revoke_member_tokens", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_revoke_member_tokens(member_id: str, confirm: bool = False) -> str:
+    """Revoke a member's OAuth refresh tokens (OIDC single sign-on and warehouse connections). Requires confirm=True.
+
+    Sigma can no longer issue new access tokens for the member; the current session and already-issued access
+    tokens last until their normal expiry.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(member_id=member_id)
+    return json.dumps(await (await get_client()).revoke_member_tokens(member_id), indent=2)
+
+
+revoke_member_tokens = sigma_revoke_member_tokens

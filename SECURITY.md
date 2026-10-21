@@ -38,7 +38,7 @@ When connecting this server to autonomous agents or public assistant interfaces,
 ```bash
 SIGMA_MCP_READONLY=1 sigma-mcp
 ```
-This lists only the **90 tools annotated `readOnlyHint=True`** and refuses every other tool at call time, including through the Tool Search `call_tool` proxy. The gate reads the `readOnlyHint` annotation and nothing else; a tool without the hint is treated as a write. A refusal is a `SafetyViolationError` (a FastMCP `ToolError`), so the client receives a `tools/call` result with `isError: true`. `SIGMA_MCP_READONLY=1` composes with every profile.
+This lists only the **120 tools annotated `readOnlyHint=True`** and refuses every other tool at call time, including through the Tool Search `call_tool` proxy. The gate reads the `readOnlyHint` annotation and nothing else; a tool without the hint is treated as a write. A refusal is a `SafetyViolationError` (a FastMCP `ToolError`), so the client receives a `tools/call` result with `isError: true`. `SIGMA_MCP_READONLY=1` composes with every profile.
 
 ### 4. Safety Gates for Single & Bulk Operations
 - **Single Delete Operations:** Require explicit `confirm=True` on all atomic delete/deactivate endpoints (`workspace_delete_workspace`, `workspace_delete_file`, etc.).
@@ -55,6 +55,9 @@ Each release's wheel, sdist and GHCR image carry a GitHub build provenance attes
 gh attestation verify mcp_server_sigma-<version>-py3-none-any.whl --repo christianclaudio/mcp-server-sigma
 gh attestation verify oci://ghcr.io/christianclaudio/mcp-server-sigma:<version> --repo christianclaudio/mcp-server-sigma
 ```
+
+### 7. Outbound Connections and Proxies
+Every outbound request (the Sigma API, the documentation fetches and the drift monitor's spec fetch) connects only to an address that passed the private, loopback, link-local, reserved and metadata check for its host. The host is resolved once per request; the connection goes to a checked address, trying the next checked address if a connect fails, while the Host header, TLS SNI and certificate verification stay on the hostname. A host with no checked address is refused, and so are Unix sockets. httpx ignores env proxies whenever a transport is passed (`allow_env_proxies = trust_env and transport is None`), so connections always go direct through the pin; egress-proxy deployments need a proxy-aware transport, which isn't provided; `trust_env=False` on the drift fetch is belt-and-braces.
 
 ---
 

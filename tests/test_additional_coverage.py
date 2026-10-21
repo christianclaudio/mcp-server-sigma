@@ -71,6 +71,8 @@ async def test_search_members_email_and_name_branches() -> None:
     await client.search_members("user@example.com", limit=50)
     client.get.assert_called_with("/v2/members", {"email": "user@example.com", "limit": 50})
 
-    # Test non-email branch (uses "search" parameter fallback)
-    await client.search_members("Jordan", limit=100)
-    client.get.assert_called_with("/v2/members", {"search": "Jordan", "limit": 100})
+    # A name is refused before any request: Sigma removed the ``search`` filter.
+    client.get.reset_mock()
+    with pytest.raises(ValueError, match="email address"):
+        await client.search_members("Jordan", limit=100)
+    client.get.assert_not_called()

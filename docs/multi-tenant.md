@@ -94,25 +94,48 @@ _tenant_cache: dict[str, tuple[str, float]] = {}
 
 ## Pagination Models
 
-Sigma uses **two different pagination models** across its API:
+Sigma's spec pages its list endpoints in one of two ways. The client follows each to the
+last page, and the output keys are unchanged: each list tool returns the keys of Sigma's
+page, with `entries` from every page, `total` passed through as Sigma sent it on the first
+page (absent when Sigma omits it), and the cursor keys null (`nextPage`, `nextPageToken`) or
+false (`hasMore`), because every page is read.
 
-### 1. Cursor-based (Tenants)
-
-```
-GET /v2/tenants?nextPageToken=<token>
-```
-
-Response includes `nextPageToken` — pass it as a query parameter to fetch the
-next page. When `nextPageToken` is absent or null, you've reached the last page.
-
-### 2. Offset-based (Connections, Workbooks, Members, etc.)
+### 1. Token-based (Tenants, deployment policies, API connectors, report lists)
 
 ```
-GET /v2/workbooks?limit=200&offset=0
+GET /v2/tenants?pageSize=200
+GET /v2/tenants?pageSize=200&pageToken=<nextPageToken>
 ```
 
-Response includes `total` and `hasMore`. Increment `offset` by `limit` until
-`hasMore` is false or `offset >= total`.
+The response carries `entries` and `nextPageToken`. Pass the token back as `pageToken`;
+the last page has no `nextPageToken`. `SigmaClient.auto_paginate_token(path, params,
+page_size=200)` follows it and stops on a repeated token or after `max_pages`. These
+endpoints do not take `limit` or `page`.
+
+`admin_list_tenants` returns `{"entries": [...], "nextPageToken": null}` and
+`admin_list_tenants_paginated` returns `{"total": N, "tenants": [...]}`, both with every tenant.
+`datasets_bulk_sync_tenant_connections` reads every tenant the same way, and every
+connection of each tenant.
+
+### 2. Page-based (Connections, Workbooks, Members, Teams, Files, etc.)
+
+```
+GET /v2/workbooks?limit=200
+GET /v2/workbooks?limit=200&page=<nextPage>
+```
+
+The response carries `entries` and `nextPage`. Pass `nextPage` back as `page`; the last page
+has no `nextPage`. Paging never depends on a `total` or `hasMore` field.
+`SigmaClient.auto_paginate(path, params, limit=200)` follows it. A tool's `limit` argument,
+where it has one, is the page size.
+
+Tools that take a cursor (`workspace_list_tags`, `workspace_list_workspaces` and
+`workspace_list_workspace_grants` take `page`; `admin_list_org_workbook_agents` and
+`admin_list_allowed_ips` take `page_token`) resume from it, still follow to the last page,
+and return that cursor key as null.
+`workbooks_list_workbook_agents` is the one exception: its response may carry
+`nextPageToken`, but the spec documents no request parameter to send it back, so it returns
+Sigma's single response.
 
 ## Usage
 

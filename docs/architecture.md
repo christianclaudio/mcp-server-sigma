@@ -49,37 +49,43 @@ All other 4xx/5xx errors are raised immediately (no retry).
 
 ## Pagination Models
 
-### Cursor-based (nextPageToken)
+Each list endpoint pages the way Sigma's spec names, and the client follows it to the last
+page. The output keys are unchanged: each list tool returns the keys of Sigma's page
+(`SigmaClient.paged_list` / `paged_list_token`), with `entries` from every page, `total`
+passed through as the first page sent it (never computed, absent when Sigma omits it), and
+`nextPage` / `nextPageToken` null and `hasMore` false, because every page is read.
 
-Used by: `/v2/tenants`
+### Token-based (`pageSize` / `pageToken`, `nextPageToken`)
 
-```python
-results = []
-token = None
-while True:
-    params = {"nextPageToken": token} if token else {}
-    page = await client.get("/v2/tenants", params)
-    results.extend(page.get("entries", []))
-    token = page.get("nextPageToken")
-    if not token:
-        break
-```
-
-### Offset-based (limit/offset)
-
-Used by: `/v2/workbooks`, `/v2/members`, `/v2/teams`, `/v2/connections`
+Used by: `/v2/tenants`, `/v2/deploymentPolicies`, `/v2/api-connectors`,
+`/v2/api-credentials`, `/v2/accountTypes`, `/v2/workbookAgents` (100 per page at most),
+`/v3alpha/allowedIps`, the report lists (`/v2/reports/{id}/elements`, `queries`, `lineage`,
+`pages`, `columns`, `controls`, `tags`, `version-history`), data model sources and
+materialization schedules, and warehouse table columns.
 
 ```python
-results = []
-offset = 0
-limit = 200
-while True:
-    page = await client.get(path, {"limit": limit, "offset": offset})
-    results.extend(page.get("entries", []))
-    if not page.get("hasMore", False):
-        break
-    offset += limit
+entries = await client.auto_paginate_token(path)  # pageSize=200, then pageToken=<nextPageToken>
+result = await client.paged_list_token(path)  # {"entries": [...every page], "nextPageToken": None}
 ```
+
+### Page-based (`limit` / `page`, `nextPage`)
+
+Used by: `/v2/workbooks`, `/v2/members`, `/v2/teams`, `/v2/connections`, `/v2/files`,
+`/v2/grants`, `/v2/dataModels`, `/v2/templates`, `/v2/tags`, `/v2/workspaces`,
+`/v2/user-attributes`, the workbook and data model sub-lists, and most other v2 lists.
+
+```python
+entries = await client.auto_paginate(path, params)  # limit=200, then page=<nextPage>
+result = await client.paged_list(path, params)  # Sigma's keys; nextPage None, total as sent
+```
+
+Both stop when the response has no next cursor, repeats one, or after `max_pages`.
+`auto_paginate` also keeps a legacy bare-array response, and `paged_list` returns one as
+Sigma sent it. Neither model has an `offset`
+parameter: the cursor is the opaque `nextPage` or `nextPageToken` string. Tools that take a
+cursor (`page` or `page_token`) resume from it and follow to the last page;
+`workbooks_list_workbook_agents` returns Sigma's single response, because the spec documents
+no request parameter for its `nextPageToken`.
 
 ## Profiles and Build Order
 
@@ -101,13 +107,13 @@ domain sub-servers. Build order:
 
 | Profile | Job | Tools | Read-only |
 |---------|-----|------:|----------:|
-| `full` (default) | Every tool, including the 9 in `FULL_ONLY_TOOLS` | 172 | 90 |
-| `readonly` | Every `readOnlyHint=True` tool | 90 | 90 |
-| `analyst` | Consume workbooks and reports | 31 | 23 |
-| `author` | Build workbooks and reports | 40 | 28 |
-| `modeler` | Build data models and manage connections | 33 | 24 |
-| `embed` | Embedded analytics and multi-tenant | 50 | 27 |
-| `access_admin` | Users, teams, grants, and access | 52 | 22 |
+| `full` (default) | Every tool, including the 22 in `FULL_ONLY_TOOLS` | 257 | 120 |
+| `readonly` | Every `readOnlyHint=True` tool | 120 | 120 |
+| `analyst` | Consume workbooks and reports | 50 | 33 |
+| `author` | Build workbooks and reports | 53 | 37 |
+| `modeler` | Build data models and manage connections | 42 | 30 |
+| `embed` | Embedded analytics and multi-tenant | 72 | 31 |
+| `access_admin` | Users, teams, grants, and access | 70 | 26 |
 
 The authoritative lists live in `src/sigma_mcp/profiles.py`; the expected counts live
 in `scripts/check_tool_contract.py`.
