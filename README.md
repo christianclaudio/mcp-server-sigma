@@ -311,7 +311,7 @@ Pick a profile with `--profile` or `SIGMA_MCP_PROFILE` (default `full`). Every p
 | `embed` | Embedded-analytics engineer provisions tenants and tenant dashboards: templates, deployments, source swaps, embeds, tenant user attributes and connection syncs. | **72** | 31 |
 | `access_admin` | Org admin onboards and offboards members, manages teams, grants and user attributes, workspace/workbook/connection access, and org security settings. | **70** | 26 |
 
-Nine tools are in no job profile and are reachable only in `full`: `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`, `admin_api_capabilities`, and `admin_list_recent_webhooks`.
+Twenty-two tools are in no job profile and are reachable only in `full`: `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`, `admin_api_capabilities`, `admin_list_recent_webhooks`, `workspace_update_tag`, `admin_list_api_credentials`, `admin_get_api_credential`, `admin_create_api_credential`, `admin_update_api_credential`, `admin_delete_api_credential`, `admin_get_translation`, `admin_get_translation_variant`, `admin_create_translation`, `admin_update_translation`, `admin_update_translation_variant`, `admin_delete_translation`, and `admin_delete_translation_variant`.
 
 ### Read-only behavior
 
