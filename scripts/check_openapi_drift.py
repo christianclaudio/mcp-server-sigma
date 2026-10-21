@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import asyncio
 import re
 import sys
 from dataclasses import dataclass, field
@@ -28,7 +29,7 @@ from typing import Any
 
 import httpx
 
-from sigma_mcp.client import SSRFSafeTransport, validate_outbound_url
+from sigma_mcp.client import SSRFSafeAsyncTransport, validate_outbound_url
 
 # Sigma's canonical public spec is hosted as a single combined file on assets.sigmacomputing.com.
 # We fall back to the split help.sigmacomputing.com URLs if the main spec fails.
@@ -67,16 +68,33 @@ def load_allowlist(path: Path) -> set[tuple[str, str]]:
     return allowed
 
 
-def _fetch_url(url: str) -> httpx.Response:
-    """GET a spec URL on the IP that passed the public-address check.
+SPEC_FETCH_TIMEOUT_SECONDS = 60.0
 
-    DNS resolution happens inside ``SSRFSafeTransport`` and that same address is
-    what the TCP connection uses. ``Host`` and TLS SNI stay on the original
-    hostname. Redirects are never followed.
+
+async def _get_pinned(url: str) -> httpx.Response:
+    """GET *url* through the client's SSRF transport, without following redirects."""
+    async with httpx.AsyncClient(
+        transport=SSRFSafeAsyncTransport(),
+        timeout=SPEC_FETCH_TIMEOUT_SECONDS,
+        follow_redirects=False,
+        trust_env=False,
+    ) as client:
+        return await client.get(url)
+
+
+def _fetch_url(url: str) -> httpx.Response:
+    """GET a spec URL, connecting only to an address that passed the public-address check.
+
+    ``SSRFSafeAsyncTransport`` resolves the host once, checks every address, and connects
+    only to a checked one, keeping the hostname for the Host header, TLS SNI and certificate
+    verification. Redirects are never followed: a 3xx target would skip the check. httpx
+    ignores env proxies whenever a transport is passed (``allow_env_proxies = trust_env and
+    transport is None``), so connections always go direct through the pin; egress-proxy
+    deployments need a proxy-aware transport, which isn't provided; ``trust_env=False`` on
+    the drift fetch is belt-and-braces.
     """
     validated = validate_outbound_url(url)
-    with httpx.Client(transport=SSRFSafeTransport(), timeout=60.0, follow_redirects=False) as client:
-        response = client.get(validated)
+    response = asyncio.run(_get_pinned(validated))
     if response.is_redirect:
         raise RuntimeError(f"Refusing to follow redirect for spec URL: {url}")
     response.raise_for_status()

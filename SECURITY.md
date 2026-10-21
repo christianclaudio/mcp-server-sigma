@@ -56,6 +56,9 @@ gh attestation verify mcp_server_sigma-<version>-py3-none-any.whl --repo christi
 gh attestation verify oci://ghcr.io/christianclaudio/mcp-server-sigma:<version> --repo christianclaudio/mcp-server-sigma
 ```
 
+### 7. Outbound Connections and Proxies
+Every outbound request (the Sigma API, the documentation fetches and the drift monitor's spec fetch) connects only to an address that passed the private, loopback, link-local, reserved and metadata check for its host. The host is resolved once per request; the connection goes to a checked address, trying the next checked address if a connect fails, while the Host header, TLS SNI and certificate verification stay on the hostname. A host with no checked address is refused, and so are Unix sockets. httpx ignores env proxies whenever a transport is passed (`allow_env_proxies = trust_env and transport is None`), so connections always go direct through the pin; egress-proxy deployments need a proxy-aware transport, which isn't provided; `trust_env=False` on the drift fetch is belt-and-braces.
+
 ---
 
 ## 🛡️ Summary of Deployment Postures

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
 import datetime
 import email.utils
 import ipaddress
@@ -23,12 +24,14 @@ import json
 import os
 import random
 import socket
+import ssl
 import time
 import uuid
 from collections.abc import Iterable
 from typing import Any
 from urllib.parse import quote, urlparse
 
+import httpcore
 import httpx
 from httpx import Response
 
@@ -223,47 +226,40 @@ def _validate_base_url(
     )
 
 
-def _validate_hostname_dns(hostname: str) -> str:
-    """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding."""
+def _validate_hostname_dns(hostname: str) -> tuple[str, ...]:
+    """Validate resolved DNS IP addresses to defend against private IP binding and DNS rebinding.
+
+    Every address the name resolves to must be public. Returns the checked addresses once
+    each, in resolver order (the address itself for an IP literal); the transport connects
+    only to one of them, so the name is never resolved a second time.
+    """
     parsed_ip = _ip_from_hostname(hostname)
     if parsed_ip is not None:
         if _is_disallowed_ip(parsed_ip):
             raise ValueError(f"Blocked private/reserved IP address: {hostname}")
-        return str(_coerce_ip(parsed_ip))
+        return (str(_coerce_ip(parsed_ip)),)
 
     try:
         resolved_addrs = socket.getaddrinfo(hostname, None)
     except socket.gaierror as exc:
         raise ValueError(f"Could not resolve hostname in base URL: {hostname}") from exc
 
-    validated_ip: str | None = None
+    checked: list[str] = []
     for _, _, _, _, sockaddr in resolved_addrs:
         resolved_ip = ipaddress.ip_address(sockaddr[0])
         if _is_disallowed_ip(resolved_ip):
             msg = f"Blocked hostname '{hostname}' resolving to private/reserved IP: {sockaddr[0]}"
             raise ValueError(msg)
-        if validated_ip is None:
-            validated_ip = str(_coerce_ip(resolved_ip))
-    if not validated_ip:
+        address = str(_coerce_ip(resolved_ip))
+        if address not in checked:
+            checked.append(address)
+    if not checked:
         raise ValueError(f"No IP addresses resolved for hostname: {hostname}")
-    return validated_ip
+    return tuple(checked)
 
 
 _DNS_SEMAPHORE = asyncio.Semaphore(10)
 _DEFAULT_DNS_TIMEOUT_SECONDS = 5.0
-
-
-def _pin_request_to_validated_ip(request: httpx.Request, validated_ip: str) -> None:
-    """Connect to ``validated_ip`` while Host and TLS SNI stay on the original hostname.
-
-    Rewriting the URL host makes httpcore dial that address. ``sni_hostname`` is
-    the extension httpcore uses for certificate verification and the TLS handshake,
-    so the certificate is still checked against the name the caller asked for.
-    """
-    hostname = request.url.host
-    request.headers.setdefault("Host", hostname)
-    request.extensions["sni_hostname"] = hostname
-    request.url = request.url.copy_with(host=validated_ip)
 
 
 def _ssrf_blocked_error(request: httpx.Request, hostname: str, exc: ValueError) -> SigmaAPIError:
@@ -284,54 +280,149 @@ def _https_required_error(request: httpx.Request, hostname: str) -> SigmaAPIErro
     )
 
 
-class SSRFSafeTransport(httpx.HTTPTransport):
-    """Sync transport that dials the IP returned by the public-address DNS check."""
+# ---- Connect to the checked IP --------------------------------------------------------
+# The transport checks the host once per request and hands httpcore the addresses that
+# passed; the network backend dials one of them, so httpcore never resolves the name
+# again. The URL keeps the hostname, so the Host header, SNI and certificate
+# verification all use the original name, and httpcore pools connections per hostname.
 
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        """Resolve, reject non-global targets, and connect to the validated IP."""
-        hostname = request.url.host
-        if request.url.scheme.lower() != "https":
-            raise _https_required_error(request, hostname)
-        if hostname:
+_PINNED_IPS: contextvars.ContextVar[dict[str, tuple[str, ...]] | None] = contextvars.ContextVar(
+    "sigma_pinned_ips", default=None
+)
+
+
+class _PinRefusedError(ValueError):
+    """The pinned network backend refused to dial (no checked address, or a Unix socket)."""
+
+
+class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Dial only an address that passed ``_validate_hostname_dns`` for the requested host."""
+
+    def __init__(self, inner: httpcore.AsyncNetworkBackend | None = None) -> None:
+        self._inner = inner or httpcore.AnyIOBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Iterable[Any] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        pins = _PINNED_IPS.get() or {}
+        ips = pins.get(host.lower())
+        if not ips:
+            raise _PinRefusedError(f"no checked address for {host}")
+        last: Exception | None = None
+        for ip in ips:
             try:
-                validated_ip = _validate_hostname_dns(hostname)
-            except ValueError as exc:
-                raise _ssrf_blocked_error(request, hostname, exc) from exc
-            _pin_request_to_validated_ip(request, validated_ip)
-        return super().handle_request(request)
+                return await self._inner.connect_tcp(
+                    ip,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except (httpcore.ConnectError, httpcore.ConnectTimeout, OSError) as exc:
+                last = exc
+        assert last is not None
+        raise last
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: Iterable[Any] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        raise _PinRefusedError("unix sockets are not allowed")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._inner.sleep(seconds)
 
 
 class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
-    """Async HTTP transport enforcing DNS destination validation at request connection time."""
+    """Async transport that connects only to an address checked for the request's host.
 
-    def __init__(self, *args: Any, dns_timeout: float = _DEFAULT_DNS_TIMEOUT_SECONDS, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    The hostname is resolved once per request, in a worker thread, and every address is
+    checked. The connection pool is built with a network backend that dials only those
+    addresses, in resolver order, trying the next one if a connect fails, so a second DNS
+    answer cannot send the request somewhere unchecked. A host with no checked address is
+    refused, and so are Unix sockets. httpx ignores env proxies whenever a transport is
+    passed (``allow_env_proxies = trust_env and transport is None``), so connections always
+    go direct through the pin; egress-proxy deployments need a proxy-aware transport, which
+    isn't provided.
+    """
+
+    def __init__(
+        self,
+        verify: ssl.SSLContext | str | bool = True,
+        cert: Any = None,
+        trust_env: bool = True,
+        http1: bool = True,
+        http2: bool = False,
+        limits: httpx.Limits | None = None,
+        retries: int = 0,
+        local_address: str | None = None,
+        socket_options: Iterable[Any] | None = None,
+        *,
+        dns_timeout: float = _DEFAULT_DNS_TIMEOUT_SECONDS,
+    ) -> None:
+        limits = limits or httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        ssl_context = httpx.create_ssl_context(verify=verify, cert=cert, trust_env=trust_env)
+        super().__init__(verify=ssl_context, limits=limits)
+        # httpcore documents ``network_backend`` as a public AsyncConnectionPool argument
+        # (https://www.encode.io/httpcore/network-backends/). httpx.AsyncHTTPTransport does
+        # not take one, so the pool it serves requests through is rebuilt here with the
+        # same settings plus the pinned backend.
+        self._pool = httpcore.AsyncConnectionPool(
+            ssl_context=ssl_context,
+            max_connections=limits.max_connections,
+            max_keepalive_connections=limits.max_keepalive_connections,
+            keepalive_expiry=limits.keepalive_expiry,
+            http1=http1,
+            http2=http2,
+            retries=retries,
+            local_address=local_address,
+            socket_options=socket_options,
+            network_backend=_PinnedNetworkBackend(),
+        )
         self.dns_timeout = dns_timeout
 
+    async def _checked_addresses(self, request: httpx.Request, hostname: str) -> tuple[str, ...]:
+        """Run the public-address check off the event loop, bounded by ``dns_timeout``."""
+        loop = asyncio.get_running_loop()
+        await _DNS_SEMAPHORE.acquire()
+        fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
+        fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
+        try:
+            return await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
+        except (asyncio.TimeoutError, TimeoutError) as exc:
+            raise SigmaAPIError(
+                400,
+                request.url.path,
+                request.method,
+                detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
+            ) from exc
+        except ValueError as exc:
+            raise _ssrf_blocked_error(request, hostname, exc) from exc
+
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        """Validate destination hostname via worker thread before dispatching HTTP request."""
-        hostname = request.url.host
+        """Check the destination off the event loop, then connect only to a checked address."""
+        # httpcore dials, and TLS checks, the ASCII (IDNA) form of the host, so the check
+        # resolves that same name and the pin is keyed by it.
+        hostname = request.url.raw_host.decode("ascii")
+        if not hostname:
+            return await super().handle_async_request(request)
         if request.url.scheme.lower() != "https":
             raise _https_required_error(request, hostname)
-        if hostname:
-            loop = asyncio.get_running_loop()
-            await _DNS_SEMAPHORE.acquire()
-            fut = loop.run_in_executor(None, _validate_hostname_dns, hostname)
-            fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
-            try:
-                validated_ip = await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
-            except (asyncio.TimeoutError, TimeoutError) as exc:
-                raise SigmaAPIError(
-                    400,
-                    request.url.path,
-                    request.method,
-                    detail=f"DNS resolution timed out after {self.dns_timeout}s for host {hostname}",
-                ) from exc
-            except ValueError as exc:
-                raise _ssrf_blocked_error(request, hostname, exc) from exc
-
-            _pin_request_to_validated_ip(request, validated_ip)
-        return await super().handle_async_request(request)
+        ips = await self._checked_addresses(request, hostname)
+        token = _PINNED_IPS.set({hostname.lower(): ips})
+        try:
+            return await super().handle_async_request(request)
+        except _PinRefusedError as exc:
+            raise _ssrf_blocked_error(request, hostname, exc) from exc
+        finally:
+            _PINNED_IPS.reset(token)
 
 
 def extract_dict(container: Any, key: str | None = None) -> dict[str, Any]:
