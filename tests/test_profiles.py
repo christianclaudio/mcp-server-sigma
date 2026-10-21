@@ -123,7 +123,7 @@ async def test_full_is_exhaustive_and_every_tool_is_placed() -> None:
 
 
 def test_full_only_tools() -> None:
-    """The nine full-only tools: both bulk tools, four workspace file/tag mutators, three admin lookups."""
+    """The 22 full-only tools: both bulk tools, five workspace file/tag mutators, 15 admin tools."""
     assert FULL_ONLY_TOOLS == EXPECTED_FULL_ONLY
     assert len(FULL_ONLY_TOOLS) == 22
     assert BULK_DESTRUCTIVE_TOOLS <= FULL_ONLY_TOOLS
