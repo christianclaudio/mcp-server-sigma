@@ -27,7 +27,7 @@ import socket
 import ssl
 import time
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -793,10 +793,16 @@ class SigmaClient:
         *,
         params: dict[str, Any] | None = None,
         json_data: JSONValue = None,
+        files: Mapping[str, tuple[str, bytes, str]] | None = None,
         allow_statuses: frozenset[int] | None = None,
         max_bytes: int | None = None,
     ) -> Response:
         """Execute an HTTP request with exponential backoff on 429 responses.
+
+        *files* — send a ``multipart/form-data`` body instead of JSON: each entry maps a form
+        field name to ``(filename, content, content_type)``. The JSON ``Content-Type`` header is
+        dropped on this path so httpx sets ``multipart/form-data`` with its boundary. Pass
+        either *json_data* or *files*, not both.
 
         *allow_statuses* — additional non-error status codes (beyond 2xx) that
         should be returned without raising.  For example ``frozenset({204})``
@@ -816,15 +822,19 @@ class SigmaClient:
         safe_segments = [_encode_segment(seg) for seg in path.split("/")]
         safe_path = "/".join(safe_segments)
         url = f"{self.base_url}{safe_path}"
+        if files is not None and json_data is not None:
+            raise ValueError("Pass json_data or files, not both")
+        body: dict[str, Any] = {"files": dict(files)} if files is not None else {"json": json_data}
         for attempt in range(self.max_retries + 1):
             req: httpx.Request | None = None
+            headers = await self._headers()
+            if files is not None:
+                headers.pop("Content-Type", None)
             if max_bytes is not None:
-                req = httpx.Request(method, url, headers=await self._headers(), params=params, json=json_data)
+                req = httpx.Request(method, url, headers=headers, params=params, **body)
                 r = await self._http.send(req, stream=True)
             else:
-                r = await self._http.request(
-                    method, url, headers=await self._headers(), params=params, json=json_data, timeout=60.0
-                )
+                r = await self._http.request(method, url, headers=headers, params=params, timeout=60.0, **body)
             if r.status_code != 429:
                 if r.status_code >= 400 and not (allow_statuses and r.status_code in allow_statuses):
                     detail = None
@@ -1767,8 +1777,20 @@ class SigmaClient:
         return await self.post(f"/v2/members/{member_id}/revoke")
 
     # ─── Connection extended ──────────────────────────────────────────────
-    async def add_dbt_metadata(self, connection_id: str, body: dict[str, Any]) -> JSONValue:
-        return await self.post(f"/v2/connections/{connection_id}/dbtArtifacts", body)
+    async def add_dbt_metadata(
+        self, connection_id: str, artifacts: bytes, filename: str = "target.tar.gz"
+    ) -> JSONValue:
+        """Upload dbt run artifacts: *artifacts* is a tar.gz of the dbt project's ``target`` directory.
+
+        Sigma takes ``multipart/form-data`` with the file in the required ``artifacts`` field and
+        answers 201 (https://help.sigmacomputing.com/reference/post-connection-dbt-artifacts).
+        """
+        r = await self._request(
+            "POST",
+            f"/v2/connections/{connection_id}/dbtArtifacts",
+            files={"artifacts": (filename, artifacts, "application/gzip")},
+        )
+        return self._parse_json_body(r)
 
     # ─── Workbook extended ────────────────────────────────────────────────
     async def share_workbook_cross_org(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:

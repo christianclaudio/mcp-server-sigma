@@ -49,6 +49,7 @@ When translating an API documentation page or OpenAPI specification into an MCP 
 - Type all arguments strictly. Never use bare `dict` or `Any` when a concrete schema or literal is known.
 - URL path parameters are encoded per segment by `_encode_segment()` inside `_request()`, preserving colons on custom methods (e.g. `{id}:materialize`) while eliminating path traversal vulnerabilities (`..` $\rightarrow$ `%2E%2E`). Pass raw IDs in the path; do not pre-quote them, or they are encoded twice.
 - Call `await self._request("METHOD", path, params=..., json_data=...)`.
+- For a `multipart/form-data` endpoint, pass `files={"field": (filename, content, content_type)}` instead of `json_data`; `_request` then drops the JSON `Content-Type` so httpx sets the multipart boundary (`add_dbt_metadata` is the one user today).
 
 ### 2. Tool Handler (`tools/<domain>.py`)
 - Register the tool on its domain sub-server with `@<domain>_server.tool(name=..., annotations=...)` and wrap with `@sigma_tool` (e.g. `tools/workbooks.py`). The root gateway in `server.py` mounts the domain with its namespace.
