@@ -963,13 +963,19 @@ class SigmaClient:
 
     @staticmethod
     def _parse_retry_after(header_val: str | None) -> float | None:
+        """Return the ``Retry-After`` wait in seconds, or None when there is no usable value.
+
+        Delay-seconds must be a non-negative number; a negative or NaN value is unusable (None,
+        so the caller falls back to its own backoff). An HTTP-date in the past is a 0-second wait.
+        """
         if not header_val:
             return None
         try:
             val = float(header_val)
-            return max(0.0, val)
         except (ValueError, OverflowError):
             pass
+        else:
+            return val if val >= 0 else None
         try:
             dt = email.utils.parsedate_to_datetime(header_val)
             if dt is not None:

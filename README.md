@@ -293,6 +293,10 @@ Configure behavior using environment variables:
 | `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND` | `0` | Set to `1` (or `true`/`yes`/`on`) to let an HTTP transport bind a host other than `127.0.0.1`, `::1` or `localhost` with no token. Without it, such a bind exits at startup with code 2. |
 | `SIGMA_ALLOWED_TENANTS` | `""` | Comma-separated allowlist of tenant org IDs permitted for RFC 8693 token exchange. |
 | `SIGMA_STRICT_TENANT_ALLOWLIST` | `0` | Set `1` to fail closed (HTTP 403) if a tenant request is made without an explicit allowlist entry. |
+| `SIGMA_MAX_RETRIES` | `3` | Retries on HTTP 429 (0 to 10). |
+| `SIGMA_BASE_DELAY` | `1.0` | Base delay in seconds for the exponential backoff used when a 429 has no `Retry-After` (`base_delay * 2**attempt`, with 0.5-1.5x jitter). |
+| `SIGMA_MAX_RETRY_DELAY` | `60.0` | Cap in seconds on that backoff. It does not apply to a `Retry-After` wait. |
+| `SIGMA_MAX_RETRY_AFTER` | `300.0` | Longest `Retry-After` wait in seconds that is honored, exactly and without jitter. A longer requested wait fails at once with a 429 error naming the wait, without retrying. |
 | `SIGMA_MCP_LOG_FORMAT` | `text` | Set `json` for structured JSON logging with duration metrics (`duration_ms`). |
 
 ---

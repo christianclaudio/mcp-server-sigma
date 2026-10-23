@@ -343,7 +343,8 @@ The client automatically retries on `429` responses:
 1. Check `Retry-After` header (seconds or HTTP-date) for the server-suggested delay and wait
    exactly that long, with no jitter, up to `max_retry_after` (default 300s). A longer
    requested wait returns the 429 error at once, without retrying
-2. Fall back to exponential backoff: `base_delay * 2^attempt` with 0.5-1.5x jitter, capped at
-   `max_retry_delay` (default 60s)
+   (an HTTP-date in the past waits 0s)
+2. With no usable header (missing, negative or unparseable), fall back to exponential backoff:
+   `base_delay * 2^attempt` with 0.5-1.5x jitter, capped at `max_retry_delay` (default 60s)
 3. Default: 3 retries with 1s base delay (1s, 2s, 4s)
 4. After exhausting retries, return the 429 error as structured JSON

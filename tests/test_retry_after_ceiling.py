@@ -210,3 +210,62 @@ def test_settings_default_and_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SIGMA_MAX_RETRY_AFTER", "120")
     assert Settings(_env_file=None).MAX_RETRY_AFTER == 120.0  # type: ignore[call-arg]
     assert Settings(_env_file=None).MAX_RETRY_DELAY == 60.0  # type: ignore[call-arg]
+
+
+# ─── Edge cases ───────────────────────────────────────────────────────────────
+
+
+async def test_http_date_in_the_past_waits_zero_not_negative(
+    fake_sleep: AsyncMock, fake_uniform: MagicMock, fixed_clock: None
+) -> None:
+    c = _client(max_retries=1)
+    c._http.request = AsyncMock(side_effect=[_r429(_http_date(-90)), _r200()])  # type: ignore[method-assign]
+    r = await c._request("GET", "/v2/workbooks")
+    assert r.status_code == 200
+    assert _waits(fake_sleep) == [0.0]
+    fake_uniform.assert_not_called()
+
+
+@pytest.mark.parametrize("header", ["soon", "-5", "-0.5", "nan", "Mon, 99 Foo 2026 25:61:00 GMT"])
+async def test_unusable_retry_after_falls_back_to_jittered_capped_backoff(
+    header: str, fake_sleep: AsyncMock, fake_uniform: MagicMock
+) -> None:
+    c = _client(max_retries=2, base_delay=50.0)
+    c._http.request = AsyncMock(side_effect=[_r429(header), _r429(header), _r200()])  # type: ignore[method-assign]
+    r = await c._request("GET", "/v2/workbooks")
+    assert r.status_code == 200
+    # Our backoff: 50*1*1.5 = 75 -> 60 cap, then 50*2*1.5 = 150 -> 60 cap; never negative.
+    assert _waits(fake_sleep) == [60.0, 60.0]
+    assert [call.args for call in fake_uniform.call_args_list] == [(0.5, 1.5)] * 2
+
+
+@pytest.mark.parametrize("header", ["-5", "nan", "soon"])
+def test_parse_retry_after_rejects_negative_and_nan(header: str) -> None:
+    assert SigmaClient._parse_retry_after(header) is None
+
+
+@pytest.mark.parametrize(("ceiling", "header"), [(300.0, "300"), (300.0, "300.0"), (30.0, "30"), (0.0, "0")])
+async def test_wait_exactly_at_the_ceiling_is_allowed(ceiling: float, header: str, fake_sleep: AsyncMock) -> None:
+    c = _client(max_retries=1, max_retry_after=ceiling)
+    c._http.request = AsyncMock(side_effect=[_r429(header), _r200()])  # type: ignore[method-assign]
+    await c._request("GET", "/v2/workbooks")
+    assert _waits(fake_sleep) == [ceiling]
+
+
+@pytest.mark.parametrize(("ceiling", "header"), [(300.0, "300.001"), (30.0, "30.5"), (0.0, "0.001"), (300.0, "inf")])
+async def test_wait_just_above_the_ceiling_fails_fast(ceiling: float, header: str, fake_sleep: AsyncMock) -> None:
+    c = _client(max_retries=3, max_retry_after=ceiling)
+    request = AsyncMock(side_effect=[_r429(header), _r200()])
+    c._http.request = request  # type: ignore[method-assign]
+    with pytest.raises(SigmaAPIError) as exc_info:
+        await c._request("GET", "/v2/workbooks")
+    assert "max_retry_after ceiling" in exc_info.value.detail
+    fake_sleep.assert_not_awaited()
+    assert request.await_count == 1
+
+
+async def test_http_date_exactly_at_the_ceiling_is_allowed(fake_sleep: AsyncMock, fixed_clock: None) -> None:
+    c = _client(max_retries=1)
+    c._http.request = AsyncMock(side_effect=[_r429(_http_date(300)), _r200()])  # type: ignore[method-assign]
+    await c._request("GET", "/v2/workbooks")
+    assert _waits(fake_sleep) == [300.0]

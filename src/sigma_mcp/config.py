@@ -152,6 +152,25 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+_RETRY_FIELDS = ("MAX_RETRIES", "BASE_DELAY", "MAX_RETRY_DELAY", "MAX_RETRY_AFTER")
+
+
+def client_retry_kwargs() -> dict[str, Any]:
+    """Return the ``SigmaClient`` retry keyword arguments from the retry settings.
+
+    ``SIGMA_MAX_RETRIES``, ``SIGMA_BASE_DELAY``, ``SIGMA_MAX_RETRY_DELAY`` and
+    ``SIGMA_MAX_RETRY_AFTER`` are read at call time (validated like ``Settings``, so an
+    out-of-range value fails loudly), so a value set after import still applies; with none of
+    them in the environment the import-time ``settings`` are used.
+    """
+    current = Settings() if any(f"SIGMA_{name}" in os.environ for name in _RETRY_FIELDS) else settings
+    return {
+        "max_retries": current.MAX_RETRIES,
+        "base_delay": current.BASE_DELAY,
+        "max_retry_delay": current.MAX_RETRY_DELAY,
+        "max_retry_after": current.MAX_RETRY_AFTER,
+    }
+
 
 def _env_flag(name: str) -> bool:
     """Return True when environment variable ``name`` is set to ``1`` at call time."""
