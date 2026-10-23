@@ -598,8 +598,8 @@ def _all_pages(first: JSONValue, entries: list[dict[str, Any]], cursor_key: str,
 
 
 def _format_seconds(seconds: float) -> str:
-    """Render a wait in seconds for an error message: ``120``, ``0.5``, ``119.732``."""
-    return f"{seconds:.3f}".rstrip("0").rstrip(".")
+    """Render a wait in seconds compactly for an error message: ``120``, ``0.5``, ``1e+308``, ``inf``."""
+    return f"{seconds:g}"
 
 
 class SigmaClient:

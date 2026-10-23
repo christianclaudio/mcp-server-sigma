@@ -45,7 +45,7 @@ On receiving a `429 Too Many Requests`:
    raise `SigmaAPIError(429)` at once, without sleeping or retrying, naming the requested wait
    and the ceiling
    (an HTTP-date in the past waits 0s)
-2. Otherwise (no header, or a negative or unparseable one) compute delay:
+2. Otherwise (no header, or a negative, NaN or unparseable one) compute delay:
    `base_delay * 2**attempt` (default: 1s, 2s, 4s) with 0.5-1.5x jitter, capped at `max_retry_delay` (default 60s; it does not apply to a `Retry-After` wait)
 3. Sleep and retry up to `max_retries` (default 3)
 4. On exhaustion, raise `SigmaAPIError(429)` with context
