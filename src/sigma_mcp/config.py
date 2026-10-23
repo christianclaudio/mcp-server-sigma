@@ -48,17 +48,28 @@ class Settings(BaseSettings):
         default=3,
         ge=0,
         le=10,
-        description="Maximum retry attempts on HTTP 429 / 5xx",
+        description="Maximum retry attempts on HTTP 429 (only 429 is retried)",
     )
     BASE_DELAY: float = Field(
         default=1.0,
         ge=0,
+        allow_inf_nan=False,
         description="Base retry delay in seconds",
     )
     MAX_RETRY_DELAY: float = Field(
         default=60.0,
         ge=0,
-        description="Maximum retry delay in seconds",
+        allow_inf_nan=False,
+        description="Maximum backoff delay in seconds when a 429 has no Retry-After",
+    )
+    MAX_RETRY_AFTER: float = Field(
+        default=300.0,
+        ge=0,
+        allow_inf_nan=False,
+        description=(
+            "Longest server-requested Retry-After wait in seconds that is honored; "
+            "a longer one fails at once without retrying"
+        ),
     )
     WEBHOOK_SECRET: str = Field(
         default="",
@@ -143,6 +154,25 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+_RETRY_FIELDS = ("MAX_RETRIES", "BASE_DELAY", "MAX_RETRY_DELAY", "MAX_RETRY_AFTER")
+
+
+def client_retry_kwargs() -> dict[str, Any]:
+    """Return the ``SigmaClient`` retry keyword arguments from the retry settings.
+
+    ``SIGMA_MAX_RETRIES``, ``SIGMA_BASE_DELAY``, ``SIGMA_MAX_RETRY_DELAY`` and
+    ``SIGMA_MAX_RETRY_AFTER`` are read at call time (validated like ``Settings``, so an
+    out-of-range value fails loudly), so a value set after import still applies; with none of
+    them in the environment the import-time ``settings`` are used.
+    """
+    current = Settings() if any(f"SIGMA_{name}" in os.environ for name in _RETRY_FIELDS) else settings
+    return {
+        "max_retries": current.MAX_RETRIES,
+        "base_delay": current.BASE_DELAY,
+        "max_retry_delay": current.MAX_RETRY_DELAY,
+        "max_retry_after": current.MAX_RETRY_AFTER,
+    }
 
 
 def _env_flag(name: str) -> bool:

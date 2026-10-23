@@ -54,7 +54,7 @@ from sigma_mcp.auth import (
     read_auth_token,
 )
 from sigma_mcp.client import SigmaClient
-from sigma_mcp.config import readonly_enabled, settings
+from sigma_mcp.config import client_retry_kwargs, readonly_enabled, settings
 from sigma_mcp.errors import redact_secrets
 from sigma_mcp.middleware import (
     ParentAuditMiddleware,
@@ -192,7 +192,9 @@ async def get_client(ctx: Any | None = None) -> SigmaClient:
                     oldest_key = next(iter(_HEADER_CLIENT_CACHE))
                     old_c = _HEADER_CLIENT_CACHE.pop(oldest_key)
                     await old_c.aclose()
-                _HEADER_CLIENT_CACHE[cache_key] = SigmaClient(req_client_id, req_client_secret, req_base_url)
+                _HEADER_CLIENT_CACHE[cache_key] = SigmaClient(
+                    req_client_id, req_client_secret, req_base_url, **client_retry_kwargs()
+                )
             return _HEADER_CLIENT_CACHE[cache_key]
         if req_client_id or req_client_secret:
             raise ValueError("Both X-Sigma-Client-Id and X-Sigma-Client-Secret must be provided")
@@ -203,7 +205,7 @@ async def get_client(ctx: Any | None = None) -> SigmaClient:
         base_url = os.environ.get("SIGMA_API_BASE_URL", settings.BASE_URL)
         if not client_id or not client_secret:
             raise ValueError("SIGMA_CLIENT_ID and SIGMA_CLIENT_SECRET must be set")
-        _client = SigmaClient(client_id, client_secret, base_url)
+        _client = SigmaClient(client_id, client_secret, base_url, **client_retry_kwargs())
     return _client
 
 

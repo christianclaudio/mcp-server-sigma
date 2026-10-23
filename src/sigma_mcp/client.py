@@ -597,6 +597,11 @@ def _all_pages(first: JSONValue, entries: list[dict[str, Any]], cursor_key: str,
     return out
 
 
+def _format_seconds(seconds: float) -> str:
+    """Render a wait in seconds compactly for an error message: ``120``, ``0.5``, ``1e+308``, ``inf``."""
+    return f"{seconds:g}"
+
+
 class SigmaClient:
     extract_dict = staticmethod(extract_dict)
     extract_list = staticmethod(extract_list)
@@ -612,14 +617,26 @@ class SigmaClient:
         max_retries: int = 3,
         base_delay: float = 1.0,
         max_retry_delay: float = 60.0,
+        max_retry_after: float = 300.0,
         http_client: httpx.AsyncClient | None = None,
     ):
+        """Create a client for one Sigma org.
+
+        Retries on HTTP 429 (up to *max_retries*). With a ``Retry-After`` header (seconds or an
+        HTTP-date), the client waits exactly the time the server asks for, with no jitter, as long
+        as it is at most *max_retry_after* seconds (default 300); a longer wait raises
+        ``SigmaAPIError`` at once, without sleeping or retrying, naming the requested wait. Without
+        the header it backs off ``base_delay * 2**attempt`` seconds with 0.5-1.5x jitter, capped at
+        *max_retry_delay* seconds (default 60). *max_retry_delay* does not apply to a
+        ``Retry-After`` wait.
+        """
         self.client_id = client_id
         self.client_secret = client_secret
         self.base_url = _validate_base_url(base_url, check_dns=False)
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_retry_delay = max_retry_delay
+        self.max_retry_after = max_retry_after
         self._token: str | None = None
         self._token_expiry: float = 0
         # When http_client is supplied the caller owns its lifecycle; this is how
@@ -763,6 +780,7 @@ class SigmaClient:
             max_retries=self.max_retries,
             base_delay=self.base_delay,
             max_retry_delay=self.max_retry_delay,
+            max_retry_after=self.max_retry_after,
             http_client=self._http,
         )
         tc._token = token
@@ -815,7 +833,13 @@ class SigmaClient:
         allow_statuses: frozenset[int] | None = None,
         max_bytes: int | None = None,
     ) -> Response:
-        """Execute an HTTP request with exponential backoff on 429 responses.
+        """Execute an HTTP request, retrying 429 responses up to ``max_retries`` times.
+
+        A 429 with a ``Retry-After`` (seconds or HTTP-date) waits exactly that long, with no
+        jitter, up to ``max_retry_after`` seconds; a longer requested wait raises
+        ``SigmaAPIError`` (429) right away, naming the wait and the ceiling, with no sleep and no
+        further attempt. A 429 without it backs off ``base_delay * 2**attempt`` with jitter,
+        capped at ``max_retry_delay``.
 
         *files* — send a ``multipart/form-data`` body instead of JSON: each entry maps a form
         field name to ``(filename, content, content_type)``. The JSON ``Content-Type`` header is
@@ -907,6 +931,19 @@ class SigmaClient:
                 return r
             if max_bytes is not None:
                 await r.aclose()
+            parsed_delay = self._parse_retry_after(r.headers.get("Retry-After"))
+            if parsed_delay is not None and parsed_delay > self.max_retry_after:
+                raise SigmaAPIError(
+                    status_code=429,
+                    path=path,
+                    method=method,
+                    detail=(
+                        f"Rate limit exceeded: the server asked to retry after "
+                        f"{_format_seconds(parsed_delay)}s, which is above the "
+                        f"{_format_seconds(self.max_retry_after)}s max_retry_after ceiling; not retrying"
+                    ),
+                    request_id=r.headers.get("x-request-id"),
+                )
             if attempt == self.max_retries:
                 raise SigmaAPIError(
                     status_code=429,
@@ -915,26 +952,30 @@ class SigmaClient:
                     detail="Rate limit exceeded after max retries",
                     request_id=r.headers.get("x-request-id"),
                 )
-            retry_after = r.headers.get("Retry-After")
-            parsed_delay = self._parse_retry_after(retry_after)
             if parsed_delay is not None:
-                delay = parsed_delay * random.uniform(1.0, 1.3)
+                # The server named the wait: honor it exactly (no jitter, no max_retry_delay cap).
+                delay = parsed_delay
             else:
-                delay = self.base_delay * (2**attempt) * random.uniform(0.5, 1.5)
-            delay = min(delay, self.max_retry_delay)
+                delay = min(self.base_delay * (2**attempt) * random.uniform(0.5, 1.5), self.max_retry_delay)
             await asyncio.sleep(delay)
         # unreachable, satisfies type checker
         raise SigmaAPIError(status_code=429, path=path, method=method, detail="Rate limit exceeded")  # pragma: no cover
 
     @staticmethod
     def _parse_retry_after(header_val: str | None) -> float | None:
+        """Return the ``Retry-After`` wait in seconds, or None when there is no usable value.
+
+        Delay-seconds must be a non-negative number; a negative or NaN value is unusable (None,
+        so the caller falls back to its own backoff). An HTTP-date in the past is a 0-second wait.
+        """
         if not header_val:
             return None
         try:
             val = float(header_val)
-            return max(0.0, val)
         except (ValueError, OverflowError):
             pass
+        else:
+            return val if val >= 0 else None
         try:
             dt = email.utils.parsedate_to_datetime(header_val)
             if dt is not None:
