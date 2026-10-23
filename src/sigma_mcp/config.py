@@ -58,7 +58,15 @@ class Settings(BaseSettings):
     MAX_RETRY_DELAY: float = Field(
         default=60.0,
         ge=0,
-        description="Maximum retry delay in seconds",
+        description="Maximum backoff delay in seconds when a 429 has no Retry-After",
+    )
+    MAX_RETRY_AFTER: float = Field(
+        default=300.0,
+        ge=0,
+        description=(
+            "Longest server-requested Retry-After wait in seconds that is honored; "
+            "a longer one fails at once without retrying"
+        ),
     )
     WEBHOOK_SECRET: str = Field(
         default="",

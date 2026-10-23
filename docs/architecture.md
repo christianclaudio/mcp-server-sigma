@@ -40,8 +40,12 @@ The client uses `httpx.AsyncClient` because:
 
 On receiving a `429 Too Many Requests`:
 
-1. Read `Retry-After` header if present
-2. Otherwise compute delay: `base_delay * 2**attempt` (default: 1s, 2s, 4s)
+1. Read the `Retry-After` header if present (seconds or an HTTP-date) and wait exactly that
+   long, with no jitter, up to `max_retry_after` (default 300s). If the server asks for longer,
+   raise `SigmaAPIError(429)` at once, without sleeping or retrying, naming the requested wait
+   and the ceiling
+2. Otherwise compute delay: `base_delay * 2**attempt` (default: 1s, 2s, 4s) with 0.5-1.5x
+   jitter, capped at `max_retry_delay` (default 60s; it does not apply to a `Retry-After` wait)
 3. Sleep and retry up to `max_retries` (default 3)
 4. On exhaustion, raise `SigmaAPIError(429)` with context
 
