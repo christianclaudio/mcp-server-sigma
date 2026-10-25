@@ -14,7 +14,7 @@ import logging
 import uuid
 from collections import deque
 from collections.abc import Callable, Coroutine
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger("sigma_mcp.webhooks")
@@ -38,7 +38,7 @@ def record_webhook_event(event_type: str, payload: dict[str, Any], raw_body: str
     """Record a structured webhook event into the in-memory log buffer."""
     event: dict[str, Any] = {
         "event_id": f"evt_{uuid.uuid4().hex[:12]}",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "event_type": event_type,
         "payload": payload,
     }
