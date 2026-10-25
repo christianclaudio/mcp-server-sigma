@@ -983,7 +983,7 @@ class SigmaClient:
                     dt = dt.replace(tzinfo=datetime.UTC)
                 now = datetime.datetime.now(datetime.UTC)
                 return max(0.0, (dt - now).total_seconds())
-        except Exception:
+        except (ValueError, OverflowError):
             pass
         return None
 

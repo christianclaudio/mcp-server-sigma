@@ -269,3 +269,33 @@ async def test_http_date_exactly_at_the_ceiling_is_allowed(fake_sleep: AsyncMock
     c._http.request = AsyncMock(side_effect=[_r429(_http_date(300)), _r200()])  # type: ignore[method-assign]
     await c._request("GET", "/v2/workbooks")
     assert _waits(fake_sleep) == [300.0]
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["soon", "Wed, 32 Oct 2026 07:28:00 GMT", "Wed, 21 Oct 2026 07:28:00 +9999"],
+)
+async def test_unparseable_http_date_retry_after_falls_back_to_backoff(
+    header: str, fake_sleep: AsyncMock, fake_uniform: MagicMock
+) -> None:
+    with pytest.raises(ValueError):
+        email.utils.parsedate_to_datetime(header)
+    assert SigmaClient._parse_retry_after(header) is None
+    c = _client(max_retries=1, base_delay=50.0)
+    c._http.request = AsyncMock(side_effect=[_r429(header), _r200()])  # type: ignore[method-assign]
+    r = await c._request("GET", "/v2/workbooks")
+    assert r.status_code == 200
+    assert _waits(fake_sleep) == [60.0]
+    assert [call.args for call in fake_uniform.call_args_list] == [(0.5, 1.5)]
+
+
+@pytest.mark.parametrize("exc_type", [AttributeError, TypeError])
+def test_unexpected_error_while_parsing_retry_after_propagates(
+    exc_type: type[Exception], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(_header: str) -> real_datetime.datetime:
+        raise exc_type("bug in the parse path")
+
+    monkeypatch.setattr(client_mod.email.utils, "parsedate_to_datetime", broken)
+    with pytest.raises(exc_type, match="bug in the parse path"):
+        SigmaClient._parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT")
