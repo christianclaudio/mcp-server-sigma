@@ -414,7 +414,7 @@ class SSRFSafeAsyncTransport(httpx.AsyncHTTPTransport):
         fut.add_done_callback(lambda _: _DNS_SEMAPHORE.release())
         try:
             return await asyncio.wait_for(asyncio.shield(fut), timeout=self.dns_timeout)
-        except (asyncio.TimeoutError, TimeoutError) as exc:
+        except TimeoutError as exc:
             raise SigmaAPIError(
                 400,
                 request.url.path,
@@ -980,8 +980,8 @@ class SigmaClient:
             dt = email.utils.parsedate_to_datetime(header_val)
             if dt is not None:
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=datetime.timezone.utc)
-                now = datetime.datetime.now(datetime.timezone.utc)
+                    dt = dt.replace(tzinfo=datetime.UTC)
+                now = datetime.datetime.now(datetime.UTC)
                 return max(0.0, (dt - now).total_seconds())
         except Exception:
             pass

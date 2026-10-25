@@ -25,7 +25,7 @@ from sigma_mcp.config import Settings
 from sigma_mcp.errors import SigmaAPIError
 
 BASE = "https://api.sigmacomputing.com"
-FIXED_NOW = real_datetime.datetime(2026, 10, 23, 12, 0, 0, tzinfo=real_datetime.timezone.utc)
+FIXED_NOW = real_datetime.datetime(2026, 10, 23, 12, 0, 0, tzinfo=real_datetime.UTC)
 
 
 def _client(**kwargs: Any) -> SigmaClient:
@@ -68,7 +68,7 @@ def fixed_clock(monkeypatch: pytest.MonkeyPatch) -> None:
         def now(cls, tz: real_datetime.tzinfo | None = None) -> _FixedDatetime:
             return cls.fromtimestamp(FIXED_NOW.timestamp(), tz)
 
-    fake_module = types.SimpleNamespace(datetime=_FixedDatetime, timezone=real_datetime.timezone)
+    fake_module = types.SimpleNamespace(datetime=_FixedDatetime, UTC=real_datetime.UTC)
     monkeypatch.setattr(client_mod, "datetime", fake_module)
 
 
