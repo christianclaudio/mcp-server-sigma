@@ -427,7 +427,7 @@ mypy --strict src/
 ```
 
 > [!NOTE]
-> **Automated Drift Checks**: The CI workflow (`ci.yml`) has a `check-drift` job, run weekly on Sunday afternoon Eastern time and on manual dispatch, that compares client methods against the live Sigma OpenAPI specification. If the drift scan runs and finds drift or exits with an error, the job automatically opens an issue in the repository. A failure in an earlier setup step fails the run without opening an issue.
+> **Automated Drift Checks**: The CI workflow (`ci.yml`) has a `check-drift` job, run weekly on Sunday afternoon Eastern time and on manual dispatch, that compares client methods against the live Sigma OpenAPI specification. If the drift scan runs on main and finds drift or exits with an error, the job automatically opens an issue in the repository. A failure in an earlier setup step fails the run without opening an issue.
 
 ---
 
