@@ -266,7 +266,7 @@ jobs:
             } catch (err) {
               console.error(err);
             }
-            
+
             const status = process.env.DRIFT_STATUS;
             // Exit 1 is also an uncaught Python exception, so drift needs the script's own summary line.
             const drift = status === '1' && driftOutput.includes('❌ Drift detected');
