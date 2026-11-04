@@ -86,7 +86,7 @@ ANALYST_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``author`` (53 tools), in catalog order.
+# Job profile ``author`` (55 tools), in catalog order.
 AUTHOR_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -142,10 +142,12 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
         "workbooks_remove_report_tag",
         "elements_list_element_lineage",
         "workspace_get_file",
+        "elements_swap_workbook_connections",
+        "elements_swap_workbook_source_elements",
     }
 )
 
-# Job profile ``modeler`` (42 tools), in catalog order.
+# Job profile ``modeler`` (44 tools), in catalog order.
 MODELER_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -190,10 +192,12 @@ MODELER_TOOLS: frozenset[str] = frozenset(
         "datasets_get_data_model_materialization",
         "datasets_list_data_model_materialization_schedules",
         "datasets_list_data_model_tags",
+        "datasets_swap_data_model_connections",
+        "datasets_swap_data_model_source_elements",
     }
 )
 
-# Job profile ``embed`` (72 tools), in catalog order.
+# Job profile ``embed`` (76 tools), in catalog order.
 EMBED_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -268,10 +272,14 @@ EMBED_TOOLS: frozenset[str] = frozenset(
         "admin_create_api_connector",
         "admin_update_api_connector",
         "admin_delete_api_connector",
+        "elements_swap_workbook_connections",
+        "elements_swap_workbook_source_elements",
+        "datasets_swap_data_model_connections",
+        "datasets_swap_data_model_source_elements",
     }
 )
 
-# Job profile ``access_admin`` (70 tools), in catalog order.
+# Job profile ``access_admin`` (72 tools), in catalog order.
 ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbook_grants",
@@ -344,6 +352,8 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_delete_grant",
         "admin_list_member_schedules",
         "admin_revoke_member_tokens",
+        "admin_update_team_admins",
+        "admin_assign_user_attributes_to_team",
     }
 )
 

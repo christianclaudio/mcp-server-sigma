@@ -1205,6 +1205,14 @@ class SigmaClient:
     async def swap_workbook_sources(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/swapSources", body)
 
+    async def swap_workbook_connections(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
+        """POST /v2/workbooks/{workbookId}/swapConnections (workbooks_swapWorkbookConnections)."""
+        return await self.post(f"/v2/workbooks/{workbook_id}/swapConnections", body)
+
+    async def swap_workbook_source_elements(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
+        """POST /v2/workbooks/{workbookId}/swapSourceElements (workbooks_swapWorkbookSourceElements)."""
+        return await self.post(f"/v2/workbooks/{workbook_id}/swapSourceElements", body)
+
     async def get_workbook_version_history(self, workbook_id: str) -> JSONValue:
         return await self.paged_list(f"/v2/workbooks/{workbook_id}/version-history")
 
@@ -1349,6 +1357,14 @@ class SigmaClient:
     async def swap_data_model_sources(self, data_model_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/dataModels/{data_model_id}/swapSources", body)
 
+    async def swap_data_model_connections(self, data_model_id: str, body: dict[str, Any]) -> JSONValue:
+        """POST /v2/dataModels/{dataModelId}/swapConnections (dataModels_swapDataModelConnections)."""
+        return await self.post(f"/v2/dataModels/{data_model_id}/swapConnections", body)
+
+    async def swap_data_model_source_elements(self, data_model_id: str, body: dict[str, Any]) -> JSONValue:
+        """POST /v2/dataModels/{dataModelId}/swapSourceElements (dataModels_swapDataModelSourceElements)."""
+        return await self.post(f"/v2/dataModels/{data_model_id}/swapSourceElements", body)
+
     async def materialize_data_model(self, data_model_id: str, body: dict[str, Any] | None = None) -> JSONValue:
         """Trigger materialization for a data model."""
         return await self.post(f"/v2/dataModels/{data_model_id}:materialize", body or {})
@@ -1419,6 +1435,14 @@ class SigmaClient:
 
     async def update_team_members(self, team_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.patch(f"/v2/teams/{team_id}/members", body)
+
+    async def update_team_admins(self, team_id: str, body: dict[str, Any]) -> JSONValue:
+        """PATCH /v2/teams/{teamId}/teamAdmins (teams_updateTeamAdmins)."""
+        return await self.patch(f"/v2/teams/{team_id}/teamAdmins", body)
+
+    async def assign_user_attributes_to_team(self, team_id: str, body: dict[str, Any]) -> JSONValue:
+        """POST /v2/teams/{teamId}/assignedUserAttributes (teams_assignUserAttributesToTeam)."""
+        return await self.post(f"/v2/teams/{team_id}/assignedUserAttributes", body)
 
     # ─── Files / Folders ───────────────────────────────────────────────────
     async def list_files(self, params: dict[str, Any] | None = None) -> JSONValue:

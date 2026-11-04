@@ -246,6 +246,51 @@ async def sigma_swap_data_model_sources(data_model_id: str, body: dict[str, Any]
 swap_data_model_sources = sigma_swap_data_model_sources
 
 
+@datasets_server.tool(
+    name="swap_data_model_connections", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+)
+@sigma_tool
+async def sigma_swap_data_model_connections(
+    data_model_id: str,
+    connection_mapping: list[dict[str, Any]],
+    copy_input_table_data: bool | None = None,
+) -> str:
+    """Swap data model connections (Beta).
+
+    OpenAPI: POST /v2/dataModels/{dataModelId}/swapConnections (dataModels_swapDataModelConnections).
+    Spec: https://help.sigmacomputing.com/openapi/sigma-rest-api.json
+    ``connection_mapping`` items require ``fromId`` and ``toId``; optional ``swapTables`` and ``paths``.
+    """
+    body: dict[str, Any] = {"connectionMapping": connection_mapping}
+    if copy_input_table_data is not None:
+        body["copyInputTableData"] = copy_input_table_data
+    return json.dumps(await (await get_client()).swap_data_model_connections(data_model_id, body), indent=2)
+
+
+swap_data_model_connections = sigma_swap_data_model_connections
+
+
+@datasets_server.tool(
+    name="swap_data_model_source_elements", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+)
+@sigma_tool
+async def sigma_swap_data_model_source_elements(
+    data_model_id: str,
+    source_mapping: list[dict[str, Any]],
+) -> str:
+    """Swap data model source elements (Beta).
+
+    OpenAPI: POST /v2/dataModels/{dataModelId}/swapSourceElements (dataModels_swapDataModelSourceElements).
+    Spec: https://help.sigmacomputing.com/openapi/sigma-rest-api.json
+    ``source_mapping`` items require ``from`` and ``to``; optional ``metricMapping`` and ``columnMapping``.
+    """
+    body: dict[str, Any] = {"sourceMapping": source_mapping}
+    return json.dumps(await (await get_client()).swap_data_model_source_elements(data_model_id, body), indent=2)
+
+
+swap_data_model_source_elements = sigma_swap_data_model_source_elements
+
+
 @datasets_server.tool(name="list_data_model_lineage", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
 @sigma_tool
 async def sigma_list_data_model_lineage(data_model_id: str) -> str:

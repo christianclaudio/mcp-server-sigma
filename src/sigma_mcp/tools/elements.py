@@ -138,6 +138,51 @@ async def sigma_swap_workbook_sources(
 swap_workbook_sources = sigma_swap_workbook_sources
 
 
+@elements_server.tool(
+    name="swap_workbook_connections", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+)
+@sigma_tool
+async def sigma_swap_workbook_connections(
+    workbook_id: str,
+    connection_mapping: list[dict[str, Any]],
+    copy_input_table_data: bool | None = None,
+) -> str:
+    """Swap workbook connections (Beta).
+
+    OpenAPI: POST /v2/workbooks/{workbookId}/swapConnections (workbooks_swapWorkbookConnections).
+    Spec: https://help.sigmacomputing.com/openapi/sigma-rest-api.json
+    ``connection_mapping`` items require ``fromId`` and ``toId``; optional ``swapTables`` and ``paths``.
+    """
+    body: dict[str, Any] = {"connectionMapping": connection_mapping}
+    if copy_input_table_data is not None:
+        body["copyInputTableData"] = copy_input_table_data
+    return json.dumps(await (await get_client()).swap_workbook_connections(workbook_id, body), indent=2)
+
+
+swap_workbook_connections = sigma_swap_workbook_connections
+
+
+@elements_server.tool(
+    name="swap_workbook_source_elements", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+)
+@sigma_tool
+async def sigma_swap_workbook_source_elements(
+    workbook_id: str,
+    source_mapping: list[dict[str, Any]],
+) -> str:
+    """Swap workbook source elements (Beta).
+
+    OpenAPI: POST /v2/workbooks/{workbookId}/swapSourceElements (workbooks_swapWorkbookSourceElements).
+    Spec: https://help.sigmacomputing.com/openapi/sigma-rest-api.json
+    ``source_mapping`` items require ``from`` and ``to``; optional ``metricMapping`` and ``columnMapping``.
+    """
+    body: dict[str, Any] = {"sourceMapping": source_mapping}
+    return json.dumps(await (await get_client()).swap_workbook_source_elements(workbook_id, body), indent=2)
+
+
+swap_workbook_source_elements = sigma_swap_workbook_source_elements
+
+
 @elements_server.tool(name="get_element_query", annotations=ANNOTATION_READ_ONLY, tags={"elements", "read_only"})
 @sigma_tool
 async def sigma_get_element_query(workbook_id: str, element_id: str) -> str:
