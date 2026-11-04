@@ -323,14 +323,14 @@ from sigma_mcp.tools.elements import (
     sigma_materialize_element,
     sigma_search_docs,
     sigma_swap_template_sources,
-    sigma_swap_workbook_sources,
     sigma_swap_workbook_connections,
     sigma_swap_workbook_source_elements,
+    sigma_swap_workbook_sources,
     sigma_update_source_swap_policy,
     swap_template_sources,
-    swap_workbook_sources,
     swap_workbook_connections,
     swap_workbook_source_elements,
+    swap_workbook_sources,
     update_source_swap_policy,
 )
 from sigma_mcp.tools.workbooks import (

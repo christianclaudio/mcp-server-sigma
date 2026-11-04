@@ -8,9 +8,8 @@ teams_updateTeamAdmins, teams_assignUserAttributesToTeam.
 
 from __future__ import annotations
 
-import time
-
 import json
+import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -105,6 +104,14 @@ async def test_tools_forward_bodies(monkeypatch: pytest.MonkeyPatch, client: Sig
 
     await elements_tools.sigma_swap_workbook_source_elements("wb1", [{"from": {"x": 1}, "to": {"y": 2}}])
     assert client._http.request.call_args.kwargs["json"] == {"sourceMapping": [{"from": {"x": 1}, "to": {"y": 2}}]}
+
+    await datasets_tools.sigma_swap_data_model_connections(
+        "dm1", [{"fromId": "a", "toId": "b"}], copy_input_table_data=False
+    )
+    assert client._http.request.call_args.kwargs["json"] == {
+        "connectionMapping": [{"fromId": "a", "toId": "b"}],
+        "copyInputTableData": False,
+    }
 
     await datasets_tools.sigma_swap_data_model_connections("dm1", [{"fromId": "a", "toId": "b"}])
     assert "/dataModels/dm1/swapConnections" in client._http.request.call_args.args[1]
