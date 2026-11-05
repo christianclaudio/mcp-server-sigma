@@ -341,6 +341,50 @@ async def sigma_update_team_members(team_id: str, add: list[str] | None = None, 
 update_team_members = sigma_update_team_members
 
 
+@admin_server.tool(name="update_team_admins", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_team_admins(
+    team_id: str,
+    add: list[str] | None = None,
+    remove: list[str] | None = None,
+) -> str:
+    """Update team admins (grant or revoke team admin status by memberId).
+
+    OpenAPI: PATCH /v2/teams/{teamId}/teamAdmins (teams_updateTeamAdmins).
+    Spec: https://help.sigmacomputing.com/openapi/sigma-rest-api.json
+    Non-destructive write (ANNOTATION_WRITE_SAFE); excluded from readonly profile via readOnlyHint=false.
+    """
+    body: dict[str, Any] = {}
+    if add:
+        body["add"] = add
+    if remove:
+        body["remove"] = remove
+    return json.dumps(await (await get_client()).update_team_admins(team_id, body), indent=2)
+
+
+update_team_admins = sigma_update_team_admins
+
+
+@admin_server.tool(name="assign_user_attributes_to_team", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_assign_user_attributes_to_team(
+    team_id: str,
+    assignments: list[dict[str, Any]],
+) -> str:
+    """Assign user attributes to a team.
+
+    OpenAPI: POST /v2/teams/{teamId}/assignedUserAttributes (teams_assignUserAttributesToTeam).
+    Spec: https://help.sigmacomputing.com/openapi/sigma-rest-api.json
+    Each assignment requires ``userAttributeId`` and ``value`` with ``type`` and ``val``.
+    Non-destructive write (ANNOTATION_WRITE_SAFE); excluded from readonly profile via readOnlyHint=false.
+    """
+    body: dict[str, Any] = {"assignments": assignments}
+    return json.dumps(await (await get_client()).assign_user_attributes_to_team(team_id, body), indent=2)
+
+
+assign_user_attributes_to_team = sigma_assign_user_attributes_to_team
+
+
 @admin_server.tool(name="list_user_attributes", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
 @sigma_tool
 async def sigma_list_user_attributes() -> str:

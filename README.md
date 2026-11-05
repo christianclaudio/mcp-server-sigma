@@ -8,7 +8,7 @@
 [![CodeRabbit Reviews](https://img.shields.io/coderabbit/prs/github/christianclaudio/mcp-server-sigma?utm_source=oss&utm_medium=github&utm_campaign=christianclaudio%2Fmcp-server-sigma&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 > **Supercharge your AI Agents with native Sigma Computing superpowers!** ⚡  
-> An enterprise-grade Model Context Protocol (MCP) server with **257 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
+> An enterprise-grade Model Context Protocol (MCP) server with **263 tools covering connections**, workbooks, data models, members, teams, deployments, webhooks, multi-tenant operations, and composite workflow recipes straight to your favorite AI assistant.
 
 ---
 
@@ -307,19 +307,19 @@ Pick a profile with `--profile` or `SIGMA_MCP_PROFILE` (default `full`). Every p
 
 | Profile | Job it serves | Tools | With `SIGMA_MCP_READONLY=1` |
 | :--- | :--- | ---: | ---: |
-| `full` | Complete catalog, nothing omitted. Bulk tools are listed and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. Tool Search and Code Mode attach only here. | **257** | 120 |
+| `full` | Complete catalog, nothing omitted. Bulk tools are listed and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. Tool Search and Code Mode attach only here. | **263** | 120 |
 | `readonly` | Auditor / safe exploration: every tool annotated `readOnlyHint=true` across all mounts. | **120** | 120 |
 | `analyst` | Business user finds, reads, exports and schedules workbooks and reports, bookmarks views, and asks workbook agents. | **50** | 33 |
-| `author` | Workbook author builds, versions and verifies workbooks, reports and templates, and inspects elements while editing. | **53** | 37 |
-| `modeler` | Data modeler maintains connections and data models, swaps workbook/report/model sources and materializes elements. | **42** | 30 |
-| `embed` | Embedded-analytics engineer provisions tenants and tenant dashboards: templates, deployments, source swaps, embeds, tenant user attributes and connection syncs. | **72** | 31 |
-| `access_admin` | Org admin onboards and offboards members, manages teams, grants and user attributes, workspace/workbook/connection access, and org security settings. | **70** | 26 |
+| `author` | Workbook author builds, versions and verifies workbooks, reports and templates, and inspects elements while editing. | **55** | 37 |
+| `modeler` | Data modeler maintains connections and data models, swaps workbook/report/model sources and materializes elements. | **44** | 30 |
+| `embed` | Embedded-analytics engineer provisions tenants and tenant dashboards: templates, deployments, source swaps, embeds, tenant user attributes and connection syncs. | **76** | 31 |
+| `access_admin` | Org admin onboards and offboards members, manages teams, grants and user attributes, workspace/workbook/connection access, and org security settings. | **72** | 26 |
 
 Twenty-two tools are in no job profile and are reachable only in `full`: `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`, `admin_api_capabilities`, `admin_list_recent_webhooks`, `workspace_update_tag`, `admin_list_api_credentials`, `admin_get_api_credential`, `admin_create_api_credential`, `admin_update_api_credential`, `admin_delete_api_credential`, `admin_get_translation`, `admin_get_translation_variant`, `admin_create_translation`, `admin_update_translation`, `admin_update_translation_variant`, `admin_delete_translation`, and `admin_delete_translation_variant`.
 
 ### Read-only behavior
 
-* The MCP `readOnlyHint` annotation is the only thing that decides whether a tool is read-only. Every tool declares it explicitly: `true` on the 120 reads and `false` on the 137 writes. A tool with no annotation or no `readOnlyHint` counts as a write.
+* The MCP `readOnlyHint` annotation is the only thing that decides whether a tool is read-only. Every tool declares it explicitly: `true` on the 120 reads and `false` on the 143 writes. A tool with no annotation or no `readOnlyHint` counts as a write.
 * `--profile readonly` or `SIGMA_MCP_READONLY=1` (on any profile) lists only the read-only tools, and `ReadOnlyGateMiddleware` refuses any call to a real tool that is not read-only, including a write the filter hid. A refusal comes back as a tool result with `isError: true`.
 * A name that is not a tool on the server gets FastMCP's normal `Unknown tool` error, directly or through `call_tool`, so a typo is never reported as a blocked tool.
 * With Tool Search on, the gate checks the tool that `call_tool` wraps. Reads through `call_tool` work and writes are refused. Without Tool Search, `call_tool` is not a tool on the server, so a call to it gets `Unknown tool: 'call_tool'`.
@@ -342,16 +342,16 @@ Twenty-two tools are in no job profile and are reachable only in `full`: `worksp
 
 ## 📊 Feature & Tool Summary
 
-The `full` profile lists **257 tools**. Every tool name starts with the domain it is mounted under:
+The `full` profile lists **263 tools**. Every tool name starts with the domain it is mounted under:
 
 | Domain | Tools | Covers |
 |--------|------:|--------|
 | `workbooks` | 78 | Workbooks, reports and templates: contents/spec, pages, versions, bookmarks, schedules, exports and one-off sends, tags, grants, embeds, cross-org sharing, report pages/elements/columns/controls, workbook agents, template deployment |
-| `datasets` | 34 | Connections and data models: connection create/delete, connection paths and path grants, connection grants, tests and schema syncs, cross-tenant connection sync, data model specs, columns, lineage, sources, tags, materializations and source swaps |
-| `elements` | 24 | Workbook elements, columns, controls, queries, sources and lineage; materializations; source-swap policies; Sigma docs search and formula reference |
+| `datasets` | 36 | Connections and data models: connection create/delete, connection paths and path grants, connection grants, tests and schema syncs, cross-tenant connection sync, data model specs, columns, lineage, sources, tags, materializations and source swaps |
+| `elements` | 26 | Workbook elements, columns, controls, queries, sources and lineage; materializations; source-swap policies; Sigma docs search and formula reference |
 | `workspace` | 24 | Workspaces and their grants, files and folders, member files, recents and favorites, tags |
-| `admin` | 97 | Members, teams, user attributes, tenants, deployments, grants, org settings, AI config, IP allowlists, API connectors and credentials, translations, tenant deployment capabilities, member schedules and OAuth token revocation, recent webhook events |
-| **Total** | **257** | |
+| `admin` | 99 | Members, teams, user attributes, tenants, deployments, grants, org settings, AI config, IP allowlists, API connectors and credentials, translations, tenant deployment capabilities, member schedules and OAuth token revocation, recent webhook events |
+| **Total** | **263** | |
 
 `scripts/check_tool_contract.py` fails CI if these counts drift from the live registry. The 2 bulk-destructive tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) are in the `admin` count and are refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
 
@@ -387,7 +387,7 @@ Every tool includes structured MCP hints to assist AI clients with user permissi
 | `readOnlyHint=true` | 120 | Indicates intended non-mutation; clients may still require explicit user approval |
 | `destructiveHint=true` | 43 | Deletes, deactivates, or revokes; clients should prompt |
 | `idempotentHint=true` | 10 | Safe to retry; same input = same outcome |
-| `openWorldHint=true` | 257 | All tools hit an external API |
+| `openWorldHint=true` | 263 | All tools hit an external API |
 
 ---
 

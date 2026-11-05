@@ -24,24 +24,24 @@ REPO = Path(__file__).resolve().parent.parent
 # Expected (total tools, tools annotated readOnlyHint=True) per profile. ``full`` is exhaustive:
 # the two bulk tools are listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
-    "full": (257, 120),
+    "full": (263, 120),
     "readonly": (120, 120),
     # Job (allowlist) profiles
     "analyst": (50, 33),
-    "author": (53, 37),
-    "modeler": (42, 30),
-    "embed": (72, 31),
-    "access_admin": (70, 26),
+    "author": (55, 37),
+    "modeler": (44, 30),
+    "embed": (76, 31),
+    "access_admin": (72, 26),
 }
 JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
 
 # Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
 EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
     "workbooks": 78,
-    "datasets": 34,
-    "elements": 24,
+    "datasets": 36,
+    "elements": 26,
     "workspace": 24,
-    "admin": 97,
+    "admin": 99,
 }
 
 # Expected annotation split on ``full``.
