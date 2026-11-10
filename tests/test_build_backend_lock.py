@@ -253,4 +253,3 @@ def test_digests_never_counts_musllinux() -> None:
     }
     with pytest.raises(ValueError, match="no single cp314 wheel per arch"):
         gen_build_backend._digests(package, "3.14", (2, 41))
-
