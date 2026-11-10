@@ -79,7 +79,7 @@ def test_both_stages_use_the_same_base_image() -> None:
     assert len(froms) == 2
     assert len(images) == 1
     (image,) = images
-    assert re.fullmatch(r"python:3\.12-slim@sha256:[0-9a-f]{64}", image)
+    assert re.fullmatch(r"python:3\.12-slim-trixie@sha256:[0-9a-f]{64}", image)
 
 
 def test_floor_is_declared_once_and_used_by_both_stages() -> None:
