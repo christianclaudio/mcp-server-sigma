@@ -226,7 +226,7 @@ ended, `from None`, so the unredacted exception is on neither `__cause__` nor `_
 
 ### Confirmation prompt (not an error)
 
-Destructive tools and the guarded writes listed in the skill take `confirm: bool = False`.
+Destructive tools, and the non-destructive writes whose descriptions require confirmation, take `confirm: bool = False`.
 Called without `confirm=True`, the tool makes no change and returns a normal result
 (`isError: false`). The call did what it was designed to do, so it is not a failure:
 
