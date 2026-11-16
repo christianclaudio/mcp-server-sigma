@@ -610,7 +610,7 @@ async def test_request_bounded_streaming_paths() -> None:
         assert len(res.content) > 5
 
     # 3. Stream 429 retry then 200
-    r_429 = httpx.Response(429, headers={"Retry-After": "0.001", "x-request-id": "req-429"})
+    r_429 = httpx.Response(429, headers={"Retry-After": "0", "x-request-id": "req-429"})
     r_200 = httpx.Response(200, content=b"after-429")
     with patch.object(client._http, "send", new_callable=AsyncMock) as mock_send:
         mock_send.side_effect = [r_429, r_200]

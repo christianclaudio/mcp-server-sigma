@@ -129,26 +129,26 @@ If you have a test Sigma organization and want to run live smoke tests:
 ```bash
 export SIGMA_CLIENT_ID="your-client-id"
 export SIGMA_CLIENT_SECRET="your-client-secret"
-export SIGMA_API_BASE_URL="https://api.us-a.aws.sigmacomputing.com"
-SIGMA_LIVE_TESTS=1 pytest tests/test_integration_live.py -v --no-cov
+export SIGMA_BASE_URL="https://api.us-a.aws.sigmacomputing.com"
+SIGMA_LIVE_TESTS=1 pytest -m live tests/test_integration_live.py -v --no-cov
 ```
 
 #### Windows (PowerShell):
 ```powershell
 $env:SIGMA_CLIENT_ID="your-client-id"
 $env:SIGMA_CLIENT_SECRET="your-client-secret"
-$env:SIGMA_API_BASE_URL="https://api.us-a.aws.sigmacomputing.com"
+$env:SIGMA_BASE_URL="https://api.us-a.aws.sigmacomputing.com"
 $env:SIGMA_LIVE_TESTS="1"
-pytest tests/test_integration_live.py -v --no-cov
+pytest -m live tests/test_integration_live.py -v --no-cov
 ```
 
 #### Windows (Command Prompt `cmd.exe`):
 ```cmd
 set SIGMA_CLIENT_ID=your-client-id
 set SIGMA_CLIENT_SECRET=your-client-secret
-set SIGMA_API_BASE_URL=https://api.us-a.aws.sigmacomputing.com
+set SIGMA_BASE_URL=https://api.us-a.aws.sigmacomputing.com
 set SIGMA_LIVE_TESTS=1
-pytest tests/test_integration_live.py -v --no-cov
+pytest -m live tests/test_integration_live.py -v --no-cov
 ```
 
 > **Safety Guarantee:** Live tests register every created resource ID in a strict registry and clean them up when pytest teardown runs, including after test failures or exceptions. If execution is forcefully interrupted (e.g., SIGKILL or hard crash) before teardown runs, manually delete any remaining `mcptest-*` resources or rely on the pre-run sweep fixture on the next run.

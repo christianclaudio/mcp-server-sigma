@@ -1,4 +1,9 @@
-"""End-to-end live testing across all dynamically discovered MCP tools."""
+"""Live testing across all dynamically discovered MCP tools.
+
+Opt in with ``SIGMA_LIVE_TESTS=1`` plus ``SIGMA_CLIENT_ID``, ``SIGMA_CLIENT_SECRET``,
+and ``SIGMA_BASE_URL``. The default run deselects this module's live test
+(``-m 'not live'``).
+"""
 
 from __future__ import annotations
 
@@ -118,7 +123,7 @@ async def test_dispatch_tool_call_offline(monkeypatch: pytest.MonkeyPatch) -> No
     assert err is None
 
 
-@pytest.mark.e2e
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_all_discovered_tools_live() -> None:
     """Dynamically discover and exercise registered tools against live endpoints."""

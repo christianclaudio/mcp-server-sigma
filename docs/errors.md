@@ -304,11 +304,12 @@ Resource does not exist or was deleted.
 
 ### 429 Too Many Requests
 
-Rate limit exceeded. The client retries (up to `max_retries` attempts), waiting
-the server's `Retry-After` or, without one, backing off exponentially. If all
-retries fail, this error is returned. It is also returned at once, with no
-retry, when `Retry-After` asks for longer than `max_retry_after` (default
-300s); its `detail` then names the requested wait and the ceiling.
+Rate limit exceeded. On GET, HEAD, and OPTIONS the client retries (up to
+`max_retries` attempts), waiting the server's `Retry-After` or, without one,
+backing off exponentially. Other methods are not retried. If all retries fail,
+this error is returned. It is also returned at once, with no retry, when
+`Retry-After` asks for longer than `max_retry_after` (default 120s) or cannot
+be parsed.
 
 ```json
 {
@@ -338,13 +339,14 @@ Sigma API server error. Transient — safe to retry.
 
 ## Retry Behavior
 
-The client automatically retries on `429` responses:
+The client automatically retries `429` responses on GET, HEAD, and OPTIONS:
 
-1. Check `Retry-After` header (seconds or HTTP-date) for the server-suggested delay and wait
-   exactly that long, with no jitter, up to `max_retry_after` (default 300s). A longer
-   requested wait returns the 429 error at once, without retrying
+1. Check `Retry-After` header (delta-seconds or HTTP-date) for the server-suggested delay and wait
+   exactly that long, with no jitter, up to `max_retry_after` (default 120s). A longer requested
+   wait, or a header that cannot be parsed, returns the 429 error at once, without retrying
    (an HTTP-date in the past waits 0s)
-2. With no usable header (missing, negative, NaN or unparseable), fall back to exponential backoff:
+2. With no header, fall back to exponential backoff:
    `base_delay * 2^attempt` with 0.5-1.5x jitter, capped at `max_retry_delay` (default 60s)
 3. Default: 3 retries with 1s base delay (1s, 2s, 4s)
 4. After exhausting retries, return the 429 error as structured JSON
+5. POST, PUT, PATCH, DELETE, and every other method return the 429 error on the first response

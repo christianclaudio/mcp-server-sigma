@@ -38,15 +38,15 @@ async def test_client_missing_branches(monkeypatch: pytest.MonkeyPatch) -> None:
 
     c._token_expiry = time.time() + 3600
 
-    # retry_after non-numeric fallback
+    # An unparseable Retry-After fails at once instead of backing off.
     r_429 = _mock_response(429, {"error": "rate_limit"})
     r_429.headers = {"Retry-After": "invalid_number"}
-    r_200 = _mock_response(200, {"status": "ok"})
-    c._http.request = AsyncMock(side_effect=[r_429, r_200])
+    c._http.request = AsyncMock(return_value=r_429)
 
     monkeypatch.setattr("asyncio.sleep", AsyncMock())
-    res = await c._request("GET", "/v2/test")
-    assert res.status_code == 200
+    with pytest.raises(SigmaAPIError) as exc_info:
+        await c._request("GET", "/v2/test")
+    assert "cannot be parsed" in exc_info.value.detail
 
     # 204 No Content / empty response
     r_204 = _mock_response(204)
