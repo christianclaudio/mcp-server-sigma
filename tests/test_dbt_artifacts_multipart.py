@@ -103,20 +103,22 @@ async def test_add_dbt_metadata_custom_filename_and_path_encoding() -> None:
     assert payload == b"\x1f\x8bdata"
 
 
-async def test_multipart_upload_is_resent_intact_after_429() -> None:
+async def test_multipart_upload_is_not_retried_on_429() -> None:
+    """POST is not an idempotent method, so a 429 does not resend the archive."""
     bodies: list[bytes] = []
 
     def handler(req: httpx.Request) -> httpx.Response:
         bodies.append(req.content)
-        if len(bodies) == 1:
-            return httpx.Response(429, headers={"Retry-After": "0"})
-        return httpx.Response(201, json={})
+        return httpx.Response(429, headers={"Retry-After": "0"})
 
     archive = _tar_gz()
     c = _client(httpx.MockTransport(handler))
-    assert await c.add_dbt_metadata("conn-1", archive) == {}
-    assert len(bodies) == 2
-    assert archive in bodies[0] and archive in bodies[1]
+    with pytest.raises(SigmaAPIError) as exc:
+        await c.add_dbt_metadata("conn-1", archive)
+    assert exc.value.status_code == 429
+    assert exc.value.detail == "Rate limit exceeded; POST is not retried"
+    assert len(bodies) == 1
+    assert archive in bodies[0]
 
 
 async def test_add_dbt_metadata_error_status_raises() -> None:

@@ -1,7 +1,8 @@
 """Live integration tests against a REAL Sigma Computing organization.
 
-GATING: Entire module is skipped unless SIGMA_LIVE_TESTS=1 AND SIGMA_CLIENT_ID is set.
-This must NEVER run in CI by default.
+GATING: Marked ``live``. Collection skips the module unless SIGMA_LIVE_TESTS=1 and
+SIGMA_CLIENT_ID, SIGMA_CLIENT_SECRET, and SIGMA_BASE_URL are non-empty.
+The default run deselects it (``-m 'not live'``). This must NEVER run in CI by default.
 
 Safety guarantees:
 - Every created resource is named mcptest-{RUN_ID}-{purpose} (collision-free).
@@ -31,13 +32,7 @@ import pytest
 
 # ─── Gating ───────────────────────────────────────────────────────────────────
 
-_LIVE = os.environ.get("SIGMA_LIVE_TESTS") == "1"
-_HAS_CREDS = bool(os.environ.get("SIGMA_CLIENT_ID"))
-
-pytestmark = pytest.mark.skipif(
-    not (_LIVE and _HAS_CREDS),
-    reason="Live tests require SIGMA_LIVE_TESTS=1 and SIGMA_CLIENT_ID set",
-)
+pytestmark = pytest.mark.live
 
 # ─── Run ID & Registry ────────────────────────────────────────────────────────
 
@@ -71,11 +66,12 @@ def safe_delete(kind: str, resource_id: str, delete_fn) -> None:
 def _get_client():
     """Lazily import and instantiate the Sigma client."""
     from sigma_mcp.client import SigmaClient
+    from sigma_mcp.config import settings
 
     return SigmaClient(
         client_id=os.environ["SIGMA_CLIENT_ID"],
         client_secret=os.environ["SIGMA_CLIENT_SECRET"],
-        base_url=os.environ.get("SIGMA_API_BASE_URL", "https://api.us-a.aws.sigmacomputing.com"),
+        base_url=os.environ.get("SIGMA_BASE_URL", settings.BASE_URL),
     )
 
 

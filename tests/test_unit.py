@@ -66,7 +66,7 @@ class TestRetryLogic:
         c = self._make_client(max_retries=2, base_delay=0.001)
         resp_429 = MagicMock()
         resp_429.status_code = 429
-        resp_429.headers = {"Retry-After": "0.01"}
+        resp_429.headers = {"Retry-After": "0"}
 
         resp_200 = MagicMock()
         resp_200.status_code = 200

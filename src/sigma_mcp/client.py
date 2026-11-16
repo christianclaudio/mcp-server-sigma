@@ -23,6 +23,7 @@ import ipaddress
 import json
 import os
 import random
+import re
 import socket
 import ssl
 import time
@@ -602,6 +603,18 @@ def _format_seconds(seconds: float) -> str:
     return f"{seconds:g}"
 
 
+MAX_RETRY_AFTER_SECONDS = 120.0
+"""Default longest ``Retry-After`` wait, in seconds, that is honored in full.
+
+A delta-seconds value or an HTTP-date at or under this limit is waited out exactly.
+A larger value, or a header that cannot be parsed, fails the call at once.
+``SIGMA_MAX_RETRY_AFTER`` can raise or lower the limit for a process.
+"""
+
+# 429 is retried only for these methods. Every other method fails on the first 429.
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
 class SigmaClient:
     extract_dict = staticmethod(extract_dict)
     extract_list = staticmethod(extract_list)
@@ -617,18 +630,18 @@ class SigmaClient:
         max_retries: int = 3,
         base_delay: float = 1.0,
         max_retry_delay: float = 60.0,
-        max_retry_after: float = 300.0,
+        max_retry_after: float = MAX_RETRY_AFTER_SECONDS,
         http_client: httpx.AsyncClient | None = None,
     ):
         """Create a client for one Sigma org.
 
-        Retries on HTTP 429 (up to *max_retries*). With a ``Retry-After`` header (seconds or an
-        HTTP-date), the client waits exactly the time the server asks for, with no jitter, as long
-        as it is at most *max_retry_after* seconds (default 300); a longer wait raises
-        ``SigmaAPIError`` at once, without sleeping or retrying, naming the requested wait. Without
-        the header it backs off ``base_delay * 2**attempt`` seconds with 0.5-1.5x jitter, capped at
-        *max_retry_delay* seconds (default 60). *max_retry_delay* does not apply to a
-        ``Retry-After`` wait.
+        Retries HTTP 429 on GET, HEAD, and OPTIONS (up to *max_retries*). Any other method fails
+        on the first 429. With a ``Retry-After`` header (delta-seconds or an HTTP-date), the client
+        waits exactly the time the server asks for, with no jitter, as long as it is at most
+        *max_retry_after* seconds (default 120); a longer wait, or a header that cannot be parsed,
+        raises ``SigmaAPIError`` at once, without sleeping or retrying. Without the header it backs
+        off ``base_delay * 2**attempt`` seconds with 0.5-1.5x jitter, capped at *max_retry_delay*
+        seconds (default 60). *max_retry_delay* does not apply to a ``Retry-After`` wait.
         """
         self.client_id = client_id
         self.client_secret = client_secret
@@ -835,11 +848,13 @@ class SigmaClient:
     ) -> Response:
         """Execute an HTTP request, retrying 429 responses up to ``max_retries`` times.
 
-        A 429 with a ``Retry-After`` (seconds or HTTP-date) waits exactly that long, with no
-        jitter, up to ``max_retry_after`` seconds; a longer requested wait raises
-        ``SigmaAPIError`` (429) right away, naming the wait and the ceiling, with no sleep and no
-        further attempt. A 429 without it backs off ``base_delay * 2**attempt`` with jitter,
-        capped at ``max_retry_delay``.
+        Only GET, HEAD, and OPTIONS are retried. A 429 on any other method raises
+        ``SigmaAPIError`` (429) on the first response, with no sleep. A 429 with a
+        ``Retry-After`` (delta-seconds or an HTTP-date) waits exactly that long, with no jitter,
+        up to ``max_retry_after`` seconds. A longer requested wait, or a header that cannot be
+        parsed, raises ``SigmaAPIError`` (429) right away, with no sleep and no further attempt.
+        A 429 without the header backs off ``base_delay * 2**attempt`` with jitter, capped at
+        ``max_retry_delay``. 5xx responses are not retried.
 
         *files* — send a ``multipart/form-data`` body instead of JSON: each entry maps a form
         field name to ``(filename, content, content_type)``. The JSON ``Content-Type`` header is
@@ -931,17 +946,34 @@ class SigmaClient:
                 return r
             if max_bytes is not None:
                 await r.aclose()
-            parsed_delay = self._parse_retry_after(r.headers.get("Retry-After"))
-            if parsed_delay is not None and parsed_delay > self.max_retry_after:
+            header = r.headers.get("Retry-After")
+            parsed_delay = self._parse_retry_after(header)
+            if header is not None and (parsed_delay is None or parsed_delay > self.max_retry_after):
+                ceiling = _format_seconds(self.max_retry_after)
+                if parsed_delay is None:
+                    detail = (
+                        "Rate limit exceeded: Retry-After cannot be parsed, which is not a wait "
+                        f"at or under the {ceiling}s max_retry_after ceiling; not retrying"
+                    )
+                else:
+                    detail = (
+                        "Rate limit exceeded: the server asked to retry after "
+                        f"{_format_seconds(parsed_delay)}s, which is above the "
+                        f"{ceiling}s max_retry_after ceiling; not retrying"
+                    )
                 raise SigmaAPIError(
                     status_code=429,
                     path=path,
                     method=method,
-                    detail=(
-                        f"Rate limit exceeded: the server asked to retry after "
-                        f"{_format_seconds(parsed_delay)}s, which is above the "
-                        f"{_format_seconds(self.max_retry_after)}s max_retry_after ceiling; not retrying"
-                    ),
+                    detail=detail,
+                    request_id=r.headers.get("x-request-id"),
+                )
+            if method.upper() not in _IDEMPOTENT_METHODS:
+                raise SigmaAPIError(
+                    status_code=429,
+                    path=path,
+                    method=method,
+                    detail=f"Rate limit exceeded; {method.upper()} is not retried",
                     request_id=r.headers.get("x-request-id"),
                 )
             if attempt == self.max_retries:
@@ -965,27 +997,25 @@ class SigmaClient:
     def _parse_retry_after(header_val: str | None) -> float | None:
         """Return the ``Retry-After`` wait in seconds, or None when there is no usable value.
 
-        Delay-seconds must be a non-negative number; a negative or NaN value is unusable (None,
-        so the caller falls back to its own backoff). An HTTP-date in the past is a 0-second wait.
+        RFC 9110 delta-seconds (a non-negative integer) or an HTTP-date. A date in the past is a
+        0-second wait. A fraction, a negative number, or an unreadable value is None; when the
+        header is present the caller fails at once instead of backing off.
         """
-        if not header_val:
+        if header_val is None:
             return None
+        value = header_val.strip()
+        if not value:
+            return None
+        if re.fullmatch(r"[0-9]+", value):
+            return float(value)
         try:
-            val = float(header_val)
-        except (ValueError, OverflowError):
-            pass
-        else:
-            return val if val >= 0 else None
-        try:
-            dt = email.utils.parsedate_to_datetime(header_val)
-            if dt is not None:
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=datetime.UTC)
-                now = datetime.datetime.now(datetime.UTC)
-                return max(0.0, (dt - now).total_seconds())
-        except (ValueError, OverflowError):
-            pass
-        return None
+            dt = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.UTC)
+        now = datetime.datetime.now(datetime.UTC)
+        return max(0.0, (dt - now).total_seconds())
 
     @staticmethod
     def _parse_json_body(r: Response) -> JSONValue:

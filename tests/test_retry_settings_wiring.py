@@ -2,7 +2,7 @@
 
 ``SIGMA_MAX_RETRIES``, ``SIGMA_BASE_DELAY``, ``SIGMA_MAX_RETRY_DELAY`` and ``SIGMA_MAX_RETRY_AFTER``
 were declared in ``Settings`` but never passed to the client. Every value below differs from
-its default (3, 1.0, 60.0, 300.0), so each one is shown to arrive.
+its default (3, 1.0, 60.0, 120.0), so each one is shown to arrive.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ NON_DEFAULT = {
     "SIGMA_MAX_RETRY_DELAY": ("12.5", "max_retry_delay", 12.5),
     "SIGMA_MAX_RETRY_AFTER": ("45", "max_retry_after", 45.0),
 }
-DEFAULTS = {"max_retries": 3, "base_delay": 1.0, "max_retry_delay": 60.0, "max_retry_after": 300.0}
+DEFAULTS = {"max_retries": 3, "base_delay": 1.0, "max_retry_delay": 60.0, "max_retry_after": 120.0}
 
 
 @pytest.fixture

@@ -8,7 +8,6 @@ tests/
 docs/
 examples/
 scripts/
-skills/
 .env
 .env.example
 .coverage

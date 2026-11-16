@@ -48,7 +48,7 @@ class Settings(BaseSettings):
         default=3,
         ge=0,
         le=10,
-        description="Maximum retry attempts on HTTP 429 (only 429 is retried)",
+        description="Maximum retry attempts on HTTP 429 for GET, HEAD, and OPTIONS",
     )
     BASE_DELAY: float = Field(
         default=1.0,
@@ -63,12 +63,12 @@ class Settings(BaseSettings):
         description="Maximum backoff delay in seconds when a 429 has no Retry-After",
     )
     MAX_RETRY_AFTER: float = Field(
-        default=300.0,
+        default=120.0,
         ge=0,
         allow_inf_nan=False,
         description=(
             "Longest server-requested Retry-After wait in seconds that is honored; "
-            "a longer one fails at once without retrying"
+            "a longer one, or a header that cannot be parsed, fails at once without retrying"
         ),
     )
     WEBHOOK_SECRET: str = Field(

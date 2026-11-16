@@ -1,10 +1,10 @@
 """Retry delays must be finite (#58).
 
 ``SIGMA_BASE_DELAY``, ``SIGMA_MAX_RETRY_DELAY`` and ``SIGMA_MAX_RETRY_AFTER`` reject ``inf`` and
-``nan`` at startup: an infinite ceiling would let a ``Retry-After: inf`` (or ``1e400``, which
-parses to infinity) through, and the client would sleep forever. With a finite ceiling such a
-header fails fast, and the fail-fast message renders waits compactly. ``asyncio.sleep`` is faked,
-so nothing here really sleeps.
+``nan`` at startup: an infinite ceiling would let a huge digit ``Retry-After`` through, and the
+client would sleep forever. ``inf`` and ``1e400`` are not delta-seconds, so they fail at once as
+unparseable. A digit string that parses above the ceiling fails fast, and that message renders
+the wait compactly. ``asyncio.sleep`` is faked, so nothing here really sleeps.
 """
 
 from __future__ import annotations
@@ -62,8 +62,8 @@ async def test_infinite_retry_after_fails_fast_under_a_finite_ceiling(header: st
         await c._request("GET", "/v2/workbooks")
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail == (
-        "Rate limit exceeded: the server asked to retry after infs, which is above the "
-        "300s max_retry_after ceiling; not retrying"
+        "Rate limit exceeded: Retry-After cannot be parsed, which is not a wait "
+        "at or under the 300s max_retry_after ceiling; not retrying"
     )
     fake_sleep.assert_not_awaited()
     assert request.await_count == 1
@@ -71,7 +71,8 @@ async def test_infinite_retry_after_fails_fast_under_a_finite_ceiling(header: st
 
 async def test_huge_retry_after_is_rendered_compactly(fake_sleep: AsyncMock) -> None:
     c = _client(max_retries=3, max_retry_after=0.25)
-    request = AsyncMock(side_effect=[httpx.Response(429, headers={"Retry-After": "1e308"}), httpx.Response(200)])
+    huge = "1" + ("0" * 308)
+    request = AsyncMock(side_effect=[httpx.Response(429, headers={"Retry-After": huge}), httpx.Response(200)])
     c._http.request = request  # type: ignore[method-assign]
     with pytest.raises(SigmaAPIError) as exc_info:
         await c._request("GET", "/v2/workbooks")
