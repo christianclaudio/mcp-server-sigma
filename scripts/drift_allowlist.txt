@@ -3,5 +3,5 @@
 #
 # Format: METHOD /path/with/{}/placeholders  # justification
 
-GET /v2/organizations/settings/{}  # Parametrized endpoint for org settings (e.g. aiChatHistory, auditLogging, bulkCopy, comments, csvUpload, emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone); spec documents each sub-resource setting individually
+GET /v2/organizations/settings/{}  # Parametrized endpoint for org settings (e.g. aiChatHistory, auditLogging, bulkCopy, comments, csvUpload, emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, smtp, timezone); spec documents each sub-resource setting individually
 PATCH /v2/organizations/settings/{}  # Parametrized endpoint for updating org settings; spec documents each sub-resource setting individually

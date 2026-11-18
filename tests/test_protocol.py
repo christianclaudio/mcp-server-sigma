@@ -387,9 +387,9 @@ def _mock_sigma_backend(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"entries": [{"dataModelId": "dm-1", "name": "Revenue Model"}]})
     if "/v2/templates" in p:
         return httpx.Response(200, json={"entries": [{"templateId": "tmpl-1", "name": "KPI Template"}]})
-    if "/v2/members" in p:
+    if "/v2.1/members" in p or "/v2/members" in p:
         return httpx.Response(200, json={"entries": [{"memberId": "m-1", "email": "admin@example.com"}]})
-    if "/v2/teams" in p:
+    if "/v2.1/teams" in p or "/v2/teams" in p:
         return httpx.Response(200, json={"entries": [{"teamId": "t-1", "name": "Data Analytics"}]})
     if "/v2/files" in p:
         return httpx.Response(200, json={"entries": [{"inodeId": "in-1", "name": "Shared Files"}]})
@@ -397,7 +397,7 @@ def _mock_sigma_backend(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"entries": [{"tagId": "tag-1", "name": "Production"}]})
     if "/v2/user-attributes" in p:
         return httpx.Response(200, json={"entries": [{"userAttributeId": "ua-1", "name": "Department"}]})
-    if "/v2/workspaces" in p:
+    if "/v2.1/workspaces" in p or "/v2/workspaces" in p:
         return httpx.Response(200, json={"entries": [{"workspaceId": "ws-1", "name": "Finance"}]})
     if "/v2/accountTypes" in p:
         return httpx.Response(200, json={"entries": [{"accountTypeId": "act-1", "name": "Creator"}]})

@@ -744,7 +744,7 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
 
     DESTRUCTIVE: requires both dry_run=False AND confirm=True to execute.
     Default behavior (dry_run=True) reports matches without making changes.
-    Uses ?includeInactive=true to avoid re-deactivating already-inactive members.
+    Uses GET /v2.1/members?includeInactive=true to avoid re-deactivating already-inactive members.
 
     Safety:
       - Always listed in the full profile, but refused at call time unless
@@ -775,7 +775,7 @@ async def sigma_bulk_deactivate_members(name_pattern: str, dry_run: bool = True,
 
     c = await get_client()
     # Get all members including inactive to avoid double-deactivation
-    all_members = await c.auto_paginate("/v2/members", {"includeInactive": "true"})
+    all_members = await c.auto_paginate("/v2.1/members", {"includeInactive": "true"})
 
     # Match pattern against "firstName lastName"
     regex_error: str | None = None
@@ -1087,6 +1087,7 @@ VALID_ORG_SETTINGS = frozenset(
         "licenseUpgradeRequests",
         "publicEmbeds",
         "sampleConnections",
+        "smtp",
         "timezone",
     }
 )
@@ -1116,7 +1117,8 @@ async def sigma_get_org_setting(setting_name: str) -> str:
     """Get organization setting value.
 
     setting_name: One of aiChatHistory, auditLogging, bulkCopy, comments, csvUpload,
-                  emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone.
+                  emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, smtp, timezone.
+    Reading smtp requires Manage email branding.
     """
     if not setting_name or not setting_name.strip():
         _invalid_request("setting_name is required")
@@ -1139,8 +1141,9 @@ async def sigma_update_org_setting(setting_name: str, setting_value: dict[str, A
 
     Mutating operation. Requires confirm=True.
     setting_name: One of aiChatHistory, auditLogging, bulkCopy, comments, csvUpload,
-                  emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, timezone.
+                  emailBranding, licenseUpgradeRequests, publicEmbeds, sampleConnections, smtp, timezone.
     setting_value: Dict containing setting fields to update.
+    Updating smtp requires Manage email branding. The smtp password is masked in the result.
     """
     if not confirm:
         return _confirm_required("Updating the organization setting")
@@ -1151,7 +1154,12 @@ async def sigma_update_org_setting(setting_name: str, setting_value: dict[str, A
             f"Invalid setting_name '{setting_name}'. Must be one of: {', '.join(sorted(VALID_ORG_SETTINGS))}"
         )
     c = await get_client()
-    result = await c.update_org_setting(setting_name, setting_value)
+    if setting_name == "smtp":
+        result = await _call_masking_secrets(
+            c.update_org_setting(setting_name, setting_value), frozenset({"password"}), setting_value
+        )
+    else:
+        result = await c.update_org_setting(setting_name, setting_value)
     return json.dumps(result, indent=2)
 
 
@@ -1794,3 +1802,631 @@ async def sigma_revoke_member_tokens(member_id: str, confirm: bool = False) -> s
 
 
 revoke_member_tokens = sigma_revoke_member_tokens
+
+
+def _paged(data: Any) -> str:
+    return json.dumps(data, indent=2)
+
+
+@admin_server.tool(name="list_client_credentials", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_client_credentials(page_token: str | None = None, page_size: int | None = None) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. List API client credentials.
+
+    Distinct from the API-connector credentials at /v2/api-credentials. Follows nextPageToken.
+    page_token resumes from a nextPageToken; page_size is the page size.
+    """
+    return _paged(await (await get_client()).list_client_credentials(page_token, page_size))
+
+
+list_client_credentials = sigma_list_client_credentials
+
+
+@admin_server.tool(name="create_client_credential", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_client_credential(body: dict[str, Any], confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Create an API client credential.
+
+    body requires ownerId and name, and may set description and scopes. The clientSecret is shown
+    once and must be stored immediately. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Creating the API client credential")
+    _require_body_fields(body, "ownerId", "name")
+    return _paged(await (await get_client()).create_client_credential(body))
+
+
+create_client_credential = sigma_create_client_credential
+
+
+@admin_server.tool(name="delete_client_credential", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_client_credential(client_id: str, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Delete an API client credential.
+
+    Requires confirm=True. Distinct from deleting an API-connector credential.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(client_id=client_id)
+    code = await (await get_client()).delete_client_credential(client_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_client_credential = sigma_delete_client_credential
+
+
+@admin_server.tool(name="list_json_web_keys", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_json_web_keys(page_token: str | None = None, page_size: int | None = None) -> str:
+    """List JSON Web Keys across the organization. Any user can read. Follows nextPageToken."""
+    return _paged(await (await get_client()).list_json_web_keys(page_token, page_size))
+
+
+list_json_web_keys = sigma_list_json_web_keys
+
+
+@admin_server.tool(name="list_jwk_set_keys", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_jwk_set_keys(jwk_set_id: str) -> str:
+    """List JSON Web Keys in one set. Any user can read."""
+    _require_ids(jwk_set_id=jwk_set_id)
+    return _paged(await (await get_client()).list_jwk_set_keys(jwk_set_id))
+
+
+list_jwk_set_keys = sigma_list_jwk_set_keys
+
+
+@admin_server.tool(name="create_jwk_set", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_jwk_set(body: dict[str, Any] | None = None, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Create a JWK set with an active key.
+
+    body may set validForDays. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Creating the JWK set")
+    return _paged(await (await get_client()).create_jwk_set(body or {}))
+
+
+create_jwk_set = sigma_create_jwk_set
+
+
+@admin_server.tool(name="create_json_web_key", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_json_web_key(jwk_set_id: str, body: dict[str, Any] | None = None, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Create a JSON Web Key in a set.
+
+    body may set validForDays. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Creating the JSON Web Key")
+    _require_ids(jwk_set_id=jwk_set_id)
+    return _paged(await (await get_client()).create_json_web_key(jwk_set_id, body or {}))
+
+
+create_json_web_key = sigma_create_json_web_key
+
+
+@admin_server.tool(name="activate_json_web_key", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_activate_json_web_key(jwk_set_id: str, json_web_key_id: str, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Activate a JSON Web Key.
+
+    Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Activating the JSON Web Key")
+    _require_ids(jwk_set_id=jwk_set_id, json_web_key_id=json_web_key_id)
+    return _paged(await (await get_client()).activate_json_web_key(jwk_set_id, json_web_key_id))
+
+
+activate_json_web_key = sigma_activate_json_web_key
+
+
+@admin_server.tool(name="delete_jwk_set", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_jwk_set(jwk_set_id: str, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Delete a JWK set. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(jwk_set_id=jwk_set_id)
+    code = await (await get_client()).delete_jwk_set(jwk_set_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_jwk_set = sigma_delete_jwk_set
+
+
+@admin_server.tool(name="delete_json_web_key", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_json_web_key(jwk_set_id: str, json_web_key_id: str, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Delete a JSON Web Key. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(jwk_set_id=jwk_set_id, json_web_key_id=json_web_key_id)
+    code = await (await get_client()).delete_json_web_key(jwk_set_id, json_web_key_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_json_web_key = sigma_delete_json_web_key
+
+
+@admin_server.tool(name="list_saml_service_providers", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_saml_service_providers(page_token: str | None = None, page_size: int | None = None) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    List SAML service providers. Follows nextPageToken.
+    """
+    return _paged(await (await get_client()).list_saml_service_providers(page_token, page_size))
+
+
+list_saml_service_providers = sigma_list_saml_service_providers
+
+
+@admin_server.tool(name="list_saml_certificates", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_saml_certificates(
+    saml_service_provider_id: str, page_token: str | None = None, page_size: int | None = None
+) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    List certificates for a SAML service provider. Follows nextPageToken.
+    """
+    _require_ids(saml_service_provider_id=saml_service_provider_id)
+    return _paged(await (await get_client()).list_saml_certificates(saml_service_provider_id, page_token, page_size))
+
+
+list_saml_certificates = sigma_list_saml_certificates
+
+
+@admin_server.tool(name="get_saml_certificate", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_saml_certificate(saml_service_provider_id: str, certificate_id: str) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Get one SAML service provider certificate.
+    """
+    _require_ids(saml_service_provider_id=saml_service_provider_id, certificate_id=certificate_id)
+    return _paged(await (await get_client()).get_saml_certificate(saml_service_provider_id, certificate_id))
+
+
+get_saml_certificate = sigma_get_saml_certificate
+
+
+@admin_server.tool(name="create_saml_certificate", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_saml_certificate(
+    saml_service_provider_id: str, body: dict[str, Any], confirm: bool = False
+) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Create a SAML service provider certificate. body requires purpose and validForDays. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Creating the SAML certificate")
+    _require_ids(saml_service_provider_id=saml_service_provider_id)
+    _require_body_fields(body, "purpose", "validForDays")
+    return _paged(await (await get_client()).create_saml_certificate(saml_service_provider_id, body))
+
+
+create_saml_certificate = sigma_create_saml_certificate
+
+
+@admin_server.tool(name="activate_saml_certificate", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_activate_saml_certificate(
+    saml_service_provider_id: str, certificate_id: str, confirm: bool = False
+) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Activate a SAML service provider certificate. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Activating the SAML certificate")
+    _require_ids(saml_service_provider_id=saml_service_provider_id, certificate_id=certificate_id)
+    return _paged(await (await get_client()).activate_saml_certificate(saml_service_provider_id, certificate_id))
+
+
+activate_saml_certificate = sigma_activate_saml_certificate
+
+
+@admin_server.tool(
+    name="deactivate_saml_certificate", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+)
+@sigma_tool
+async def sigma_deactivate_saml_certificate(
+    saml_service_provider_id: str, certificate_id: str, confirm: bool = False
+) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Deactivate a SAML service provider certificate. Deactivating a certificate can lock users out of SSO.
+    Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(saml_service_provider_id=saml_service_provider_id, certificate_id=certificate_id)
+    return _paged(await (await get_client()).deactivate_saml_certificate(saml_service_provider_id, certificate_id))
+
+
+deactivate_saml_certificate = sigma_deactivate_saml_certificate
+
+
+@admin_server.tool(name="delete_saml_certificate", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_saml_certificate(
+    saml_service_provider_id: str, certificate_id: str, confirm: bool = False
+) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Remove a SAML service provider certificate. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(saml_service_provider_id=saml_service_provider_id, certificate_id=certificate_id)
+    code = await (await get_client()).delete_saml_certificate(saml_service_provider_id, certificate_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_saml_certificate = sigma_delete_saml_certificate
+
+
+@admin_server.tool(name="list_plugins", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_plugins(page_token: str | None = None, page_size: int | None = None) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. List plugins. Follows nextPageToken."""
+    return _paged(await (await get_client()).list_plugins(page_token, page_size))
+
+
+list_plugins = sigma_list_plugins
+
+
+@admin_server.tool(name="get_plugin", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_plugin(plugin_id: str) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Get a plugin."""
+    _require_ids(plugin_id=plugin_id)
+    return _paged(await (await get_client()).get_plugin(plugin_id))
+
+
+get_plugin = sigma_get_plugin
+
+
+@admin_server.tool(name="create_plugin", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_plugin(body: dict[str, Any]) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Requires Admin or Manage plugins.
+
+    Create a plugin. body requires name, and may set description, devUrl and url.
+    """
+    _require_body_fields(body, "name")
+    return _paged(await (await get_client()).create_plugin(body))
+
+
+create_plugin = sigma_create_plugin
+
+
+@admin_server.tool(name="update_plugin", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_plugin(plugin_id: str, body: dict[str, Any]) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Requires Admin or Manage plugins.
+
+    Update a plugin. body may set name, description and devUrl.
+    """
+    _require_ids(plugin_id=plugin_id)
+    return _paged(await (await get_client()).update_plugin(plugin_id, body))
+
+
+update_plugin = sigma_update_plugin
+
+
+@admin_server.tool(name="delete_plugin", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_plugin(plugin_id: str, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Requires Admin or Manage plugins.
+
+    Delete a plugin. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(plugin_id=plugin_id)
+    code = await (await get_client()).delete_plugin(plugin_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_plugin = sigma_delete_plugin
+
+
+@admin_server.tool(name="reset_org_smtp", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_reset_org_smtp(confirm: bool = False) -> str:
+    """Resets the SMTP settings to Sigma defaults, including senderName, replyToAddress and globalBccAddresses.
+
+    Requires Manage email branding. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    code = await (await get_client()).reset_org_smtp()
+    return json.dumps({"status": "reset", "statusCode": code})
+
+
+reset_org_smtp = sigma_reset_org_smtp
+
+
+@admin_server.tool(name="list_export_email_templates", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_export_email_templates(page: str | None = None, limit: int | None = None) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. List export email templates.
+
+    Follows nextPage. page resumes from a nextPage; limit is the page size.
+    """
+    return _paged(await (await get_client()).list_export_email_templates(page, limit))
+
+
+list_export_email_templates = sigma_list_export_email_templates
+
+
+@admin_server.tool(name="list_storage_integrations", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_storage_integrations() -> str:
+    """Admin: needs API credentials owned by an Admin account type user. List storage integrations."""
+    return _paged(await (await get_client()).list_storage_integrations())
+
+
+list_storage_integrations = sigma_list_storage_integrations
+
+
+@admin_server.tool(name="create_storage_integration", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_storage_integration(body: dict[str, Any], confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Create a storage integration.
+
+    body is one of the s3, gcs or azure shapes. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Creating the storage integration")
+    return _paged(await (await get_client()).create_storage_integration(body))
+
+
+create_storage_integration = sigma_create_storage_integration
+
+
+@admin_server.tool(name="update_storage_integration", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_storage_integration(
+    storage_integration_id: str, body: dict[str, Any], confirm: bool = False
+) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Update a storage integration.
+
+    body is one of the s3, gcs or azure shapes. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Updating the storage integration")
+    _require_ids(storage_integration_id=storage_integration_id)
+    return _paged(await (await get_client()).update_storage_integration(storage_integration_id, body))
+
+
+update_storage_integration = sigma_update_storage_integration
+
+
+@admin_server.tool(name="delete_storage_integration", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_storage_integration(storage_integration_id: str, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Delete a storage integration.
+
+    Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(storage_integration_id=storage_integration_id)
+    code = await (await get_client()).delete_storage_integration(storage_integration_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_storage_integration = sigma_delete_storage_integration
+
+
+@admin_server.tool(name="get_audit_log_storage", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_audit_log_storage() -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Get the audit logging storage integration."""
+    return _paged(await (await get_client()).get_audit_log_storage())
+
+
+get_audit_log_storage = sigma_get_audit_log_storage
+
+
+@admin_server.tool(name="create_audit_log_storage", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_create_audit_log_storage(body: dict[str, Any], confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Create the audit logging storage integration.
+
+    body is one of the s3, azure or gcs shapes. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Creating the audit logging storage integration")
+    return _paged(await (await get_client()).create_audit_log_storage(body))
+
+
+create_audit_log_storage = sigma_create_audit_log_storage
+
+
+@admin_server.tool(name="update_audit_log_storage", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_update_audit_log_storage(body: dict[str, Any], confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Update the audit logging storage integration.
+
+    body requires allowedLocation and updateScheduledExports. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Updating the audit logging storage integration")
+    _require_body_fields(body, "allowedLocation", "updateScheduledExports")
+    return _paged(await (await get_client()).update_audit_log_storage(body))
+
+
+update_audit_log_storage = sigma_update_audit_log_storage
+
+
+@admin_server.tool(name="delete_audit_log_storage", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"})
+@sigma_tool
+async def sigma_delete_audit_log_storage(delete_scheduled_exports: bool | None = None, confirm: bool = False) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Delete the audit logging storage integration.
+
+    Sigma answers 202. delete_scheduled_exports is the deleteScheduledExports query flag. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    code = await (await get_client()).delete_audit_log_storage(delete_scheduled_exports)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_audit_log_storage = sigma_delete_audit_log_storage
+
+
+@admin_server.tool(name="list_ai_budget_assignments", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_ai_budget_assignments(
+    page_token: str | None = None,
+    page_size: int | None = None,
+    assignment_type: str | None = None,
+    member_id: str | None = None,
+    team_id: str | None = None,
+    account_type_id: str | None = None,
+) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    List AI budget assignments. assignment_type is the type query parameter. Follows nextPageToken.
+    """
+    result = await (await get_client()).list_ai_budget_assignments(
+        page_token, page_size, assignment_type, member_id, team_id, account_type_id
+    )
+    return _paged(result)
+
+
+list_ai_budget_assignments = sigma_list_ai_budget_assignments
+
+
+@admin_server.tool(name="assign_ai_budget", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_assign_ai_budget(body: dict[str, Any], confirm: bool = False) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Assign an AI budget. body requires assignee and monthlyBudgetCents. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Assigning the AI budget")
+    _require_body_fields(body, "assignee", "monthlyBudgetCents")
+    return _paged(await (await get_client()).assign_ai_budget(body))
+
+
+assign_ai_budget = sigma_assign_ai_budget
+
+
+@admin_server.tool(
+    name="delete_ai_budget_assignment", annotations=ANNOTATION_DESTRUCTIVE, tags={"admin", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_ai_budget_assignment(assignment_id: str, confirm: bool = False) -> str:
+    """Beta: Sigma marks this a beta feature. Admin: needs API credentials owned by an Admin account type user.
+
+    Delete an AI budget assignment. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(assignment_id=assignment_id)
+    code = await (await get_client()).delete_ai_budget_assignment(assignment_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_ai_budget_assignment = sigma_delete_ai_budget_assignment
+
+
+@admin_server.tool(name="list_account_type_permissions", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_account_type_permissions(account_type_id: str) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. List permissions on an account type."""
+    _require_ids(account_type_id=account_type_id)
+    return _paged(await (await get_client()).list_account_type_permissions(account_type_id))
+
+
+list_account_type_permissions = sigma_list_account_type_permissions
+
+
+@admin_server.tool(
+    name="update_account_type_permissions", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"}
+)
+@sigma_tool
+async def sigma_update_account_type_permissions(
+    account_type_id: str, body: dict[str, Any], confirm: bool = False
+) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Update permissions on an account type.
+
+    body may set add and remove. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Updating the account type permissions")
+    _require_ids(account_type_id=account_type_id)
+    return _paged(await (await get_client()).update_account_type_permissions(account_type_id, body))
+
+
+update_account_type_permissions = sigma_update_account_type_permissions
+
+
+@admin_server.tool(name="list_team_user_attributes", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_team_user_attributes(team_id: str, page: str | None = None, limit: int | None = None) -> str:
+    """List user attributes assigned to a team. Follows nextPage."""
+    _require_ids(team_id=team_id)
+    return _paged(await (await get_client()).list_team_user_attributes(team_id, page, limit))
+
+
+list_team_user_attributes = sigma_list_team_user_attributes
+
+
+@admin_server.tool(name="list_tenant_workbooks", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_list_tenant_workbooks(
+    tenant_organization_id: str,
+    parent_workbook_id: str | None = None,
+    deployment_policy_id: str | None = None,
+) -> str:
+    """Admin: needs API credentials owned by an Admin account type user. Get a workbook deployed in a tenant.
+
+    Filters: parent_workbook_id (parentWorkbookId) and deployment_policy_id (deploymentPolicyId).
+    """
+    _require_ids(tenant_organization_id=tenant_organization_id)
+    result = await (await get_client()).list_tenant_workbooks(
+        tenant_organization_id, parent_workbook_id, deployment_policy_id
+    )
+    return _paged(result)
+
+
+list_tenant_workbooks = sigma_list_tenant_workbooks
+
+
+@admin_server.tool(name="get_webhook_schema", annotations=ANNOTATION_READ_ONLY, tags={"admin", "read_only"})
+@sigma_tool
+async def sigma_get_webhook_schema(workbook_id: str, sequence_id: str) -> str:
+    """Beta: Sigma marks this a beta feature. Retrieve the message schema for a webhook."""
+    _require_ids(workbook_id=workbook_id, sequence_id=sequence_id)
+    return _paged(await (await get_client()).get_webhook_schema(workbook_id, sequence_id))
+
+
+get_webhook_schema = sigma_get_webhook_schema
+
+
+@admin_server.tool(name="send_webhook", annotations=ANNOTATION_WRITE_SAFE, tags={"admin", "mutation"})
+@sigma_tool
+async def sigma_send_webhook(workbook_id: str, sequence_id: str, body: dict[str, Any], confirm: bool = False) -> str:
+    """Beta: Sigma marks this a beta feature. Post data to a webhook endpoint.
+
+    body is a JSON object matching the webhook specification configured in Sigma. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("Sending the webhook")
+    _require_ids(workbook_id=workbook_id, sequence_id=sequence_id)
+    return _paged(await (await get_client()).send_webhook(workbook_id, sequence_id, body))
+
+
+send_webhook = sigma_send_webhook

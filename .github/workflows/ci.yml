@@ -347,7 +347,7 @@ jobs:
           # Capture the exit code explicitly: under the default `bash -e` a failing
           # command would end the step before DRIFT_STATUS is written.
           set +e
-          uv run python scripts/check_openapi_drift.py > drift_results.txt 2>&1
+          uv run python scripts/check_openapi_drift.py --fail-on-new-uncovered > drift_results.txt 2>&1
           status=$?
           set -e
           echo "DRIFT_STATUS=${status}" >> "$GITHUB_ENV"
@@ -367,13 +367,35 @@ jobs:
 
             const status = process.env.DRIFT_STATUS;
             // Exit 1 is also an uncaught Python exception, so drift needs the script's own summary line.
-            const drift = status === '1' && driftOutput.includes('❌ Drift detected');
-            const issueTitle = drift
-              ? "Sigma API drift: client calls endpoints missing from the spec"
-              : `Sigma API drift monitor failed (exit ${status})`;
-            const summary = drift
-              ? "The OpenAPI drift scan found client endpoints that are not in the Sigma Computing REST specification (possibly wrong or removed paths)."
-              : "The OpenAPI drift scan could not finish (spec fetch failure, or an error in the script or its environment), so there is no drift result.";
+            const wrongPath = status === '1' && driftOutput.includes('❌ Drift detected');
+            const newUncovered = driftOutput.includes('❌ New uncovered endpoints');
+            const wrongPathSummary = "The OpenAPI drift scan found client endpoints that are not in the Sigma Computing REST specification (possibly wrong or removed paths).";
+            const newUncoveredSummary = "The OpenAPI drift scan found new spec endpoints without a tool.";
+            const wrongPathFix = "Please inspect the output, then fix the `src/sigma_mcp/client.py` methods or add the endpoint to `scripts/drift_allowlist.txt`.";
+            const newUncoveredFix = "new spec endpoints without a tool; add a tool or a tagged baseline line";
+            let issueTitle;
+            let summary;
+            let remediation;
+            if (wrongPath && newUncovered) {
+              issueTitle = "Sigma API drift: wrong client paths and new uncovered endpoints";
+              summary = `${wrongPathSummary} ${newUncoveredSummary}`;
+              remediation = `${wrongPathFix} ${newUncoveredFix}`;
+            } else if (wrongPath) {
+              issueTitle = "Sigma API drift: client calls endpoints missing from the spec";
+              summary = wrongPathSummary;
+              remediation = wrongPathFix;
+            } else if (newUncovered) {
+              issueTitle = "Sigma API drift: new uncovered endpoints";
+              summary = newUncoveredSummary;
+              remediation = newUncoveredFix;
+            } else {
+              issueTitle = `Sigma API drift monitor failed (exit ${status})`;
+              summary = "The OpenAPI drift scan could not finish (spec fetch failure, or an error in the script or its environment), so there is no drift result.";
+              if (status === '2') {
+                summary += " Monitor failed (exit 2): spec unreachable or invalid baseline.";
+              }
+              remediation = "Fix the failing step shown in the output, then re-run the workflow.";
+            }
             const issueBody = [
               "### Sigma API Drift Monitor",
               "",
@@ -384,9 +406,7 @@ jobs:
               driftOutput,
               "```",
               "",
-              drift
-                ? "Please inspect the output, then fix the `src/sigma_mcp/client.py` methods or add the endpoint to `scripts/drift_allowlist.txt`."
-                : "Fix the failing step shown in the output, then re-run the workflow.",
+              remediation,
             ].join("\n");
 
             await github.rest.issues.create({

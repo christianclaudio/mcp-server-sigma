@@ -26,7 +26,8 @@ def _offline() -> Iterator[FakeNetwork]:
 
 def test_fetch_spec_rejects_loopback_without_request() -> None:
     with patch("sigma_mcp.client.SSRFSafeAsyncTransport.handle_async_request") as mock_handle:
-        spec = fetch_spec(["http://127.0.0.1/openapi.json"])
+        spec, used_fallback = fetch_spec(["http://127.0.0.1/openapi.json"])
+    assert used_fallback is True
     assert spec == {"paths": {}}
     mock_handle.assert_not_called()
 
@@ -63,7 +64,8 @@ def test_fetch_spec_falls_back_after_redirect() -> None:
         with patch.object(
             httpx.AsyncHTTPTransport, "handle_async_request", new_callable=AsyncMock, side_effect=[redirected, ok]
         ) as mock_handle:
-            spec = fetch_spec(urls)
+            spec, used_fallback = fetch_spec(urls)
+    assert used_fallback is True
     assert "/v2/workbooks" in spec["paths"]
     assert mock_handle.call_count == 2
     assert [c.args[0] for c in dns.call_args_list] == ["assets.sigmacomputing.com", "help.sigmacomputing.com"]
@@ -75,6 +77,7 @@ def test_fetch_spec_falls_back_after_redirect() -> None:
 
 def test_fetch_spec_metadata_literal_is_rejected() -> None:
     with patch("sigma_mcp.client.SSRFSafeAsyncTransport.handle_async_request") as mock_handle:
-        spec = fetch_spec(["https://169.254.169.254/latest/meta-data"])
+        spec, used_fallback = fetch_spec(["https://169.254.169.254/latest/meta-data"])
+    assert used_fallback is True
     assert spec == {"paths": {}}
     mock_handle.assert_not_called()

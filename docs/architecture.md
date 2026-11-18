@@ -118,13 +118,13 @@ domain sub-servers. Build order:
 
 | Profile | Job | Tools | Read-only |
 |---------|-----|------:|----------:|
-| `full` (default) | Every tool, including the 22 in `FULL_ONLY_TOOLS` | 263 | 120 |
-| `readonly` | Every `readOnlyHint=True` tool | 120 | 120 |
-| `analyst` | Consume workbooks and reports | 50 | 33 |
-| `author` | Build workbooks and reports | 55 | 37 |
-| `modeler` | Build data models and manage connections | 44 | 30 |
-| `embed` | Embedded analytics and multi-tenant | 76 | 31 |
-| `access_admin` | Users, teams, grants, and access | 72 | 26 |
+| `full` (default) | Every tool, including the 32 in `FULL_ONLY_TOOLS` | 334 | 146 |
+| `readonly` | Every `readOnlyHint=True` tool | 146 | 146 |
+| `analyst` | Consume workbooks and reports | 59 | 38 |
+| `author` | Build workbooks and reports | 57 | 39 |
+| `modeler` | Build data models and manage connections | 64 | 34 |
+| `embed` | Embedded analytics and multi-tenant | 80 | 33 |
+| `access_admin` | Users, teams, grants, and access | 102 | 37 |
 
 The authoritative lists live in `src/sigma_mcp/profiles.py`; the expected counts live
 in `scripts/check_tool_contract.py`.

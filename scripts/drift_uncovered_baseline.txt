@@ -1,0 +1,24 @@
+DELETE /v2/datasets/{}/grants/{}  # deprecated: summary marks the datasets API deprecated
+GET /v2/datasets  # deprecated: summary marks the datasets API deprecated
+GET /v2/datasets/{}  # deprecated: summary marks the datasets API deprecated
+GET /v2/datasets/{}/grants  # deprecated: summary marks the datasets API deprecated
+GET /v2/datasets/{}/materialization  # deprecated: summary marks the datasets API deprecated
+GET /v2/datasets/{}/sources  # deprecated: summary marks the datasets API deprecated
+GET /v2/members  # excluded: superseded by the v2.1 list
+GET /v2/reports/{}/spec  # deprecated: deprecated in the Sigma spec
+GET /v2/teams  # excluded: superseded by the v2.1 list
+GET /v2/workbooks/{}/materialization-schedules  # excluded: superseded by the v2.1 list
+GET /v2/workbooks/{}/schedules  # excluded: superseded by the v2.1 list
+GET /v2/workbooks/{}/schema  # deprecated: deprecated in the Sigma spec
+GET /v2/workbooks/{}/spec  # deprecated: deprecated in the Sigma spec
+GET /v2/workspaces  # excluded: superseded by the v2.1 list
+PATCH /v2/connections/{}  # deprecated: deprecated in the Sigma spec
+POST /v2/auth/token  # excluded: the client uses it for its token, so it is not a tool
+POST /v2/datasets/{}/grants  # deprecated: summary marks the datasets API deprecated
+POST /v2/datasets/{}/materialization  # deprecated: summary marks the datasets API deprecated
+POST /v2/reports/spec  # deprecated: deprecated in the Sigma spec
+POST /v2/reports/spec/verify  # deprecated: deprecated in the Sigma spec
+POST /v2/workbooks/spec  # deprecated: deprecated in the Sigma spec
+POST /v2/workbooks/spec/verify  # deprecated: deprecated in the Sigma spec
+PUT /v2/reports/{}/spec  # deprecated: deprecated in the Sigma spec
+PUT /v2/workbooks/{}/spec  # deprecated: deprecated in the Sigma spec

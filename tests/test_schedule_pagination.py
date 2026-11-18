@@ -37,8 +37,8 @@ def _pages(*pages: Any) -> tuple[AsyncMock, list[tuple[str, dict[str, Any]]]]:
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("list_workbook_schedules", "/v2/workbooks/wb-1/schedules"),
-        ("list_materialization_schedules", "/v2/workbooks/wb-1/materialization-schedules"),
+        ("list_workbook_schedules", "/v2.1/workbooks/wb-1/schedules"),
+        ("list_materialization_schedules", "/v2.1/workbooks/wb-1/materialization-schedules"),
     ],
 )
 async def test_follows_next_page_and_sends_limit(method: str, path: str) -> None:
