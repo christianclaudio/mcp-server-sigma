@@ -124,6 +124,10 @@ GET /v2/workbooks?limit=200
 GET /v2/workbooks?limit=200&page=<nextPage>
 ```
 
+Members, teams, workspaces, workbook schedules and workbook materialization schedules are read
+from `/v2.1` with the same query parameters. Those pages also carry `total` and `hasMore`, which
+the client passes through (`total` as Sigma sent it, `hasMore` false once every page is read).
+
 The response carries `entries` and `nextPage`. Pass `nextPage` back as `page`; the last page
 has no `nextPage`. Paging never depends on a `total` or `hasMore` field.
 `SigmaClient.auto_paginate(path, params, limit=200)` follows it. A tool's `limit` argument,
@@ -143,6 +147,9 @@ Sigma's single response.
 import asyncio
 import os
 from sigma_mcp.client import SigmaClient
+
+# Connection replacement is SigmaClient.replace_connection
+# (PUT /v2/connections/{connectionId}). The client does not fetch workbook schema.
 
 
 async def main():
