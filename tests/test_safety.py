@@ -321,7 +321,7 @@ class TestProfileFiltering:
         return json.loads(out.stdout.strip())
 
     def test_profile_counts(self) -> None:
-        expected = {"analyst": 50, "author": 55, "modeler": 44, "embed": 76, "access_admin": 72}
+        expected = {"analyst": 59, "author": 57, "modeler": 64, "embed": 80, "access_admin": 102}
         for profile, count in expected.items():
             assert self._probe_profile(profile)["count"] == count, profile
 

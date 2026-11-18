@@ -78,7 +78,8 @@ def test_drift_fetch_end_to_end() -> None:
     host = "assets.sigmacomputing.com"
     net = FakeNetwork(body={"paths": {"/v2/workbooks": {"get": {}}}})
     with net.patches(), patch("socket.getaddrinfo", return_value=answer(V4)) as dns:
-        spec = fetch_spec([f"https://{host}/openapi/spec.json"])
+        spec, used_fallback = fetch_spec([f"https://{host}/openapi/spec.json"])
+    assert used_fallback is False
     assert spec == {"paths": {"/v2/workbooks": {"get": {}}}}
     dns.assert_called_once()
     assert dns.call_args.args[0] == host

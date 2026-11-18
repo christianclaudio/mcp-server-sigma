@@ -248,3 +248,31 @@ async def test_a_page_that_is_not_an_object_is_returned_as_sent(first: Any) -> N
     c = _client()
     with patch.object(c, "get", _get(first)):
         assert await c.list_members() == first
+
+
+@pytest.mark.parametrize(
+    ("method", "args", "path", "params"),
+    [
+        ("list_workbook_schedules", ("wb-1",), "/v2.1/workbooks/wb-1/schedules", {"limit": 200}),
+        ("list_materialization_schedules", ("wb-1",), "/v2.1/workbooks/wb-1/materialization-schedules", {"limit": 200}),
+        ("list_members", (), "/v2.1/members", {"limit": 200}),
+        ("list_teams", (), "/v2.1/teams", {"limit": 200}),
+        ("list_workspaces", (), "/v2.1/workspaces", {"limit": 200}),
+        ("search_members", ("ada@example.com",), "/v2.1/members", {"email": "ada@example.com", "limit": 120}),
+    ],
+)
+async def test_v21_lists_keep_total_and_has_more(
+    method: str, args: tuple[Any, ...], path: str, params: dict[str, Any]
+) -> None:
+    """The switched lists call /v2.1 with the same parameters and pass total and hasMore through."""
+    c = _client()
+    calls: list[tuple[str, dict[str, Any]]] = []
+    page = {"entries": [{"id": "a"}], "nextPage": None, "total": 7, "hasMore": False}
+
+    async def fake_get(got_path: str, got_params: dict[str, Any] | None = None) -> dict[str, Any]:
+        calls.append((got_path, dict(got_params or {})))
+        return page
+
+    with patch.object(c, "get", fake_get):
+        assert await getattr(c, method)(*args) == page
+    assert calls == [(path, params)]
