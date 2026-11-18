@@ -1,6 +1,6 @@
 """Sigma Computing REST API client (async).
 
-Covers the full v2 API surface (250 operations). Handles OAuth token lifecycle
+Covers the Sigma REST operations the methods below call. Handles OAuth token lifecycle
 and provides typed methods organized by resource domain.
 
 Gotchas discovered through production use:
@@ -598,6 +598,11 @@ def _all_pages(first: JSONValue, entries: list[dict[str, Any]], cursor_key: str,
     return out
 
 
+def _drop_none(params: dict[str, Any]) -> dict[str, Any]:
+    """Query parameters with ``None`` left out, so an unset filter is not sent."""
+    return {key: value for key, value in params.items() if value is not None}
+
+
 def _format_seconds(seconds: float) -> str:
     """Render a wait in seconds compactly for an error message: ``120``, ``0.5``, ``1e+308``, ``inf``."""
     return f"{seconds:g}"
@@ -1136,8 +1141,16 @@ class SigmaClient:
     async def create_connection(self, body: dict[str, Any]) -> JSONValue:
         return await self.post("/v2/connections", body)
 
-    async def update_connection(self, connection_id: str, body: dict[str, Any]) -> JSONValue:
-        return await self.patch(f"/v2/connections/{connection_id}", body)
+    async def replace_connection(
+        self, connection_id: str, name: str, details: dict[str, Any], **fields: Any
+    ) -> JSONValue:
+        """Replace a connection with ``PUT /v2/connections/{connectionId}``.
+
+        ``name`` and ``details`` are required. Further spec fields (description, poolSizes,
+        timeoutSecs, useFriendlyNames, restore) are forwarded through ``fields``.
+        """
+        body: dict[str, Any] = {"name": name, "details": details, **fields}
+        return await self.put(f"/v2/connections/{connection_id}", body)
 
     async def delete_connection(self, connection_id: str) -> int:
         return await self.delete(f"/v2/connections/{connection_id}")
@@ -1209,9 +1222,6 @@ class SigmaClient:
 
     async def delete_file(self, inode_id: str) -> int:
         return await self.delete(f"/v2/files/{inode_id}")
-
-    async def get_workbook_schema(self, workbook_id: str) -> JSONValue:
-        return await self.get(f"/v2/workbooks/{workbook_id}/schema")
 
     async def list_workbook_pages(self, workbook_id: str) -> JSONValue:
         return await self.paged_list(f"/v2/workbooks/{workbook_id}/pages")
@@ -1285,8 +1295,9 @@ class SigmaClient:
 
         Sigma returns only paginated responses (``limit``/``page``, 50 per page by default)
         since 2026-06-02, so a single GET would silently stop at the first page.
+        The path is ``/v2.1``; the query parameters are the same as ``/v2``.
         """
-        return await self.paged_list(f"/v2/workbooks/{workbook_id}/schedules")
+        return await self.paged_list(f"/v2.1/workbooks/{workbook_id}/schedules")
 
     async def add_workbook_schedule(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/schedules", body)
@@ -1309,8 +1320,9 @@ class SigmaClient:
         """Every materialization schedule for a workbook, following ``nextPage``.
 
         Paginated-only since 2026-06-02 (``limit``/``page``), like ``list_workbook_schedules``.
+        The path is ``/v2.1``; the query parameters are the same as ``/v2``.
         """
-        return await self.paged_list(f"/v2/workbooks/{workbook_id}/materialization-schedules")
+        return await self.paged_list(f"/v2.1/workbooks/{workbook_id}/materialization-schedules")
 
     # ─── Workbook Bookmarks ────────────────────────────────────────────────
     async def list_workbook_bookmarks(self, workbook_id: str) -> JSONValue:
@@ -1420,7 +1432,8 @@ class SigmaClient:
 
     # ─── Members ───────────────────────────────────────────────────────────
     async def list_members(self, limit: int = 200) -> JSONValue:
-        return await self.paged_list("/v2/members", limit=limit)
+        """Every member, from ``GET /v2.1/members`` (same query parameters as ``/v2``)."""
+        return await self.paged_list("/v2.1/members", limit=limit)
 
     async def get_member(self, member_id: str) -> JSONValue:
         return await self.get(f"/v2/members/{member_id}")
@@ -1446,7 +1459,8 @@ class SigmaClient:
 
     # ─── Teams ─────────────────────────────────────────────────────────────
     async def list_teams(self, limit: int = 200) -> JSONValue:
-        return await self.paged_list("/v2/teams", limit=limit)
+        """Every team, from ``GET /v2.1/teams`` (same query parameters as ``/v2``)."""
+        return await self.paged_list("/v2.1/teams", limit=limit)
 
     async def get_team(self, team_id: str) -> JSONValue:
         return await self.get(f"/v2/teams/{team_id}")
@@ -1569,9 +1583,12 @@ class SigmaClient:
 
     # ─── Workspaces ────────────────────────────────────────────────────────
     async def list_workspaces(self, limit: int = 200, page: str | None = None) -> JSONValue:
-        """Every workspace from ``page`` (or the first page) to the last; ``limit`` is the page size."""
+        """Every workspace from ``page`` (or the first page) to the last; ``limit`` is the page size.
+
+        The path is ``GET /v2.1/workspaces``; the query parameters are the same as ``/v2``.
+        """
         params: dict[str, Any] = {"page": page} if page else {}
-        return await self.paged_list("/v2/workspaces", params, limit=limit)
+        return await self.paged_list("/v2.1/workspaces", params, limit=limit)
 
     async def get_workspace(self, workspace_id: str) -> JSONValue:
         return await self.get(f"/v2/workspaces/{workspace_id}")
@@ -1936,10 +1953,10 @@ class SigmaClient:
         return await self.auto_paginate("/v2/workbooks")
 
     async def list_all_members(self) -> list[dict[str, Any]]:
-        return await self.auto_paginate("/v2/members")
+        return await self.auto_paginate("/v2.1/members")
 
     async def list_all_teams(self) -> list[dict[str, Any]]:
-        return await self.auto_paginate("/v2/teams")
+        return await self.auto_paginate("/v2.1/teams")
 
     async def list_all_files(self, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         return await self.auto_paginate("/v2/files", params)
@@ -2052,13 +2069,330 @@ class SigmaClient:
 
     # ─── Member search ────────────────────────────────────────────────────
     async def search_members(self, search: str, limit: int = 120) -> JSONValue:
-        """Members filtered by email address (``GET /v2/members?email=``), every page.
+        """Members filtered by email address (``GET /v2.1/members?email=``), every page.
 
-        Sigma removed the ``search`` (name) filter from ``GET /v2/members`` (release notes of
-        2026-03-20); the spec lists only ``email``. A value without ``@`` is refused before any
-        request. Sigma's filter is not documented as exact, so callers that act on a member
-        compare each result's ``email`` themselves.
+        Sigma removed the ``search`` (name) filter from the members list (release notes of
+        2026-03-20); the spec lists only ``email``. ``/v2.1/members`` takes the same query
+        parameters as ``/v2/members``. A value without ``@`` is refused before any request.
+        Sigma's filter is not documented as exact, so callers that act on a member compare
+        each result's ``email`` themselves.
         """
         if "@" not in search:
             raise ValueError("search_members takes an email address; Sigma's member list filters only by email")
-        return await self.paged_list("/v2/members", {"email": search}, limit=limit)
+        return await self.paged_list("/v2.1/members", {"email": search}, limit=limit)
+
+    # ─── Coverage gaps (credentials, keys, SAML, org config, warehouse, models) ─
+    async def list_client_credentials(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        """Every API client credential (``GET /v2/credentials``), following ``nextPageToken``."""
+        params = _drop_none({"pageToken": page_token})
+        return await self.paged_list_token("/v2/credentials", params, page_size=page_size or 200)
+
+    async def create_client_credential(self, body: dict[str, Any]) -> JSONValue:
+        """Create an API client credential. Sigma returns ``clientSecret`` once."""
+        return await self.post("/v2/credentials", body)
+
+    async def delete_client_credential(self, client_id: str) -> int:
+        return await self.delete(f"/v2/credentials/{client_id}")
+
+    async def list_json_web_keys(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        params = _drop_none({"pageToken": page_token})
+        return await self.paged_list_token("/v2/jsonWebKeys", params, page_size=page_size or 200)
+
+    async def list_jwk_set_keys(self, jwk_set_id: str) -> JSONValue:
+        return await self.get(f"/v2/jwkSets/{jwk_set_id}/jsonWebKeys")
+
+    async def create_jwk_set(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/jwkSets", body)
+
+    async def create_json_web_key(self, jwk_set_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v2/jwkSets/{jwk_set_id}/jsonWebKeys", body)
+
+    async def activate_json_web_key(self, jwk_set_id: str, json_web_key_id: str) -> JSONValue:
+        return await self.post(f"/v2/jwkSets/{jwk_set_id}/jsonWebKeys/{json_web_key_id}:activate", {})
+
+    async def delete_jwk_set(self, jwk_set_id: str) -> int:
+        return await self.delete(f"/v2/jwkSets/{jwk_set_id}")
+
+    async def delete_json_web_key(self, jwk_set_id: str, json_web_key_id: str) -> int:
+        return await self.delete(f"/v2/jwkSets/{jwk_set_id}/jsonWebKeys/{json_web_key_id}")
+
+    async def list_saml_service_providers(
+        self, page_token: str | None = None, page_size: int | None = None
+    ) -> JSONValue:
+        params = _drop_none({"pageToken": page_token})
+        return await self.paged_list_token("/v2/saml/service-providers", params, page_size=page_size or 200)
+
+    async def list_saml_certificates(
+        self, saml_service_provider_id: str, page_token: str | None = None, page_size: int | None = None
+    ) -> JSONValue:
+        params = _drop_none({"pageToken": page_token})
+        return await self.paged_list_token(
+            f"/v2/saml/service-providers/{saml_service_provider_id}/certificates",
+            params,
+            page_size=page_size or 200,
+        )
+
+    async def get_saml_certificate(self, saml_service_provider_id: str, certificate_id: str) -> JSONValue:
+        return await self.get(f"/v2/saml/service-providers/{saml_service_provider_id}/certificates/{certificate_id}")
+
+    async def create_saml_certificate(self, saml_service_provider_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v2/saml/service-providers/{saml_service_provider_id}/certificates", body)
+
+    async def activate_saml_certificate(self, saml_service_provider_id: str, certificate_id: str) -> JSONValue:
+        return await self.post(
+            f"/v2/saml/service-providers/{saml_service_provider_id}/certificates/{certificate_id}/activate",
+            {},
+        )
+
+    async def deactivate_saml_certificate(self, saml_service_provider_id: str, certificate_id: str) -> JSONValue:
+        return await self.post(
+            f"/v2/saml/service-providers/{saml_service_provider_id}/certificates/{certificate_id}/deactivate",
+            {},
+        )
+
+    async def delete_saml_certificate(self, saml_service_provider_id: str, certificate_id: str) -> int:
+        return await self.delete(f"/v2/saml/service-providers/{saml_service_provider_id}/certificates/{certificate_id}")
+
+    async def list_plugins(self, page_token: str | None = None, page_size: int | None = None) -> JSONValue:
+        params = _drop_none({"pageToken": page_token})
+        return await self.paged_list_token("/v2/plugins", params, page_size=page_size or 200)
+
+    async def get_plugin(self, plugin_id: str) -> JSONValue:
+        return await self.get(f"/v2/plugins/{plugin_id}")
+
+    async def create_plugin(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/plugins", body)
+
+    async def update_plugin(self, plugin_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.patch(f"/v2/plugins/{plugin_id}", body)
+
+    async def delete_plugin(self, plugin_id: str) -> int:
+        return await self.delete(f"/v2/plugins/{plugin_id}")
+
+    async def reset_org_smtp(self) -> int:
+        return await self.delete("/v2/organizations/settings/smtp")
+
+    async def list_export_email_templates(self, page: str | None = None, limit: int | None = None) -> JSONValue:
+        params = _drop_none({"page": page})
+        return await self.paged_list("/v2/organizations/settings/exportEmailTemplates", params, limit=limit or 200)
+
+    async def list_storage_integrations(self) -> JSONValue:
+        return await self.get("/v2/organizations/settings/storageIntegrations")
+
+    async def create_storage_integration(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/organizations/settings/storageIntegrations", body)
+
+    async def update_storage_integration(self, storage_integration_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.patch(f"/v2/organizations/settings/storageIntegrations/{storage_integration_id}", body)
+
+    async def delete_storage_integration(self, storage_integration_id: str) -> int:
+        return await self.delete(f"/v2/organizations/settings/storageIntegrations/{storage_integration_id}")
+
+    async def get_audit_log_storage(self) -> JSONValue:
+        return await self.get("/v2/organizations/settings/storageIntegration/auditLogging")
+
+    async def create_audit_log_storage(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/organizations/settings/storageIntegration/auditLogging", body)
+
+    async def update_audit_log_storage(self, body: dict[str, Any]) -> JSONValue:
+        return await self.patch("/v2/organizations/settings/storageIntegration/auditLogging", body)
+
+    async def delete_audit_log_storage(self, delete_scheduled_exports: bool | None = None) -> int:
+        """Delete audit-log storage. Sigma answers 202. ``deleteScheduledExports`` is a query flag."""
+        params = _drop_none({"deleteScheduledExports": delete_scheduled_exports})
+        r = await self._request(
+            "DELETE",
+            "/v2/organizations/settings/storageIntegration/auditLogging",
+            params=params or None,
+        )
+        return r.status_code
+
+    async def list_ai_budget_assignments(
+        self,
+        page_token: str | None = None,
+        page_size: int | None = None,
+        assignment_type: str | None = None,
+        member_id: str | None = None,
+        team_id: str | None = None,
+        account_type_id: str | None = None,
+    ) -> JSONValue:
+        params = _drop_none(
+            {
+                "pageToken": page_token,
+                "type": assignment_type,
+                "memberId": member_id,
+                "teamId": team_id,
+                "accountTypeId": account_type_id,
+            }
+        )
+        return await self.paged_list_token(
+            "/v2/organizations/settings/aiBudgets/assignments", params, page_size=page_size or 200
+        )
+
+    async def assign_ai_budget(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/organizations/settings/aiBudgets/assignments", body)
+
+    async def delete_ai_budget_assignment(self, assignment_id: str) -> int:
+        return await self.delete(f"/v2/organizations/settings/aiBudgets/assignments/{assignment_id}")
+
+    async def list_account_type_permissions(self, account_type_id: str) -> JSONValue:
+        return await self.get(f"/v2/accountTypes/{account_type_id}/permissions")
+
+    async def update_account_type_permissions(self, account_type_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.patch(f"/v2/accountTypes/{account_type_id}/permissions", body)
+
+    async def list_team_user_attributes(
+        self, team_id: str, page: str | None = None, limit: int | None = None
+    ) -> JSONValue:
+        params = _drop_none({"page": page})
+        return await self.paged_list(f"/v2/teams/{team_id}/user-attributes", params, limit=limit or 200)
+
+    async def list_tenant_workbooks(
+        self,
+        tenant_organization_id: str,
+        parent_workbook_id: str | None = None,
+        deployment_policy_id: str | None = None,
+    ) -> JSONValue:
+        params = _drop_none({"parentWorkbookId": parent_workbook_id, "deploymentPolicyId": deployment_policy_id})
+        return await self.get(f"/v2/tenants/{tenant_organization_id}/workbooks", params or None)
+
+    async def get_webhook_schema(self, workbook_id: str, sequence_id: str) -> JSONValue:
+        return await self.get(f"/v2/webhooks/{workbook_id}/{sequence_id}/schema")
+
+    async def send_webhook(self, workbook_id: str, sequence_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v2/webhooks/{workbook_id}/{sequence_id}", body)
+
+    async def get_connection_path(self, inode_id: str) -> JSONValue:
+        return await self.get(f"/v2/connections/paths/{inode_id}")
+
+    async def get_warehouse_connection(self, connection_id: str) -> JSONValue:
+        """``GET /v3alpha/connections/{connectionId}`` (connection to a cloud data warehouse)."""
+        return await self.get(f"/v3alpha/connections/{connection_id}")
+
+    async def create_warehouse_connection(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v3alpha/connections", body)
+
+    async def update_warehouse_connection(self, connection_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.patch(f"/v3alpha/connections/{connection_id}", body)
+
+    async def swap_data_model_source_mapping(self, data_model_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v3alpha/dataModels/{data_model_id}:swapSources", body)
+
+    async def list_column_security_rules(
+        self, data_model_id: str, element_id: str, page: str | None = None, limit: int | None = None
+    ) -> JSONValue:
+        params = _drop_none({"page": page})
+        return await self.paged_list(
+            f"/v2/dataModels/{data_model_id}/elements/{element_id}/columnSecurityRules",
+            params,
+            limit=limit or 200,
+        )
+
+    async def create_column_security_rules(
+        self, data_model_id: str, element_id: str, rules: list[dict[str, Any]]
+    ) -> JSONValue:
+        return await self.post(f"/v2/dataModels/{data_model_id}/elements/{element_id}/columnSecurityRules", rules)
+
+    async def update_column_security_rule(
+        self, data_model_id: str, element_id: str, column_security_rule_id: str, body: dict[str, Any]
+    ) -> JSONValue:
+        return await self.put(
+            f"/v2/dataModels/{data_model_id}/elements/{element_id}/columnSecurityRules/{column_security_rule_id}",
+            body,
+        )
+
+    async def delete_column_security_rule(
+        self, data_model_id: str, element_id: str, column_security_rule_id: str
+    ) -> int:
+        return await self.delete(
+            f"/v2/dataModels/{data_model_id}/elements/{element_id}/columnSecurityRules/{column_security_rule_id}"
+        )
+
+    async def create_data_model_materialization_schedule(
+        self, data_model_id: str, element_id: str, body: dict[str, Any]
+    ) -> JSONValue:
+        return await self.post(f"/v2/dataModels/{data_model_id}/elements/{element_id}/materializationSchedules", body)
+
+    async def update_data_model_materialization_schedule(
+        self, data_model_id: str, element_id: str, body: dict[str, Any]
+    ) -> JSONValue:
+        return await self.patch(f"/v2/dataModels/{data_model_id}/elements/{element_id}/materializationSchedules", body)
+
+    async def delete_data_model_materialization_schedule(self, data_model_id: str, element_id: str) -> int:
+        return await self.delete(f"/v2/dataModels/{data_model_id}/elements/{element_id}/materializationSchedules")
+
+    async def get_data_model_element_query(
+        self, data_model_id: str, element_id: str, tag_name: str | None = None
+    ) -> JSONValue:
+        params = _drop_none({"tagName": tag_name})
+        return await self.get(f"/v2/dataModels/{data_model_id}/elements/{element_id}/query", params or None)
+
+    async def migrate_dataset(self, dataset_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v2/datasets/{dataset_id}/migrate", body)
+
+    async def create_materialization_schedule(
+        self, workbook_id: str, element_id: str, body: dict[str, Any]
+    ) -> JSONValue:
+        return await self.post(f"/v2/workbooks/{workbook_id}/elements/{element_id}/materializationSchedules", body)
+
+    async def update_materialization_schedule(
+        self, workbook_id: str, element_id: str, body: dict[str, Any]
+    ) -> JSONValue:
+        return await self.patch(f"/v2/workbooks/{workbook_id}/elements/{element_id}/materializationSchedules", body)
+
+    async def delete_materialization_schedule(self, workbook_id: str, element_id: str) -> int:
+        return await self.delete(f"/v2/workbooks/{workbook_id}/elements/{element_id}/materializationSchedules")
+
+    async def swap_workbook_source_mapping(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
+        return await self.post(f"/v3alpha/workbooks/{workbook_id}:swapSources", body)
+
+    async def get_workbook_bookmark(self, workbook_id: str, bookmark_id: str) -> JSONValue:
+        return await self.get(f"/v2/workbooks/{workbook_id}/bookmarks/{bookmark_id}")
+
+    async def list_tagged_workbook_bookmarks(
+        self, workbook_id: str, tag_name: str, page: str | None = None, limit: int | None = None
+    ) -> JSONValue:
+        params = _drop_none({"page": page})
+        return await self.paged_list(
+            f"/v2/workbooks/{workbook_id}/tags/{tag_name}/bookmarks", params, limit=limit or 200
+        )
+
+    async def get_tagged_workbook_bookmark(self, workbook_id: str, tag_name: str, bookmark_id: str) -> JSONValue:
+        return await self.get(f"/v2/workbooks/{workbook_id}/tags/{tag_name}/bookmarks/{bookmark_id}")
+
+    async def add_tagged_workbook_bookmark(self, workbook_id: str, tag_name: str, body: dict[str, Any]) -> JSONValue:
+        # The spec path keeps the trailing slash.
+        return await self.post(f"/v2/workbooks/{workbook_id}/tags/{tag_name}/bookmarks/", body)
+
+    async def update_tagged_workbook_bookmark(
+        self, workbook_id: str, tag_name: str, bookmark_id: str, body: dict[str, Any]
+    ) -> JSONValue:
+        return await self.patch(f"/v2/workbooks/{workbook_id}/tags/{tag_name}/bookmarks/{bookmark_id}", body)
+
+    async def delete_tagged_workbook_bookmark(self, workbook_id: str, tag_name: str, bookmark_id: str) -> int:
+        return await self.delete(f"/v2/workbooks/{workbook_id}/tags/{tag_name}/bookmarks/{bookmark_id}")
+
+    async def get_report_element_columns(
+        self,
+        report_id: str,
+        element_id: str,
+        page_token: str | None = None,
+        page_size: int | None = None,
+        tag_name: str | None = None,
+    ) -> JSONValue:
+        params = _drop_none({"pageToken": page_token, "tagName": tag_name})
+        return await self.paged_list_token(
+            f"/v2/reports/{report_id}/elements/{element_id}/columns", params, page_size=page_size or 200
+        )
+
+    async def list_report_element_lineage(self, report_id: str, element_id: str) -> JSONValue:
+        return await self.get(f"/v2/reports/{report_id}/lineage/elements/{element_id}")
+
+    async def list_member_favorite_files(
+        self, member_id: str, page: str | None = None, limit: int | None = None
+    ) -> JSONValue:
+        params = _drop_none({"page": page})
+        return await self.paged_list(f"/v2/members/{member_id}/files/favorites", params, limit=limit or 200)
+
+    async def create_shortcut(self, body: dict[str, Any]) -> JSONValue:
+        return await self.post("/v2/shortcuts", body)
