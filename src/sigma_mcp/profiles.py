@@ -30,7 +30,7 @@ ALL_DOMAINS: tuple[str, ...] = ("workbooks", "datasets", "elements", "workspace"
 # guard unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 BULK_DESTRUCTIVE_TOOLS: frozenset[str] = frozenset({"admin_bulk_deactivate_members", "admin_bulk_remove_team_members"})
 
-# Job profile ``analyst`` (50 tools), in catalog order.
+# Job profile ``analyst`` (59 tools), in catalog order.
 ANALYST_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -83,10 +83,19 @@ ANALYST_TOOLS: frozenset[str] = frozenset(
         "workspace_unfavorite_file",
         "workspace_list_favorites_for_member",
         "admin_list_member_schedules",
+        "workbooks_get_workbook_bookmark",
+        "workbooks_list_tagged_workbook_bookmarks",
+        "workbooks_get_tagged_workbook_bookmark",
+        "workbooks_add_tagged_workbook_bookmark",
+        "workbooks_update_tagged_workbook_bookmark",
+        "workbooks_delete_tagged_workbook_bookmark",
+        "workbooks_get_report_element_columns",
+        "workspace_list_member_favorite_files",
+        "workspace_create_shortcut",
     }
 )
 
-# Job profile ``author`` (55 tools), in catalog order.
+# Job profile ``author`` (57 tools), in catalog order.
 AUTHOR_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -144,10 +153,12 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
         "workspace_get_file",
         "elements_swap_workbook_connections",
         "elements_swap_workbook_source_elements",
+        "workbooks_get_report_element_columns",
+        "workbooks_list_report_element_lineage",
     }
 )
 
-# Job profile ``modeler`` (44 tools), in catalog order.
+# Job profile ``modeler`` (64 tools), in catalog order.
 MODELER_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -194,10 +205,30 @@ MODELER_TOOLS: frozenset[str] = frozenset(
         "datasets_list_data_model_tags",
         "datasets_swap_data_model_connections",
         "datasets_swap_data_model_source_elements",
+        "datasets_update_connection",
+        "datasets_get_connection_path",
+        "datasets_get_warehouse_connection",
+        "datasets_create_warehouse_connection",
+        "datasets_update_warehouse_connection",
+        "datasets_swap_data_model_source_mapping",
+        "datasets_list_column_security_rules",
+        "datasets_create_column_security_rules",
+        "datasets_update_column_security_rule",
+        "datasets_delete_column_security_rule",
+        "datasets_create_data_model_materialization_schedule",
+        "datasets_update_data_model_materialization_schedule",
+        "datasets_delete_data_model_materialization_schedule",
+        "datasets_get_data_model_element_query",
+        "datasets_migrate_dataset",
+        "datasets_upload_dbt_artifacts",
+        "elements_create_materialization_schedule",
+        "elements_update_materialization_schedule",
+        "elements_delete_materialization_schedule",
+        "elements_swap_workbook_source_mapping",
     }
 )
 
-# Job profile ``embed`` (76 tools), in catalog order.
+# Job profile ``embed`` (80 tools), in catalog order.
 EMBED_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -276,10 +307,14 @@ EMBED_TOOLS: frozenset[str] = frozenset(
         "elements_swap_workbook_source_elements",
         "datasets_swap_data_model_connections",
         "datasets_swap_data_model_source_elements",
+        "admin_list_tenant_workbooks",
+        "datasets_get_warehouse_connection",
+        "datasets_swap_data_model_source_mapping",
+        "elements_swap_workbook_source_mapping",
     }
 )
 
-# Job profile ``access_admin`` (72 tools), in catalog order.
+# Job profile ``access_admin`` (102 tools), in catalog order.
 ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbook_grants",
@@ -354,6 +389,36 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_revoke_member_tokens",
         "admin_update_team_admins",
         "admin_assign_user_attributes_to_team",
+        "admin_list_json_web_keys",
+        "admin_list_jwk_set_keys",
+        "admin_create_jwk_set",
+        "admin_create_json_web_key",
+        "admin_activate_json_web_key",
+        "admin_delete_jwk_set",
+        "admin_delete_json_web_key",
+        "admin_list_saml_service_providers",
+        "admin_list_saml_certificates",
+        "admin_get_saml_certificate",
+        "admin_create_saml_certificate",
+        "admin_activate_saml_certificate",
+        "admin_deactivate_saml_certificate",
+        "admin_delete_saml_certificate",
+        "admin_reset_org_smtp",
+        "admin_list_export_email_templates",
+        "admin_list_storage_integrations",
+        "admin_create_storage_integration",
+        "admin_update_storage_integration",
+        "admin_delete_storage_integration",
+        "admin_get_audit_log_storage",
+        "admin_create_audit_log_storage",
+        "admin_update_audit_log_storage",
+        "admin_delete_audit_log_storage",
+        "admin_list_ai_budget_assignments",
+        "admin_assign_ai_budget",
+        "admin_delete_ai_budget_assignment",
+        "admin_list_account_type_permissions",
+        "admin_update_account_type_permissions",
+        "admin_list_team_user_attributes",
     }
 )
 
@@ -383,6 +448,16 @@ FULL_ONLY_TOOLS: frozenset[str] = frozenset(
         "admin_update_translation_variant",
         "admin_delete_translation",
         "admin_delete_translation_variant",
+        "admin_list_client_credentials",
+        "admin_create_client_credential",
+        "admin_delete_client_credential",
+        "admin_list_plugins",
+        "admin_get_plugin",
+        "admin_create_plugin",
+        "admin_update_plugin",
+        "admin_delete_plugin",
+        "admin_get_webhook_schema",
+        "admin_send_webhook",
     }
 )
 

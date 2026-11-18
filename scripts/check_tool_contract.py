@@ -24,32 +24,32 @@ REPO = Path(__file__).resolve().parent.parent
 # Expected (total tools, tools annotated readOnlyHint=True) per profile. ``full`` is exhaustive:
 # the two bulk tools are listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
-    "full": (263, 120),
-    "readonly": (120, 120),
+    "full": (334, 146),
+    "readonly": (146, 146),
     # Job (allowlist) profiles
-    "analyst": (50, 33),
-    "author": (55, 37),
-    "modeler": (44, 30),
-    "embed": (76, 31),
-    "access_admin": (72, 26),
+    "analyst": (59, 38),
+    "author": (57, 39),
+    "modeler": (64, 34),
+    "embed": (80, 33),
+    "access_admin": (102, 37),
 }
 JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
 
 # Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
 EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
-    "workbooks": 78,
-    "datasets": 36,
-    "elements": 26,
-    "workspace": 24,
-    "admin": 99,
+    "workbooks": 86,
+    "datasets": 52,
+    "elements": 30,
+    "workspace": 26,
+    "admin": 140,
 }
 
 # Expected annotation split on ``full``.
 EXPECTED_DEFAULT = EXPECTED_PROFILE_COUNTS["full"][0]
 EXPECTED_READONLY = EXPECTED_PROFILE_COUNTS["readonly"][0]
-EXPECTED_READ_ONLY = 120
-EXPECTED_DESTRUCTIVE = 43
-EXPECTED_IDEMPOTENT = 10
+EXPECTED_READ_ONLY = 146
+EXPECTED_DESTRUCTIVE = 57
+EXPECTED_IDEMPOTENT = 12
 
 BULK_TOOLS = ("admin_bulk_deactivate_members", "admin_bulk_remove_team_members")
 EXPECTED_FULL_ONLY = {
@@ -75,6 +75,16 @@ EXPECTED_FULL_ONLY = {
     "admin_update_translation_variant",
     "admin_delete_translation",
     "admin_delete_translation_variant",
+    "admin_list_client_credentials",
+    "admin_create_client_credential",
+    "admin_delete_client_credential",
+    "admin_list_plugins",
+    "admin_get_plugin",
+    "admin_create_plugin",
+    "admin_update_plugin",
+    "admin_delete_plugin",
+    "admin_get_webhook_schema",
+    "admin_send_webhook",
 }
 
 PROBE = """
