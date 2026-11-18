@@ -392,7 +392,7 @@ jobs:
               issueTitle = `Sigma API drift monitor failed (exit ${status})`;
               summary = "The OpenAPI drift scan could not finish (spec fetch failure, or an error in the script or its environment), so there is no drift result.";
               if (status === '2') {
-                summary += " The primary spec was unreachable.";
+                summary += " Monitor failed (exit 2): spec unreachable or invalid baseline.";
               }
               remediation = "Fix the failing step shown in the output, then re-run the workflow.";
             }
