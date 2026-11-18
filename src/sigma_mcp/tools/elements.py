@@ -18,6 +18,7 @@ from sigma_mcp.tools.common import (
     _confirm_required,
     _invalid_request,
     _item_error,
+    _require_body_fields,
     _require_ids,
     _tool_failure,
     sigma_tool,
@@ -643,3 +644,77 @@ async def sigma_delete_source_swap_policy(policy_id: str, confirm: bool = False)
 
 
 delete_source_swap_policy = sigma_delete_source_swap_policy
+
+
+def _paged(data: Any) -> str:
+    return json.dumps(data, indent=2)
+
+
+@elements_server.tool(
+    name="create_materialization_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+)
+@sigma_tool
+async def sigma_create_materialization_schedule(workbook_id: str, element_id: str, body: dict[str, Any]) -> str:
+    """Beta: Sigma marks this a beta feature. Requires Schedule materializations.
+
+    Create a materialization schedule for a workbook element. body requires schedule.
+    """
+    _require_ids(workbook_id=workbook_id, element_id=element_id)
+    _require_body_fields(body, "schedule")
+    return _paged(await (await get_client()).create_materialization_schedule(workbook_id, element_id, body))
+
+
+create_materialization_schedule = sigma_create_materialization_schedule
+
+
+@elements_server.tool(
+    name="update_materialization_schedule", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+)
+@sigma_tool
+async def sigma_update_materialization_schedule(workbook_id: str, element_id: str, body: dict[str, Any]) -> str:
+    """Beta: Sigma marks this a beta feature. Requires Schedule materializations.
+
+    Update a materialization schedule for a workbook element. body requires schedule.
+    """
+    _require_ids(workbook_id=workbook_id, element_id=element_id)
+    _require_body_fields(body, "schedule")
+    return _paged(await (await get_client()).update_materialization_schedule(workbook_id, element_id, body))
+
+
+update_materialization_schedule = sigma_update_materialization_schedule
+
+
+@elements_server.tool(
+    name="delete_materialization_schedule", annotations=ANNOTATION_DESTRUCTIVE, tags={"elements", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_materialization_schedule(workbook_id: str, element_id: str, confirm: bool = False) -> str:
+    """Beta: Sigma marks this a beta feature. Requires Schedule materializations.
+
+    Delete a materialization schedule for a workbook element. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(workbook_id=workbook_id, element_id=element_id)
+    code = await (await get_client()).delete_materialization_schedule(workbook_id, element_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_materialization_schedule = sigma_delete_materialization_schedule
+
+
+@elements_server.tool(
+    name="swap_workbook_source_mapping", annotations=ANNOTATION_WRITE_SAFE, tags={"elements", "mutation"}
+)
+@sigma_tool
+async def sigma_swap_workbook_source_mapping(workbook_id: str, body: dict[str, Any]) -> str:
+    """Beta, v3alpha (private beta; request and response may change). Swap sources on a workbook.
+
+    body requires sourceMapping.
+    """
+    _require_ids(workbook_id=workbook_id)
+    _require_body_fields(body, "sourceMapping")
+    return _paged(await (await get_client()).swap_workbook_source_mapping(workbook_id, body))
+
+
+swap_workbook_source_mapping = sigma_swap_workbook_source_mapping
