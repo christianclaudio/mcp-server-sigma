@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 import pytest
@@ -142,7 +143,7 @@ def test_fallback_skips_both_checks_and_exits_2(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     def fake_fetch(url: str) -> httpx.Response:
-        if "assets.sigmacomputing.com" in url:
+        if urlparse(url).hostname == "assets.sigmacomputing.com":
             raise RuntimeError("primary down")
         return httpx.Response(200, json={"paths": {"/only-in-fallback": {"put": {}}}})
 
