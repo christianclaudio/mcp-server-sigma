@@ -1561,3 +1561,131 @@ async def sigma_delete_shared_template(share_id: str, confirm: bool = False) -> 
 
 
 delete_shared_template = sigma_delete_shared_template
+
+
+def _paged(data: Any) -> str:
+    return json.dumps(data, indent=2)
+
+
+@workbooks_server.tool(name="get_workbook_bookmark", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"})
+@sigma_tool
+async def sigma_get_workbook_bookmark(workbook_id: str, bookmark_id: str) -> str:
+    """Get one saved view (bookmark) in a workbook."""
+    _require_ids(workbook_id=workbook_id, bookmark_id=bookmark_id)
+    return _paged(await (await get_client()).get_workbook_bookmark(workbook_id, bookmark_id))
+
+
+get_workbook_bookmark = sigma_get_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="list_tagged_workbook_bookmarks", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_list_tagged_workbook_bookmarks(
+    workbook_id: str, tag_name: str, page: str | None = None, limit: int | None = None
+) -> str:
+    """List saved views on a tagged workbook. Follows nextPage."""
+    _require_ids(workbook_id=workbook_id, tag_name=tag_name)
+    return _paged(await (await get_client()).list_tagged_workbook_bookmarks(workbook_id, tag_name, page, limit))
+
+
+list_tagged_workbook_bookmarks = sigma_list_tagged_workbook_bookmarks
+
+
+@workbooks_server.tool(
+    name="get_tagged_workbook_bookmark", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_get_tagged_workbook_bookmark(workbook_id: str, tag_name: str, bookmark_id: str) -> str:
+    """Get one saved view on a tagged workbook."""
+    _require_ids(workbook_id=workbook_id, tag_name=tag_name, bookmark_id=bookmark_id)
+    return _paged(await (await get_client()).get_tagged_workbook_bookmark(workbook_id, tag_name, bookmark_id))
+
+
+get_tagged_workbook_bookmark = sigma_get_tagged_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="add_tagged_workbook_bookmark", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_add_tagged_workbook_bookmark(workbook_id: str, tag_name: str, body: dict[str, Any]) -> str:
+    """Add a saved view to a tagged workbook.
+
+    body requires workbookVersion, name, isShared and exploreKey.
+    """
+    _require_ids(workbook_id=workbook_id, tag_name=tag_name)
+    _require_body_fields(body, "workbookVersion", "name", "isShared", "exploreKey")
+    return _paged(await (await get_client()).add_tagged_workbook_bookmark(workbook_id, tag_name, body))
+
+
+add_tagged_workbook_bookmark = sigma_add_tagged_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="update_tagged_workbook_bookmark", annotations=ANNOTATION_WRITE_SAFE, tags={"workbooks", "mutation"}
+)
+@sigma_tool
+async def sigma_update_tagged_workbook_bookmark(
+    workbook_id: str, tag_name: str, bookmark_id: str, body: dict[str, Any]
+) -> str:
+    """Update a saved view on a tagged workbook. body may set exploreKey, isDefault, isShared and name."""
+    _require_ids(workbook_id=workbook_id, tag_name=tag_name, bookmark_id=bookmark_id)
+    return _paged(await (await get_client()).update_tagged_workbook_bookmark(workbook_id, tag_name, bookmark_id, body))
+
+
+update_tagged_workbook_bookmark = sigma_update_tagged_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="delete_tagged_workbook_bookmark", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_tagged_workbook_bookmark(
+    workbook_id: str, tag_name: str, bookmark_id: str, confirm: bool = False
+) -> str:
+    """Delete a saved view from a tagged workbook. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(workbook_id=workbook_id, tag_name=tag_name, bookmark_id=bookmark_id)
+    code = await (await get_client()).delete_tagged_workbook_bookmark(workbook_id, tag_name, bookmark_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_tagged_workbook_bookmark = sigma_delete_tagged_workbook_bookmark
+
+
+@workbooks_server.tool(
+    name="get_report_element_columns", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_get_report_element_columns(
+    report_id: str,
+    element_id: str,
+    page_token: str | None = None,
+    page_size: int | None = None,
+    tag_name: str | None = None,
+) -> str:
+    """List columns for one report element. Follows nextPageToken. tag_name selects a tagged version."""
+    _require_ids(report_id=report_id, element_id=element_id)
+    result = await (await get_client()).get_report_element_columns(
+        report_id, element_id, page_token, page_size, tag_name
+    )
+    return _paged(result)
+
+
+get_report_element_columns = sigma_get_report_element_columns
+
+
+@workbooks_server.tool(
+    name="list_report_element_lineage", annotations=ANNOTATION_READ_ONLY, tags={"workbooks", "read_only"}
+)
+@sigma_tool
+async def sigma_list_report_element_lineage(report_id: str, element_id: str) -> str:
+    """List the lineage of one report element."""
+    _require_ids(report_id=report_id, element_id=element_id)
+    return _paged(await (await get_client()).list_report_element_lineage(report_id, element_id))
+
+
+list_report_element_lineage = sigma_list_report_element_lineage
