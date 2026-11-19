@@ -1,114 +1,68 @@
----
-vcs:
-  system: github
-  remote: https://github.com/christianclaudio/mcp-server-sigma
-  owner: christianclaudio
-  repo: mcp-server-sigma
-  default_branch: main
-  branch_policy: pr_only
-  merge_method: squash
-  delete_branch_on_merge: true
----
-
 # AGENTS.md
 
-Instructions for AI coding agents (Antigravity, Claude Code, Copilot, Cursor, Windsurf) working on this repository or integrating Sigma Computing cloud analytics capabilities.
+Instructions for AI coding agents working on `mcp-server-sigma` or integrating Sigma Computing cloud analytics capabilities.
 
 ---
 
 ## 🎯 Project Overview
 
-This is `mcp-server-sigma` — an enterprise Python Model Context Protocol (MCP) server for **Sigma Computing**, built on its public REST API (v2 and v3alpha); `scripts/check_openapi_drift.py` lists the spec endpoints the client does not cover. Bulk-destructive tools are listed in `full` and refused at call time unless enabled; the expected per-profile tool counts live in `scripts/check_tool_contract.py`.
-
-**Primary Purpose**:
-Expose deep cloud business intelligence, embedded analytics, workbook lineage, SQL data modeling, user/team administration, and tenant token exchange to AI agents with strict enterprise safety gates, offline testing, and multi-tenant token isolation.
+`mcp-server-sigma` is an enterprise Python MCP server for **Sigma Computing**, built on its public REST API (`v2` and `v3alpha`). `scripts/check_openapi_drift.py` tracks uncovered spec endpoints; bulk-destructive tools are listed in `full` and refused at call time unless enabled; expected per-profile counts live in `scripts/check_tool_contract.py`.
 
 ---
 
 ## 🏗️ Key Paths
 
-- `src/sigma_mcp/server.py` — root gateway: `create_server` mounts the domain sub-servers (`workbooks`, `datasets`, `elements`, `workspace`, `admin`) with matching namespaces, then applies the job allowlist, the read-only filter, and (on `full` only) Tool Search or Code Mode; prompts, resources.
-- `src/sigma_mcp/profiles.py` — `PROFILES` (`full`, `readonly`, and the job profiles `analyst`, `author`, `modeler`, `embed`, `access_admin`), their tool allowlists, `FULL_ONLY_TOOLS`, `BULK_DESTRUCTIVE_TOOLS`, and the `readOnlyHint` filter.
-- `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds the `ANNOTATION_*` constants and shared helpers.
-- `src/sigma_mcp/client.py` — async HTTP client (`SigmaClient`, `_encode_segment()`, RFC 8693 token exchange). `SSRFSafeAsyncTransport` resolves each request's host once (the ASCII/IDNA name, off the event loop), checks every address, and connects only to a checked one through a pinned httpcore network backend, trying the next checked address if a connect fails while the request's connect timeout lasts (one deadline shared by all the addresses, not a fresh timeout for each); the URL keeps the hostname for the Host header, TLS SNI, certificate verification and per-hostname connection pooling. A host with no checked address and Unix sockets are refused. The API client, the documentation fetches and `scripts/check_openapi_drift.py` all use it. httpx ignores env proxies whenever a transport is passed (`allow_env_proxies = trust_env and transport is None`), so connections always go direct through the pin; egress-proxy deployments need a proxy-aware transport, which isn't provided; `trust_env=False` on the drift fetch is belt-and-braces. `errors.py` — exceptions and secret redaction. `auth.py` — `SharedTokenVerifier`, the FastMCP `TokenVerifier` that `create_server()` attaches at build whenever `SIGMA_MCP_AUTH_TOKEN` is set (stripped, non-blank), so `main()`, `fastmcp run` and `http_app()` all enforce it (constant-time compare; stdio ignores it); `main()` also attaches it at serve time if the env was set after import, and refuses (exit 2) a tokenless HTTP bind to a host other than `127.0.0.1`, `::1` or `localhost` unless `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1`. `webhooks.py` — HMAC verification. `middleware.py` — read-only gate (`readOnlyHint` only, unwraps the Tool Search `call_tool` proxy) and the admin bulk-destructive gate. `config.py` — settings.
-- `scripts/check_tool_contract.py` — source of truth for expected tool counts and annotations. `README.md` and four test files repeat some of these counts (`SIGNED_OFF` in `tests/test_profiles.py`, the 263 in `tests/test_unit.py`, `tests/test_enterprise_assertion.py` and `tests/test_layered.py`), so change them together; do not add new copies.
-- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create-and-teardown against a Sigma org; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`.
-- `scripts/release_notes.py` — release body from squash commits since the previous `v*` tag. `scripts/check_version.py` — runs after the build and reads the version from the single wheel in `dist/` (the file that ships, as release.yml's tag check does); fails on `0.0.0` (no git metadata) or `0.0.1.devN` (no reachable tag, a shallow checkout).
-- `tests/` — unit tests are offline; live network tests live in `tests/test_live.py` (marked `pytest.mark.live`, deselected by default pytest `addopts` `-m 'not live'`, run with `-m live`). Collection skips every live item unless `SIGMA_LIVE_TESTS=1` and `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_BASE_URL` are non-empty; the skip reason lists missing names and never values. Tool calls use `get_client`, which requires `SIGMA_CLIENT_ID` and `SIGMA_CLIENT_SECRET`. The unmarked `test_dispatch_tool_call_offline` in that file stays in the default suite. `tests/test_integration_live.py` is marked `live` and uses the same gate (the `SIGMA_LIVE_TESTS` opt-in folded in); it reads `SIGMA_BASE_URL`. Security-hardening, webhook, and protocol tests are `tests/test_security_hardening.py`, `tests/test_webhooks.py`, and `tests/test_protocol.py`. Profile, read-only, and composition tests are `tests/test_profiles.py` and `tests/test_layered.py`. Version and release-tooling tests are `tests/test_version.py`, `tests/test_release_notes.py`, and `tests/test_check_version.py`.
-- `.github/workflows/` — `ci.yml`, `release.yml` (on a `v*` tag: build with full history, check the wheel version matches the tag, build the release notes, publish to PyPI, create the GitHub Release from `scripts/release_notes.py`, then push the Docker image only after the publish job succeeds, then stamp the tag version into `server.json` and publish to the MCP Registry in a last `registry` job that needs the Docker job), `dependabot-automerge.yml` (squash auto-merge only for Dependabot PRs whose highest update is minor or patch; major updates wait for a human review).
-- `server.json` (MCP Registry metadata), `Dockerfile`, `pyproject.toml`.
+- `src/sigma_mcp/server.py` — root gateway (`create_server`): mounts domain sub-servers (`workbooks`, `datasets`, `elements`, `workspace`, `admin`) with matching namespaces, then applies job allowlist, read-only filter, and (`full` only) Tool Search or Code Mode; prompts, resources.
+- `src/sigma_mcp/profiles.py` — `PROFILES` (`full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin`), allowlists, `FULL_ONLY_TOOLS`, `BULK_DESTRUCTIVE_TOOLS`, `readOnlyHint` filter.
+- `src/sigma_mcp/tools/<domain>.py` — domain sub-servers (`admin`, `datasets`, `elements`, `workbooks`, `workspace`); `tools/common.py` holds `ANNOTATION_*` constants and shared helpers.
+- `src/sigma_mcp/client.py` — `SigmaClient`, `_encode_segment()`, RFC 8693 token exchange, and `SSRFSafeAsyncTransport` (HTTPS, blocks private/loopback IPs, off-loop DNS, pinned direct connect with no env proxies; `trust_env=False` on drift fetch).
+- `src/sigma_mcp/{auth,errors,webhooks,middleware,config}.py` — `SharedTokenVerifier` for `SIGMA_MCP_AUTH_TOKEN` (enforced across `main()`, `fastmcp run`, `http_app()`; exits 2 on tokenless non-localhost HTTP bind unless `SIGMA_MCP_ALLOW_UNAUTHENTICATED_BIND=1`), redaction/exceptions, HMAC webhooks, read-only & bulk gates, settings.
+- `scripts/check_tool_contract.py` — source of truth for expected counts and annotations. Update together with `README.md` and the 4 test files that repeat counts (`SIGNED_OFF` in `tests/test_profiles.py`, 263 in `tests/test_unit.py`, `tests/test_enterprise_assertion.py`, `tests/test_layered.py`), plus `EXPECTED_FULL_ONLY`.
+- `scripts/check_openapi_drift.py`, `scripts/write_ops_check.py` (live create/teardown; needs `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, `SIGMA_API_BASE_URL`), `scripts/check_conformance.sh` + `conformance-baseline.yml`, `scripts/release_notes.py`, `scripts/check_version.py`.
+- `tests/` — offline suite (`addopts` uses `-m 'not live'`). Live modules (`test_live.py`, `test_integration_live.py`, `-m live`) require `SIGMA_LIVE_TESTS=1` + `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, `SIGMA_BASE_URL` (unmarked `test_dispatch_tool_call_offline` stays in default run). Must keep `tests/test_client_surface.py` passing across every profile (add fixture URIs/args to its tables, never skip).
+- `.github/workflows/` — `ci.yml`, `release.yml`, `dependabot-automerge.yml`.
+- `server.json`, `Dockerfile`, `pyproject.toml`.
 
 ---
 
-## ⚡ The Canonical Workflow: Building Tools from API / llm.txt
+## ⚡ Canonical Workflow: Building Tools from API / `llms.txt`
 
-When translating an API documentation page or OpenAPI specification into an MCP tool, follow these 4 steps in exact order:
-
-### 1. Client Method (`client.py`)
-- Implement a dedicated `async def` method on `SigmaClient`.
-- Type all arguments strictly. Never use bare `dict` or `Any` when a concrete schema or literal is known.
-- URL path parameters are encoded per segment by `_encode_segment()` inside `_request()`, preserving colons on custom methods (e.g. `{id}:materialize`) while eliminating path traversal vulnerabilities (`..` $\rightarrow$ `%2E%2E`). Pass raw IDs in the path; do not pre-quote them, or they are encoded twice.
-- Call `await self._request("METHOD", path, params=..., json_data=...)`.
-- For a `multipart/form-data` endpoint, pass `files={"field": (filename, content, content_type)}` instead of `json_data`; `_request` then drops the JSON `Content-Type` so httpx sets the multipart boundary (`add_dbt_metadata` is the one user today).
-
-### 2. Tool Handler (`tools/<domain>.py`)
-- Register the tool on its domain sub-server with `@<domain>_server.tool(name=..., annotations=...)` and wrap with `@sigma_tool` (e.g. `tools/workbooks.py`). The root gateway in `server.py` mounts the domain with its namespace.
-- Provide an explicit, agent-friendly docstring describing capabilities, parameters, and return shape.
-- Destructive tools (delete, archive, deactivate, and bulk removal) **must** accept `confirm: bool = False`. Not every `POST`, `PUT`, or `PATCH` does (for example `workbooks_create_workbook` has no `confirm`).
-
-### 3. Tool Annotations & Gating
-- Pass MCP `ToolAnnotations` at registration with the `ANNOTATION_*` constants from `tools/common.py`:
-  - `readOnlyHint`: `True` for inspection/GET; `False` for mutations. Every tool sets it explicitly; the read-only gate reads nothing else (a missing hint is treated as a write).
-  - `destructiveHint`: `True` for delete/archive/deactivate actions; `False` otherwise.
-  - `idempotentHint`: among the constants, `True` only on `ANNOTATION_IDEMPOTENT`; `ANNOTATION_READ_ONLY`, `ANNOTATION_WRITE_SAFE` and `ANNOTATION_DESTRUCTIVE` leave it unset. The Tool Search and Code Mode discovery tools get `READ_ONLY_ANNOTATIONS` from `profiles.py` (`readOnlyHint` and `idempotentHint` `True`, `openWorldHint` `False`).
-  - `openWorldHint`: `True` when interacting with external networks/APIs.
-- Gating:
-  - Read-only mode (`SIGMA_MCP_READONLY=1` or profile `readonly`) keeps only tools annotated `readOnlyHint=True` and refuses every other call, directly or through `call_tool`, with a `SafetyViolationError` (a FastMCP `ToolError`, so `isError: true`).
-  - Bulk protection: `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` are listed in `full` and refused at call time unless `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
-  - Profiles (`SIGMA_MCP_PROFILE` or `--profile`): `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin`. A new tool goes into the job profiles in `profiles.py` or into `FULL_ONLY_TOOLS`; unknown names fail at build. Tool Search and Code Mode attach on `full` only and never together. Code Mode's sandbox is the public `code-mode` extra (`fastmcp[code-mode]`, same floor as `dev`); Code Mode tests call `pytest.importorskip("pydantic_monty")`, and `tests/conftest.py` aborts a CI session (`CI` set) without it, so CI syncs `--extra dev --extra code-mode`.
-
-### 4. Pure Offline Testing & Contract Sync (`tests/`)
-- Add unit tests in `tests/` mocking responses via `unittest.mock.AsyncMock`.
-- **Zero live network calls in the default suite.** Tests must run 100% offline in CI. Opt-in live modules are `tests/test_live.py` and `tests/test_integration_live.py` (`-m live`, which also needs `SIGMA_LIVE_TESTS=1` plus `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET`, and `SIGMA_BASE_URL`).
-- Keep `tests/test_client_surface.py` (mandatory house standard; conformance is not a substitute): it builds `create_server` under every profile in `PROFILES` and, through an in-memory `fastmcp.Client`, lists every tool and reads every resource and prompt; add fixture URIs or prompt arguments in its tables, never skip a component.
-- Update expected tool counts (per profile) in `scripts/check_tool_contract.py`, the `README.md` tables, and the copies in `tests/test_profiles.py` (`SIGNED_OFF`), `tests/test_unit.py`, `tests/test_enterprise_assertion.py` and `tests/test_layered.py`. A full-only tool also goes in `EXPECTED_FULL_ONLY` in `scripts/check_tool_contract.py`.
-- Ensure test statement coverage remains at **100.0%** (`--cov-fail-under=100`). Branch coverage is not enabled.
+Follow in exact order:
+1. **Client method (`client.py`):** typed `async def` on `SigmaClient` (no bare `dict`/`Any` when a schema is known). Pass raw IDs into `_request()` (`_encode_segment()` preserves colons like `{id}:materialize` and blocks `..` traversal — never pre-quote). Call `await self._request("METHOD", path, params=..., json_data=...)`; for `multipart/form-data`, pass `files={"field": (filename, content, content_type)}` instead of `json_data` (e.g., `add_dbt_metadata`).
+2. **Tool handler (`tools/<domain>.py`):** register with `@<domain>_server.tool(name=..., annotations=...)`, wrap with `@sigma_tool`, write explicit docstrings (capabilities, params, return shape). Delete, archive, deactivate, and bulk tools require `confirm: bool = False` (non-destructive creates/updates like `workbooks_create_workbook` do not).
+3. **Annotations & gating:**
+   - Pass `ANNOTATION_*` constants from `tools/common.py` (`readOnlyHint` explicit on every tool — missing treats as write; `destructiveHint` for delete/archive/deactivate; `idempotentHint` `True` only on `ANNOTATION_IDEMPOTENT`; `READ_ONLY_ANNOTATIONS` for discovery tools).
+   - **Read-only (`SIGMA_MCP_READONLY=1` / `--profile readonly`):** keeps only `readOnlyHint=True` tools; refuses all others (directly or via `call_tool`) with `SafetyViolationError` (`ToolError`, `isError: true`).
+   - **Bulk protection:** `admin_bulk_deactivate_members` and `admin_bulk_remove_team_members` require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`.
+   - **Profiles (`SIGMA_MCP_PROFILE` / `--profile`):** map every tool in `profiles.py` or `FULL_ONLY_TOOLS`. Tool Search and Code Mode attach on `full` only and are mutually exclusive (Code Mode needs `fastmcp[code-mode]` / `pydantic_monty`; `tests/conftest.py` aborts CI if missing; tests use `pytest.importorskip`).
+4. **Offline tests & contract sync (`tests/`):** mock HTTP with `AsyncMock` (**zero live calls in default suite**), keep `tests/test_client_surface.py` green, sync `scripts/check_tool_contract.py` + `README.md` + count tests, and maintain **100.0%** statement coverage (`--cov-fail-under=100`).
 
 ---
 
 ## 🛡️ Non-Negotiable Safety & Security Rules
 
-1. **Destructive Confirmation Gate**:
-   - Delete, archive, deactivate, and bulk-removal tools must accept `confirm: bool = False`. If `False`, do not execute the side-effect: return `_confirm_required(...)`, a normal result (`isError: false`) telling the caller to re-call with `confirm=true` (or a dry-run preview on `admin_bulk_deactivate_members`).
-   - Input validation failures call `_invalid_request(...)`, which raises `ToolError` with the redacted payload, so the result carries `isError: true`. Other failures the tool detects itself (not found, timeout, a missing ID in an upstream response) call `_tool_failure(type, message, **details)`, which raises the same way. Never return an `{"error": ...}` dict as a normal result, and never put a raw upstream body in the message. A batch tool raises `_tool_failure("batch_failed", "All N <items> failed; nothing was <verb>.", ..., failed_count=N, errors=[...])` when every item failed, and otherwise returns `status` (`success` / `partial_success`), a `<verb>_count`, `failed_count`, `results` and `errors`. Every item entry has `{"id", "status", "result"}` or `{"id", "status": "failed", "error"}`, and keeps any field names and entries the tool returned before alongside them (prefer additive changes over renames; a failed item that earlier releases listed in `results` stays there and is also listed in `errors`); use `_batch_outcome(items, verb, results, errors, context=...)` to build the result or raise. Catch `Exception` (never `BaseException`) per item, build its `error` with `_item_error(exc, index=i)`, which always carries a non-empty, redacted `message` and logs only the item's zero-based index and its error type (the exception class name, or the `error_type` for a reason string), never the message (no `logger.exception`, no `exc_info`). Raise every redacted `ToolError` after the `except` block ends (capture what you need inside it), so the original exception is on neither `__cause__` nor `__context__`. Do not use either helper for the confirm prompt.
-2. **Secret Redaction**:
-   - Error messages, logs, and tracebacks must pass through regex redaction (`_redact_secrets`) stripping Bearer tokens, client secrets, access tokens, subject tokens, raw JWTs, `ghs_` tokens, and the fleet token set copied verbatim from the template (API, access, refresh, auth, id and session tokens as `key=value`, `key: value`, JSON or URL-encoded `%3D`; `X-Auth-Token` and `Authorization: Token` headers; JSON `"token"`; a bare `token` key not preceded by a letter, digit or underscore, followed by `=` or `:` with optional whitespace on either side and an optional single or double quote before the value, as in `token=x`, `token: x`, `token = x` and `token: "x"`; API keys, passwords, AWS `secretAccessKey`, and a connection's `privateKeyPassphrase` and `pythonSecrets`; a bare `value` only inside an API credential's `apiKey` object, marked by its `isQueryParam` sibling), while leaving words such as `tokenizer`, `page_token=` and `max_tokens=` alone. A PEM block runs from `-----BEGIN <label>-----` to the `-----END <label>-----` with the same label (any case; an END with another label does not end it, and a `-----BEGIN` with no matching END is masked to the end of the text). A `{...}`/`[...]`/`(...)` value after a credential key or a token key, quoted or not (a Python `repr` such as `{'api_key': ['x']}` or `{'api_key': ('a', 'x')}`), is masked to its balanced bracket, with brackets inside double- or single-quoted strings skipped (or the end of the line when it never balances), with bracket scans cached so many unbalanced values cost one pass. A bare number, `True` or word under a quoted key (`{'password': 12345}`) is masked; `None`/`null` stays. In `redact_message`, once 64 brackets have failed to parse (abusive input), the rest of the message is masked. A flood of `(` right after `:` or `=` costs about 25 times more per byte than plain text, because each one checks the 256 characters before it for a key; it stays linear and nothing leaks, but hundreds of KB of it take seconds (a known limit). A value on the line after `password=` (or any credential key) is not masked (a known limit).
-3. **Multi-Tenant RFC 8693 Token Exchange**:
-   - Strictly validate tenant delegation via `SIGMA_ALLOWED_TENANTS`. If `SIGMA_STRICT_TENANT_ALLOWLIST=1` is set, fail-closed with HTTP 403 on unrecognized tenants.
-   - Delegation JWTs must include standard claims: `ver: "1.1"`, `aud: "sigmacomputing"`, `iat`, `exp` (+300s), and `jti` (UUID).
-4. **Path Traversal Protection**:
-   - All dynamic URL path segments must pass through `_encode_segment()`, preventing traversal attacks.
-5. **Bulk Destructive Caps**:
-   - Mass operations require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. `admin_bulk_deactivate_members` defaults to `dry_run=True` and caps at 10 active members. `admin_bulk_remove_team_members` has no `dry_run` parameter, requires `confirm=True`, and caps at 50 emails.
-6. **Webhook Signature Validation**:
-   - Webhook payloads must be verified using `hmac.compare_digest` to prevent timing attacks.
-7. **Registry Metadata Constraint**:
-   - In `server.json`, the root `description` must be **strictly $\le$ 100 characters** to pass MCP Registry schema validation (longer strings trigger HTTP 422).
-8. **Git Safety & Releases**:
-   - Never commit API secrets or tenant credentials. All changes proceed via feature branches and PRs.
-   - **The git tag is the version.** `uv-dynamic-versioning` reads the `vX.Y.Z` tag at build time; `pyproject.toml` declares `dynamic = ["version"]`, `__version__` comes from `importlib.metadata`, and `server.json` commits `0.0.0` (the release workflow stamps the tag version into it). PRs never edit a version: no bump in `pyproject.toml`, `src/sigma_mcp/__init__.py`, `server.json`, `uv.lock`, or `CHANGELOG.md`. Untagged builds report `X.Y.(Z+1).devN+<sha>`; a build with no git metadata reports the fallback `0.0.0`, which `scripts/check_version.py` rejects when run on the built wheel after the build.
-   - **Breaking changes:** every `feat!` / `fix!` PR (any `type!:` title) carries a `BREAKING CHANGE:` footer as the final paragraph of the PR body, and the footer text must include the migration steps. `BREAKING CHANGE:` (or its synonym `BREAKING-CHANGE:`) is the only footer token; do not add a separate migration token. `scripts/release_notes.py` stops at the CodeRabbit marker line (outside a code fence) `<!-- This is an auto-generated comment: release notes by coderabbit.ai -->` and ignores everything after it, so the footer goes before CodeRabbit's generated summary, never inside it.
-   - **Squash merges use the PR body as the commit message** (repo settings: PR title as squash title, PR body as squash message). Keep the PR body accurate up to the merge, because `scripts/release_notes.py` reads it from the squash commit.
-   - **`CHANGELOG.md` is frozen** as of 1.2.2. GitHub Releases are the changelog: `scripts/release_notes.py` builds each release body from the squash commits since the previous tag (every `BREAKING CHANGE:` footer verbatim, then the commit subjects). Do not add CHANGELOG entries.
-   - **README is outside the release version ceremony.** Do not add or chase `README.md` `==X.Y.Z` install pins. Update `README.md` only when project behavior, install method, config, or commands actually change. Prefer unpinned install examples (`uvx --from mcp-server-sigma sigma-mcp`) or point readers to GitHub Releases.
+1. **Destructive Confirmation Gate & Errors:** destructive tools default `confirm: bool = False` and return `_confirm_required(...)` (`isError: false`) without side effects. Validation failures call `_invalid_request(...)` and detected/batch-total failures call `_tool_failure(...)` (`ToolError`, `isError: true`); never return `{"error": ...}` as a normal result or leak raw upstream bodies. Build batch outcomes via `_batch_outcome(items, verb, results, errors, context=...)` (catch `Exception` not `BaseException`, use `_item_error(exc, index=i)`, keep additive fields, no `logger.exception`/`exc_info`), and raise every redacted `ToolError` `from None` **after** `except` blocks end.
+2. **Secret Redaction:** `_redact_secrets` / `redact_message` in `errors.py` mask Bearer tokens, client/access/subject tokens, raw JWTs, `ghs_` tokens, passwords, AWS `secretAccessKey`, connection `privateKeyPassphrase`/`pythonSecrets`, and PEM blocks while leaving `tokenizer`, `page_token=`, `max_tokens=` intact (see `errors.py` & redaction tests for known multiline/bracket limits).
+3. **Multi-Tenant RFC 8693 Token Exchange:** validate tenants against `SIGMA_ALLOWED_TENANTS`; when `SIGMA_STRICT_TENANT_ALLOWLIST=1`, fail closed with HTTP 403 on unrecognized tenants. Delegation JWTs must include `ver: "1.1"`, `aud: "sigmacomputing"`, `iat`, `exp` (`+300s`), and `jti` (UUID).
+4. **Path Traversal & Webhook Security:** dynamic path segments must pass through `_encode_segment()`; verify webhooks with `hmac.compare_digest`.
+5. **Bulk Destructive Caps:** require `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1`. `admin_bulk_deactivate_members` defaults `dry_run=True` (max 10 members); `admin_bulk_remove_team_members` has no `dry_run`, requires `confirm=True` (max 50 emails).
+6. **Multi-Stage Non-Root Containers (`Dockerfile`):**
+   - Multi-stage `python:3.12-slim-trixie AS builder` → runtime pinned by digest, non-root `USER mcp`.
+   - Trust-store floor (FastMCP Oct 2026 notice): both stages upgrade OS `ca-certificates` and fail below `ARG CA_CERTIFICATES_FLOOR` (`20250419+deb13u1`, before any pip runs in builder), builder bootstraps pip `26.2.2` (`docker/pip-bootstrap.txt`, `--require-hashes`), `release.yml` installs `pip>=26.2.2`, and `certifi>=2026.10.19` is a direct dependency. Never lower `CA_CERTIFICATES_FLOOR` via `--build-arg`.
+   - Reproducible lock install: builder installs uv (`docker/uv-bootstrap.txt`, `--require-hashes`, outside venv), exports `uv export --locked --no-dev --no-emit-project --format requirements.txt`, installs `docker/build-backend.txt` (`--require-hashes --only-binary=:all:` outside venv), and runs `PYTHONPATH=/tmp/build-backend pip install --no-deps --no-build-isolation .` (never `pip install .`). Regenerate `docker/build-backend.txt` after `uv lock` via `uv run python scripts/gen_build_backend.py` (never hand-edit; Dependabot excludes it). Enforced by `tests/test_dockerfile.py` & `tests/test_build_backend_lock.py`.
+7. **Registry Metadata (`server.json`):** root `description` **≤ 100 chars** (HTTP 422 otherwise).
+8. **Git Safety & Releases:**
+   - Never commit secrets; all work via feature branches and PRs.
+   - **Tag is version (`uv-dynamic-versioning`):** `pyproject.toml` declares `dynamic = ["version"]`, `__version__` uses `importlib.metadata`, `server.json` commits `0.0.0`. Never bump versions in PRs (`pyproject.toml`, `src/sigma_mcp/__init__.py`, `server.json`, `uv.lock`, `CHANGELOG.md`); `scripts/check_version.py` rejects `0.0.0` / `0.0.1.devN`.
+   - **Breaking changes (`feat!` / `fix!`):** carry `BREAKING CHANGE:` as the final PR body paragraph (before `<!-- This is an auto-generated comment: release notes by coderabbit.ai -->` if present) and **must include migration steps** (`scripts/release_notes.py` stops at the CodeRabbit marker). Keep PR body accurate before squash merge.
+   - **`CHANGELOG.md` frozen at 1.2.2:** GitHub Releases are the changelog. Keep `README.md` unpinned (`uvx --from mcp-server-sigma sigma-mcp`).
+   - **Tagging (maintainer go only, no release PR):** preview `git fetch --tags && python3 scripts/release_notes.py` on `main`; verify version unused on git tags, PyPI (`https://pypi.org/pypi/mcp-server-sigma/X.Y.Z/json`), and MCP Registry (`https://registry.modelcontextprotocol.io/v0.1/servers/io.github.christianclaudio%2Fsigma/versions/X.Y.Z`), and test wheel build (`mcp_server_sigma-X.Y.Z-py3-none-any.whl`) in a throwaway clone. PyPI rejects re-uploads: on post-PyPI failure, merge a fix and tag next patch.
 
 ---
 
 ## 🛠️ Development & Verification Commands
 
-uv 0.13.4 or later is required (`[tool.uv] required-version` in `pyproject.toml`, from FastMCP's [certificate authority incident notice](https://github.com/PrefectHQ/fastmcp/blob/main/SECURITY.md#certificate-authority-incident-october-2026)); older uv refuses to run, and CI's `setup-uv` installs from that setting. Following the same notice, `certifi>=2026.10.19` is a direct dependency, and the `Dockerfile` and `release.yml` install with `pip>=26.2.2`, and both `Dockerfile` stages upgrade the OS `ca-certificates` package and fail the build below Debian's patched version (`ARG CA_CERTIFICATES_FLOOR`, default `20250419+deb13u1`, declared once); the builder does so before any pip runs, because pip trusts the OS store as well as its bundled certifi. The builder's pip bootstrap is hash-pinned in `docker/pip-bootstrap.txt` and installed with `--require-hashes`, so it does not depend on the TLS trust of the base image's older pip and certifi; whoever raises the pip floor updates that pin and its sha256 from PyPI (`https://pypi.org/pypi/pip/<version>/json`, the `py3-none-any` wheel's `digests.sha256`), because Dependabot does not track the file. Lowering `CA_CERTIFICATES_FLOOR` with `--build-arg` is unsupported; the build-arg exists only so CI can raise it for the negative floor check, and CI and the release workflow never pass it otherwise. `tests/test_dockerfile.py` and CI's `docker-build` job (which builds the image, checks its entrypoint, checks that the runtime image has the project and none of the build-only packages (runtime dependencies such as `packaging` stay), checks that the image answers `initialize` and `tools/list` over stdio with no network, and checks that the builder stage fails at its `ca-certificates` floor check, before any pip step, when the floor is above the installed version) enforce the order and the floor.
-
-Runtime dependencies install from `uv.lock`, so the image runs the versions CI tests: the builder installs uv from `docker/uv-bootstrap.txt` (hash-pinned, `--require-hashes`, into `/tmp/uv` outside the venv, so the runtime image has no uv), runs `uv export --locked --no-dev --no-emit-project --format requirements.txt` (base dependencies only, a hash for every package, and the build fails if `uv.lock` is stale), installs that file with pip in hash-checking mode, then installs the project build backend from `docker/build-backend.txt` (hash-pinned hatchling, uv-dynamic-versioning, and every transitive build dependency, `--require-hashes --only-binary=:all:`, into `/tmp/build-backend` outside the venv, so the runtime image has no build backend) and the project with `PYTHONPATH=/tmp/build-backend pip install --no-deps --no-build-isolation .`. Never install the project with its dependencies (`pip install .`), which resolves them fresh at build time. Whoever changes `[tool.uv] required-version` keeps the uv pin within it and updates its sha256 values from `https://pypi.org/pypi/uv/<version>/json` (the manylinux x86_64 and aarch64 wheels' `digests.sha256`), because Dependabot does not track the file. The build-backend pins are the `build-backend` dependency group in `pyproject.toml` (exact versions inside the `[build-system]` ranges, not installed by default), so `uv.lock` carries their closure with hashes. The Dockerfile base is `python:3.12-slim-trixie AS builder` → runtime, pinned by digest (both stages share the same pin); glibc is keyed by the Debian release in the tag, not the digest. `scripts/gen_build_backend.py` keeps a native wheel only when its manylinux glibc floor is at most that glibc. After `uv lock`, `uv run python scripts/gen_build_backend.py` rewrites `docker/build-backend.txt` from `uv.lock` (`--check` reports drift instead), and `tests/test_build_backend_lock.py` fails if the file, the lock or the ranges disagree. The file is generated from `uv.lock` by `scripts/gen_build_backend.py`, must never be edited by hand, and the `uv` Dependabot entry excludes it via `exclude-paths`. `tests/test_dockerfile.py` enforces the install steps and the pins.
+Requires `uv >= 0.13.4` (`[tool.uv] required-version` in `pyproject.toml`).
 
 ```bash
 # Install editable with dev dependencies
@@ -143,16 +97,24 @@ coderabbit review --agent --uncommitted
 
 ## 🔄 CI & Releases
 
-CI is defined in `.github/workflows/ci.yml` (jobs: Lint and types, Tests on Python 3.11–3.14 at 100% coverage aggregated as Tests, Tool contract assertions, OpenAPI drift, Protocol conformance, Build and package check, Container image build, and Check API Drift (the upstream drift check against the live Sigma OpenAPI spec, which opens an issue when the drift scan runs on main and finds drift or exits with an error; scheduled and manual runs only)). CodeQL code scanning runs through GitHub's default setup, not a workflow job. Jobs that install or build the package check out with `fetch-depth: 0`, because a shallow checkout has no reachable tag and reports `0.0.1.devN`. The Docker build context has no `.git`: the CI Docker build is an entrypoint check that keeps the `0.0.0` fallback, and `release.yml` passes the tag version as `UV_DYNAMIC_VERSIONING_BYPASS`. CI runs on pushes and pull requests to `main`, weekly on `main` on Sunday at 14:23 America/New_York (`schedule` with `timezone`, after the Sunday 09:30 America/New_York Dependabot run in `.github/dependabot.yml`), and on manual dispatch (`workflow_dispatch`); the weekly run exists because merges by `dependabot-automerge.yml` use `GITHUB_TOKEN` and so never trigger the `push` run. Run the commands above before opening a PR.
+- **CI (`.github/workflows/ci.yml`):** runs on `push`/`pull_request` to `main`, weekly schedule, and `workflow_dispatch` (`fetch-depth: 0` on package jobs). Jobs: Lint and types, Tests (Python 3.11–3.14, 100% cov + aggregate Tests), Tool contract assertions, OpenAPI drift, Protocol conformance, Build and package check, Container image build (no push; verifies stripped build deps, stdio `initialize`/`tools/list`, negative `CA_CERTIFICATES_FLOOR`), and Check API Drift (schedule/manual only; opens issue on drift). CodeQL runs via GitHub default setup.
+- **Dependabot (`dependabot-automerge.yml`):** squash-merges minor/patch PRs after CI passes; major & docker updates wait for human review.
+- **Releases (`.github/workflows/release.yml`):** triggered on `v*` tags (`fetch-depth: 0`); verifies wheel matches tag, publishes to PyPI, creates GitHub Release from `scripts/release_notes.py`, pushes Docker image (`UV_DYNAMIC_VERSIONING_BYPASS` set to tag version), and stamps `server.json` & publishes to MCP Registry.
 
-Do not create tags or releases unless the maintainer asks. There is no release PR: merged commits accumulate on `main`, and releases go out on any weekday on the maintainer's go; no fixed release day. Before the tag:
+---
 
-- The release owner previews the release body on an up-to-date `main` with full history and tags (`git fetch --tags && python3 scripts/release_notes.py`) and posts it with the release Ask.
-- The reviewer checks the proposed version against the commit types since the last tag (`!` / `BREAKING CHANGE:` → major, `feat` → minor, otherwise patch), that every breaking commit carries its footer with migration steps, and that the version is unused in all three places it could already exist:
-  ```bash
-  git ls-remote --tags origin vX.Y.Z                                                    # prints nothing
-  curl -s -o /dev/null -w '%{http_code}\n' https://pypi.org/pypi/mcp-server-sigma/X.Y.Z/json   # prints 404
-  curl -s -o /dev/null -w '%{http_code}\n' https://registry.modelcontextprotocol.io/v0.1/servers/io.github.christianclaudio%2Fsigma/versions/X.Y.Z   # prints 404
-  ```
-  In a throwaway clone, the reviewer tags the release commit locally, runs `rm -rf dist && uv build`, and confirms the wheel is `mcp_server_sigma-X.Y.Z-py3-none-any.whl` and `scripts/check_version.py` passes; then discards the clone without pushing.
-- Only the maintainer's go creates the tag. PyPI never accepts the same version twice: if a release fails after the PyPI upload, do not re-run it; merge a fix and tag the next patch.
+## VCS
+
+```yaml
+vcs:
+  host: github
+  remote: origin
+  repository: christianclaudio/mcp-server-sigma
+  default_branch: main
+  protected_branches: [main]
+  branch_policy: pr_only
+  merge_strategy: squash
+  delete_branch_on_merge: true
+  require_coderabbit: true
+  branch_naming: type/scope-desc
+```
