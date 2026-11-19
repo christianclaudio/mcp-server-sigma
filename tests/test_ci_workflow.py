@@ -103,8 +103,17 @@ def test_conformance_is_its_own_job() -> None:
     assert "setup-node" not in openapi_drift
     assert "check_conformance.sh" not in openapi_drift
     assert "scripts/check_openapi_drift.py" in openapi_drift
+    assert "--fail-on-new-uncovered" not in openapi_drift
     script = CONFORMANCE_PATH.read_text(encoding="utf-8")
     assert 'CONFORMANCE_VERSION="${CONFORMANCE_VERSION:-0.1.16}"' in script
+
+
+def test_fail_on_new_uncovered_is_only_on_the_scheduled_drift_check() -> None:
+    """The new-uncovered gate is the scheduled drift-check job, not the PR-path job."""
+    text = _ci_text()
+    jobs = _jobs_section(text)
+    assert "--fail-on-new-uncovered" in _job_block(jobs, "drift-check")
+    assert text.count("--fail-on-new-uncovered") == 1
 
 
 def test_governance_required_contexts() -> None:

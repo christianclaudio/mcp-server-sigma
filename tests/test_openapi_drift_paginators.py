@@ -47,4 +47,4 @@ def test_real_client_paged_paths_are_seen() -> None:
     paths = {c.normalized_path for c in calls if c.method == "GET"}
     assert {"/v2/connections", "/v2/tenants", "/v2/reports/{}/elements", "/v2/workbookAgents"} <= paths
     # Seen through paged_list / paged_list_token, which read every page of the older lists.
-    assert {"/v2/workbooks/{}/pages", "/v2/accountTypes", "/v3alpha/allowedIps", "/v2/members"} <= paths
+    assert {"/v2/workbooks/{}/pages", "/v2/accountTypes", "/v3alpha/allowedIps", "/v2.1/members"} <= paths

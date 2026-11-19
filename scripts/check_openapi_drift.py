@@ -9,11 +9,15 @@ the client.py _request() and get/post/put/patch/delete calls to find:
 
 Usage:
     python scripts/check_openapi_drift.py [--spec-url URL] [--client-path PATH] [--strict]
+        [--fail-on-new-uncovered] [--uncovered-baseline PATH]
 
 Exit codes:
-    0 = no breaking drift detected
-    1 = breaking drift detected (mismatches or deprecated parameter usage in strict mode)
-    2 = could not fetch/parse spec
+    0 = no breaking drift detected (uncovered endpoints are informational unless the flag is set)
+    1 = breaking drift detected (wrong paths, deprecated parameter usage in strict mode,
+        or new uncovered endpoints when --fail-on-new-uncovered is set)
+    2 = could not fetch/parse the spec, the primary spec was unavailable and a fallback spec
+        was used (both the wrong-path check and the new-uncovered gate are skipped), or the
+        uncovered baseline is invalid
 """
 
 from __future__ import annotations
@@ -40,6 +44,12 @@ SPEC_URLS = [
 ]
 CLIENT_PATH = Path(__file__).parent.parent / "src" / "sigma_mcp" / "client.py"
 ALLOWLIST_PATH = Path(__file__).parent / "drift_allowlist.txt"
+UNCOVERED_BASELINE_PATH = Path(__file__).parent / "drift_uncovered_baseline.txt"
+BASELINE_TAGS = frozenset({"deprecated", "excluded", "gap"})
+_FALLBACK_WARNING = (
+    "::warning::Primary Sigma spec unavailable; used fallback split specs; "
+    "new-uncovered gate and wrong-path drift check skipped"
+)
 
 
 @dataclass
@@ -101,11 +111,15 @@ def _fetch_url(url: str) -> httpx.Response:
     return response
 
 
-def fetch_spec(urls: list[str]) -> dict[str, Any]:
-    """Fetch Sigma's OpenAPI spec, trying the primary URL first and falling back to split specs."""
+def fetch_spec(urls: list[str]) -> tuple[dict[str, Any], bool]:
+    """Fetch Sigma's OpenAPI spec, trying the primary URL first and falling back to split specs.
+
+    Returns ``(spec, used_fallback)``. ``used_fallback`` is true when the primary URL failed and
+    the split help specs (or an empty spec, when no fallback URL was given) were used instead.
+    """
     primary_url = urls[0]
     try:
-        return _fetch_url(primary_url).json()  # type: ignore[no-any-return]
+        return _fetch_url(primary_url).json(), False  # type: ignore[no-any-return]
     except Exception as e:
         print(f"Warning: Failed to fetch primary spec ({primary_url}): {e}")
         print("Falling back to split documentation specs...")
@@ -118,7 +132,67 @@ def fetch_spec(urls: list[str]) -> dict[str, Any]:
         except Exception as err:
             print(f"Error: Failed to fetch fallback spec ({url}): {err}")
             raise err
-    return merged
+    return merged, True
+
+
+def normalize_path(path: str) -> str:
+    """Collapse ``{param}`` segments the same way ``load_allowlist`` does."""
+    return re.sub(r"\{[^}]*\}", "{}", path)
+
+
+def load_uncovered_baseline(path: Path) -> list[tuple[str, str, str, str]] | None:
+    """Load ``METHOD path  # tag: reason`` lines. ``None`` means the file is invalid (exit 2)."""
+    if not path.exists():
+        print(f"ERROR: uncovered baseline not found: {path}", file=sys.stderr)
+        return None
+    entries: list[tuple[str, str, str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "#" not in line:
+            print(f"ERROR: baseline line {lineno} has no tag: {raw}", file=sys.stderr)
+            return None
+        body, comment = line.split("#", 1)
+        parts = body.split()
+        if len(parts) != 2:
+            print(f"ERROR: baseline line {lineno} must be METHOD path: {raw}", file=sys.stderr)
+            return None
+        method, path_str = parts
+        normalized = normalize_path(path_str)
+        comment = comment.strip()
+        if ":" not in comment:
+            print(f"ERROR: baseline line {lineno} needs 'tag: reason': {raw}", file=sys.stderr)
+            return None
+        tag, reason = comment.split(":", 1)
+        tag = tag.strip()
+        reason = reason.strip()
+        if tag not in BASELINE_TAGS:
+            print(f"ERROR: baseline line {lineno} has unknown tag {tag!r}", file=sys.stderr)
+            return None
+        if not reason:
+            print(f"ERROR: baseline line {lineno} has an empty reason", file=sys.stderr)
+            return None
+        key = (method.upper(), normalized)
+        if key in seen:
+            print(f"ERROR: baseline line {lineno} duplicates {key[0]} {key[1]}", file=sys.stderr)
+            return None
+        seen.add(key)
+        entries.append((key[0], key[1], tag, reason))
+    return entries
+
+
+def expand_org_settings(endpoints: set[tuple[str, str]]) -> set[tuple[str, str]]:
+    """Cover each ``VALID_ORG_SETTINGS`` name behind the settings template the client calls."""
+    from sigma_mcp.tools.admin import VALID_ORG_SETTINGS
+
+    expanded = set(endpoints)
+    for method in ("GET", "PATCH"):
+        if (method, "/v2/organizations/settings/{}") in endpoints:
+            for name in VALID_ORG_SETTINGS:
+                expanded.add((method, f"/v2/organizations/settings/{name}"))
+    return expanded
 
 
 def extract_spec_endpoints_and_deprecations(
@@ -268,25 +342,35 @@ def extract_client_calls(client_path: Path) -> list[ClientCall]:
     return visitor.calls
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Detect OpenAPI and Parameter Drift")
     parser.add_argument("--spec-url", action="append", default=None, help="Override spec URL(s); repeatable.")
     parser.add_argument("--client-path", type=Path, default=CLIENT_PATH)
     parser.add_argument("--allowlist", type=Path, default=ALLOWLIST_PATH)
     parser.add_argument("--strict", action="store_true", help="Fail on any deprecated parameter usage in client")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--fail-on-new-uncovered",
+        action="store_true",
+        help="Exit 1 when the spec has an uncovered operation that is not in the baseline",
+    )
+    parser.add_argument("--uncovered-baseline", type=Path, default=UNCOVERED_BASELINE_PATH)
+    args = parser.parse_args(argv)
 
     spec_urls = args.spec_url or SPEC_URLS
     print(f"Fetching spec from: {', '.join(spec_urls)}")
     try:
-        spec = fetch_spec(spec_urls)
+        spec, used_fallback = fetch_spec(spec_urls)
     except Exception as e:
         print(f"ERROR: Could not fetch spec: {e}", file=sys.stderr)
         return 2
 
+    if used_fallback:
+        print(_FALLBACK_WARNING)
+        return 2
+
     spec_endpoints, spec_deprecated_params = extract_spec_endpoints_and_deprecations(spec)
     client_calls = extract_client_calls(args.client_path)
-    client_endpoints = {(c.method, c.normalized_path) for c in client_calls}
+    client_endpoints = expand_org_settings({(c.method, c.normalized_path) for c in client_calls})
     allowlist = load_allowlist(args.allowlist)
 
     print(f"Spec endpoints: {len(spec_endpoints)}")
@@ -311,6 +395,22 @@ def main() -> int:
         print(f"\n📋 {len(in_spec_not_client)} endpoint(s) in SPEC but not in client (uncovered):")
         for method, path in sorted(in_spec_not_client):
             print(f"  {method} {path}")
+
+    if args.fail_on_new_uncovered:
+        baseline = load_uncovered_baseline(args.uncovered_baseline)
+        if baseline is None:
+            return 2
+        baselined = {(method, path) for method, path, _tag, _reason in baseline}
+        new_uncovered = in_spec_not_client - baselined
+        stale = baselined - in_spec_not_client
+        for method, path in sorted(stale):
+            print(f"⚠️  Baseline entry is now covered or no longer in the spec: {method} {path}")
+        if new_uncovered:
+            print(f"\n📋 {len(new_uncovered)} new uncovered endpoint(s) (not in the baseline):")
+            for method, path in sorted(new_uncovered):
+                print(f"  {method} {path}")
+            print(f"\n❌ New uncovered endpoints: {len(new_uncovered)}")
+            drift_found = True
 
     # Parameter deprecation audit
     print("\n🔍 Parameter Deprecation Audit:")

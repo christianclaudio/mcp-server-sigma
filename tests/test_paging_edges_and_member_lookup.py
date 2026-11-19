@@ -133,7 +133,7 @@ async def test_search_members_sends_only_email() -> None:
     get, calls = _pages({"entries": [{"memberId": "m1", "email": "ada@example.com"}]})
     with patch.object(c, "get", get):
         await c.search_members("ada@example.com")
-    assert calls == [("/v2/members", {"email": "ada@example.com", "limit": 120})]
+    assert calls == [("/v2.1/members", {"email": "ada@example.com", "limit": 120})]
 
 
 def _err(exc: pytest.ExceptionInfo[ToolError]) -> dict[str, Any]:

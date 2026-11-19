@@ -377,3 +377,33 @@ async def sigma_list_favorites_for_member(member_id: str) -> str:
 
 
 list_favorites_for_member = sigma_list_favorites_for_member
+
+
+@workspace_server.tool(
+    name="list_member_favorite_files", annotations=ANNOTATION_READ_ONLY, tags={"workspace", "read_only"}
+)
+@sigma_tool
+async def sigma_list_member_favorite_files(member_id: str, page: str | None = None, limit: int | None = None) -> str:
+    """Files a given member has favorited (by member ID); use list_favorites_for_member for the favorites list itself.
+
+    Follows nextPage. page resumes from a nextPage; limit is the page size.
+    """
+    _require_ids(member_id=member_id)
+    return json.dumps(await (await get_client()).list_member_favorite_files(member_id, page, limit), indent=2)
+
+
+list_member_favorite_files = sigma_list_member_favorite_files
+
+
+@workspace_server.tool(name="create_shortcut", annotations=ANNOTATION_WRITE_SAFE, tags={"workspace", "mutation"})
+@sigma_tool
+async def sigma_create_shortcut(body: dict[str, Any]) -> str:
+    """Create a shortcut. body requires parentId and target.id, and may set name."""
+    _require_body_fields(body, "parentId", "target")
+    target = body.get("target")
+    if not isinstance(target, dict) or "id" not in target:
+        _invalid_request("body is missing required field(s): target.id")
+    return json.dumps(await (await get_client()).create_shortcut(body), indent=2)
+
+
+create_shortcut = sigma_create_shortcut

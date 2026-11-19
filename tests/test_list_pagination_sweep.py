@@ -191,9 +191,9 @@ SWEEP: list[tuple[str, tuple[Any, ...], str, str, dict[str, Any], str, str, tupl
         "list_data_model_lineage",
         ("d-1",),
     ),
-    ("list_members", (), "/v2/members", "page", {}, "admin", "list_members", ()),
+    ("list_members", (), "/v2.1/members", "page", {}, "admin", "list_members", ()),
     ("list_member_teams", ("m-1",), "/v2/members/m-1/teams", "page", {}, "admin", "list_member_teams", ("m-1",)),
-    ("list_teams", (), "/v2/teams", "page", {}, "admin", "list_teams", ()),
+    ("list_teams", (), "/v2.1/teams", "page", {}, "admin", "list_teams", ()),
     ("list_team_members", ("t-1",), "/v2/teams/t-1/members", "page", {}, "admin", "list_team_members", ("t-1",)),
     ("list_files", ({"limit": 200},), "/v2/files", "page", {}, "workspace", "list_files", ()),
     ("list_user_attributes", (), "/v2/user-attributes", "page", {}, "admin", "list_user_attributes", ()),
@@ -408,8 +408,8 @@ async def test_tool_returns_every_page(
         ("workbooks", "list_templates", "list_templates", "/v2/templates"),
         ("workbooks", "list_reports", "list_reports", "/v2/reports"),
         ("datasets", "list_data_models", "list_data_models", "/v2/dataModels"),
-        ("admin", "list_members", "list_members", "/v2/members"),
-        ("admin", "list_teams", "list_teams", "/v2/teams"),
+        ("admin", "list_members", "list_members", "/v2.1/members"),
+        ("admin", "list_teams", "list_teams", "/v2.1/teams"),
     ],
 )
 async def test_limit_is_the_page_size(module: str, tool: str, method: str, path: str) -> None:
@@ -433,8 +433,8 @@ async def test_limit_is_the_page_size(module: str, tool: str, method: str, path:
         ("workbooks", "list_workbooks", "/v2/workbooks", "workbookId"),
         ("datasets", "list_connections", "/v2/connections", "connectionId"),
         ("datasets", "list_data_models", "/v2/dataModels", "dataModelId"),
-        ("admin", "list_members", "/v2/members", "memberId"),
-        ("admin", "list_teams", "/v2/teams", "teamId"),
+        ("admin", "list_members", "/v2.1/members", "memberId"),
+        ("admin", "list_teams", "/v2.1/teams", "teamId"),
     ],
 )
 async def test_summary_counts_every_page(module: str, tool: str, path: str, field: str) -> None:
@@ -511,7 +511,7 @@ async def test_bulk_sync_reads_every_tenant_page() -> None:
 CURSORED: list[tuple[str, str, str, dict[str, Any], dict[str, Any], int]] = [
     # (module, tool / method, path, extra args, fixed params, default page size)
     ("workspace", "list_tags", "/v2/tags", {}, {}, 200),
-    ("workspace", "list_workspaces", "/v2/workspaces", {}, {}, 200),
+    ("workspace", "list_workspaces", "/v2.1/workspaces", {}, {}, 200),
     ("workspace", "list_workspace_grants", "/v2/workspaces/ws-1/grants", {"workspace_id": "ws-1"}, {}, 200),
     ("admin", "list_org_workbook_agents", "/v2/workbookAgents", {}, {}, 100),
     ("admin", "list_allowed_ips", "/v3alpha/allowedIps", {}, {}, 200),
@@ -563,8 +563,8 @@ async def test_search_members_follows_every_page(search: str, param: str) -> Non
         out = await c.search_members(search)
     assert out == {"entries": [{"memberId": "m1"}, {"memberId": "m2"}], "nextPage": None}
     assert calls == [
-        ("/v2/members", {param: search, "limit": 120}),
-        ("/v2/members", {param: search, "limit": 120, "page": "p2"}),
+        ("/v2.1/members", {param: search, "limit": 120}),
+        ("/v2.1/members", {param: search, "limit": 120, "page": "p2"}),
     ]
 
 

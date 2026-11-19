@@ -42,12 +42,12 @@ COPY src/ src/
 ARG UV_DYNAMIC_VERSIONING_BYPASS
 ENV UV_DYNAMIC_VERSIONING_BYPASS=${UV_DYNAMIC_VERSIONING_BYPASS}
 
-# pip 26.2.2 updates the certificates pip bundles, per FastMCP's October 2026 certificate
+# The pinned pip bootstrap updates the certificates pip bundles, per FastMCP's October 2026 certificate
 # authority incident notice. This image installs with pip, not uv, so pip carries the floor.
 # https://github.com/PrefectHQ/fastmcp/blob/main/SECURITY.md#certificate-authority-incident-october-2026
 # The bootstrap installs pip from a hash-pinned wheel (docker/pip-bootstrap.txt, --require-hashes),
 # so it does not depend on the TLS trust of the base image's older pip and certifi; the maintainer
-# who raises the pip floor updates that pin and its sha256 (Dependabot does not track the file).
+# who raises the pip floor updates that pin and its sha256. Dependabot bumps docker/pip-bootstrap.txt.
 #
 # Runtime dependencies come from uv.lock, so the image runs the versions CI tests. uv, hash-pinned
 # in docker/uv-bootstrap.txt and installed to /tmp/uv outside the venv (the runtime image gets no
@@ -74,6 +74,10 @@ RUN pip install --no-cache-dir --require-hashes --only-binary=:all: -r /tmp/pip-
 
 # ─── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim-trixie@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS runtime
+
+# MCP Registry ownership check for the OCI package: must equal server.json "name".
+# https://modelcontextprotocol.io/registry/package-types#docker%2Foci-images
+LABEL io.modelcontextprotocol.server.name="io.github.christianclaudio/sigma"
 
 # OS trust store update and floor check, the same as the builder (see CA_CERTIFICATES_FLOOR).
 ARG CA_CERTIFICATES_FLOOR

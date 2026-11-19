@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 from typing import Any
 
@@ -696,3 +697,314 @@ async def sigma_list_data_model_tags(data_model_id: str) -> str:
 
 
 list_data_model_tags = sigma_list_data_model_tags
+
+# Sigma's dbt artifacts operation describes a tar.gz of the dbt target directory and does not
+# state a byte limit (https://help.sigmacomputing.com/reference/post-connection-dbt-artifacts).
+# The cap matches the query-export download cap.
+_DBT_ARTIFACT_MAX_BYTES = 10_000_000
+
+
+def _paged(data: Any) -> str:
+    return json.dumps(data, indent=2)
+
+
+@datasets_server.tool(name="update_connection", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"})
+@sigma_tool
+async def sigma_update_connection(connection_id: str, body: dict[str, Any]) -> str:
+    """Replace a connection (PUT /v2/connections/{connectionId}).
+
+    body requires name and details, and may set description, poolSizes, timeoutSecs, useFriendlyNames
+    and restore. Replaces the deprecated PATCH. details may hold write-only secrets (password, privateKey,
+    privateKeyPassphrase, clientSecret, token, pythonSecrets). They are masked wherever Sigma's result or
+    error echoes them.
+    """
+    _require_ids(connection_id=connection_id)
+    _require_body_fields(body, "name", "details")
+    name = body["name"]
+    details = body["details"]
+    fields = {key: value for key, value in body.items() if key not in {"name", "details"}}
+    client = await get_client()
+    result = await _call_masking_secrets(
+        client.replace_connection(connection_id, name, details, **fields), CONNECTION_SECRET_FIELDS, details
+    )
+    return json.dumps(result, indent=2)
+
+
+update_connection = sigma_update_connection
+
+
+@datasets_server.tool(name="get_connection_path", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
+@sigma_tool
+async def sigma_get_connection_path(inode_id: str) -> str:
+    """Get the connection path for a table inode."""
+    _require_ids(inode_id=inode_id)
+    return _paged(await (await get_client()).get_connection_path(inode_id))
+
+
+get_connection_path = sigma_get_connection_path
+
+
+@datasets_server.tool(name="get_warehouse_connection", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"})
+@sigma_tool
+async def sigma_get_warehouse_connection(connection_id: str) -> str:
+    """Beta, v3alpha (private beta; request and response may change). Get a cloud data warehouse connection."""
+    _require_ids(connection_id=connection_id)
+    return _paged(await (await get_client()).get_warehouse_connection(connection_id))
+
+
+get_warehouse_connection = sigma_get_warehouse_connection
+
+
+@datasets_server.tool(
+    name="create_warehouse_connection", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+)
+@sigma_tool
+async def sigma_create_warehouse_connection(body: dict[str, Any]) -> str:
+    """Beta, v3alpha (private beta; request and response may change). Create a cloud data warehouse connection.
+
+    body requires name and details. Write-only secrets in details are masked in the result and in errors.
+    """
+    _require_body_fields(body, "name", "details")
+    client = await get_client()
+    result = await _call_masking_secrets(
+        client.create_warehouse_connection(body), CONNECTION_SECRET_FIELDS, body.get("details")
+    )
+    return json.dumps(result, indent=2)
+
+
+create_warehouse_connection = sigma_create_warehouse_connection
+
+
+@datasets_server.tool(
+    name="update_warehouse_connection", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+)
+@sigma_tool
+async def sigma_update_warehouse_connection(connection_id: str, body: dict[str, Any]) -> str:
+    """Beta, v3alpha (private beta; request and response may change). Update a cloud data warehouse connection.
+
+    body may set name and details. Write-only secrets in details are masked in the result and in errors.
+    """
+    _require_ids(connection_id=connection_id)
+    client = await get_client()
+    result = await _call_masking_secrets(
+        client.update_warehouse_connection(connection_id, body), CONNECTION_SECRET_FIELDS, body.get("details")
+    )
+    return json.dumps(result, indent=2)
+
+
+update_warehouse_connection = sigma_update_warehouse_connection
+
+
+@datasets_server.tool(
+    name="swap_data_model_source_mapping", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+)
+@sigma_tool
+async def sigma_swap_data_model_source_mapping(data_model_id: str, body: dict[str, Any]) -> str:
+    """Beta, v3alpha (private beta; request and response may change). Swap sources on a data model.
+
+    body requires sourceMapping.
+    """
+    _require_ids(data_model_id=data_model_id)
+    _require_body_fields(body, "sourceMapping")
+    return _paged(await (await get_client()).swap_data_model_source_mapping(data_model_id, body))
+
+
+swap_data_model_source_mapping = sigma_swap_data_model_source_mapping
+
+
+@datasets_server.tool(
+    name="list_column_security_rules", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
+)
+@sigma_tool
+async def sigma_list_column_security_rules(
+    data_model_id: str, element_id: str, page: str | None = None, limit: int | None = None
+) -> str:
+    """Beta: Sigma marks this a beta feature. List column-level security rules on a data model element.
+
+    Follows nextPage. page resumes from a nextPage; limit is the page size.
+    """
+    _require_ids(data_model_id=data_model_id, element_id=element_id)
+    return _paged(await (await get_client()).list_column_security_rules(data_model_id, element_id, page, limit))
+
+
+list_column_security_rules = sigma_list_column_security_rules
+
+
+@datasets_server.tool(
+    name="create_column_security_rules", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"}
+)
+@sigma_tool
+async def sigma_create_column_security_rules(data_model_id: str, element_id: str, rules: list[dict[str, Any]]) -> str:
+    """Beta: Sigma marks this a beta feature. Create column-level security rules on a data model element.
+
+    rules is an array of objects. Each object requires columns and criteria.
+    """
+    _require_ids(data_model_id=data_model_id, element_id=element_id)
+    for rule in rules:
+        _require_body_fields(rule, "columns", "criteria")
+    return _paged(await (await get_client()).create_column_security_rules(data_model_id, element_id, rules))
+
+
+create_column_security_rules = sigma_create_column_security_rules
+
+
+@datasets_server.tool(
+    name="update_column_security_rule", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"}
+)
+@sigma_tool
+async def sigma_update_column_security_rule(
+    data_model_id: str, element_id: str, column_security_rule_id: str, body: dict[str, Any]
+) -> str:
+    """Beta: Sigma marks this a beta feature. Replace a column-level security rule (PUT).
+
+    body requires columns and criteria.
+    """
+    _require_ids(data_model_id=data_model_id, element_id=element_id, column_security_rule_id=column_security_rule_id)
+    _require_body_fields(body, "columns", "criteria")
+    result = await (await get_client()).update_column_security_rule(
+        data_model_id, element_id, column_security_rule_id, body
+    )
+    return _paged(result)
+
+
+update_column_security_rule = sigma_update_column_security_rule
+
+
+@datasets_server.tool(
+    name="delete_column_security_rule", annotations=ANNOTATION_DESTRUCTIVE, tags={"datasets", "destructive"}
+)
+@sigma_tool
+async def sigma_delete_column_security_rule(
+    data_model_id: str, element_id: str, column_security_rule_id: str, confirm: bool = False
+) -> str:
+    """Beta: Sigma marks this a beta feature. Delete a column-level security rule. Requires confirm=True."""
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(data_model_id=data_model_id, element_id=element_id, column_security_rule_id=column_security_rule_id)
+    code = await (await get_client()).delete_column_security_rule(data_model_id, element_id, column_security_rule_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_column_security_rule = sigma_delete_column_security_rule
+
+
+@datasets_server.tool(
+    name="create_data_model_materialization_schedule",
+    annotations=ANNOTATION_WRITE_SAFE,
+    tags={"datasets", "mutation"},
+)
+@sigma_tool
+async def sigma_create_data_model_materialization_schedule(
+    data_model_id: str, element_id: str, body: dict[str, Any]
+) -> str:
+    """Beta: Sigma marks this a beta feature. Requires Schedule materializations.
+
+    Create a materialization schedule for a data model element. body requires schedule.
+    """
+    _require_ids(data_model_id=data_model_id, element_id=element_id)
+    _require_body_fields(body, "schedule")
+    result = await (await get_client()).create_data_model_materialization_schedule(data_model_id, element_id, body)
+    return _paged(result)
+
+
+create_data_model_materialization_schedule = sigma_create_data_model_materialization_schedule
+
+
+@datasets_server.tool(
+    name="update_data_model_materialization_schedule",
+    annotations=ANNOTATION_WRITE_SAFE,
+    tags={"datasets", "mutation"},
+)
+@sigma_tool
+async def sigma_update_data_model_materialization_schedule(
+    data_model_id: str, element_id: str, body: dict[str, Any]
+) -> str:
+    """Beta: Sigma marks this a beta feature. Requires Schedule materializations.
+
+    Update a materialization schedule for a data model element. body requires schedule.
+    """
+    _require_ids(data_model_id=data_model_id, element_id=element_id)
+    _require_body_fields(body, "schedule")
+    result = await (await get_client()).update_data_model_materialization_schedule(data_model_id, element_id, body)
+    return _paged(result)
+
+
+update_data_model_materialization_schedule = sigma_update_data_model_materialization_schedule
+
+
+@datasets_server.tool(
+    name="delete_data_model_materialization_schedule",
+    annotations=ANNOTATION_DESTRUCTIVE,
+    tags={"datasets", "destructive"},
+)
+@sigma_tool
+async def sigma_delete_data_model_materialization_schedule(
+    data_model_id: str, element_id: str, confirm: bool = False
+) -> str:
+    """Beta: Sigma marks this a beta feature. Requires Schedule materializations.
+
+    Delete a materialization schedule for a data model element. Requires confirm=True.
+    """
+    if not confirm:
+        return _confirm_required("This destructive operation")
+    _require_ids(data_model_id=data_model_id, element_id=element_id)
+    code = await (await get_client()).delete_data_model_materialization_schedule(data_model_id, element_id)
+    return json.dumps({"status": "deleted", "statusCode": code})
+
+
+delete_data_model_materialization_schedule = sigma_delete_data_model_materialization_schedule
+
+
+@datasets_server.tool(
+    name="get_data_model_element_query", annotations=ANNOTATION_READ_ONLY, tags={"datasets", "read_only"}
+)
+@sigma_tool
+async def sigma_get_data_model_element_query(data_model_id: str, element_id: str, tag_name: str | None = None) -> str:
+    """Get the SQL query for a data model element. tag_name selects a tagged version."""
+    _require_ids(data_model_id=data_model_id, element_id=element_id)
+    return _paged(await (await get_client()).get_data_model_element_query(data_model_id, element_id, tag_name))
+
+
+get_data_model_element_query = sigma_get_data_model_element_query
+
+
+@datasets_server.tool(name="migrate_dataset", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
+@sigma_tool
+async def sigma_migrate_dataset(dataset_id: str, body: dict[str, Any]) -> str:
+    """Beta: Sigma marks this a beta feature. Migrate a dataset to a data model.
+
+    body requires shouldUpdateReferences, and may set destFolderId and dryRun.
+    """
+    _require_ids(dataset_id=dataset_id)
+    _require_body_fields(body, "shouldUpdateReferences")
+    return _paged(await (await get_client()).migrate_dataset(dataset_id, body))
+
+
+migrate_dataset = sigma_migrate_dataset
+
+
+@datasets_server.tool(name="upload_dbt_artifacts", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})
+@sigma_tool
+async def sigma_upload_dbt_artifacts(connection_id: str, artifacts_base64: str, filename: str = "target.tar.gz") -> str:
+    """Beta: Sigma marks this a beta feature. Upload dbt Core run artifacts for a connection.
+
+    artifacts_base64 is a base64-encoded tar.gz of the dbt project's target directory, sent as the
+    multipart field artifacts. The decoded archive must be at most 10 MB.
+    """
+    _require_ids(connection_id=connection_id)
+    if not filename or not filename.strip():
+        _invalid_request("filename is required")
+    decode_error = False
+    try:
+        raw = base64.b64decode(artifacts_base64, validate=True)
+    except Exception:
+        decode_error = True
+        raw = b""
+    if decode_error:
+        _invalid_request("artifacts_base64 is not valid base64")
+    if len(raw) > _DBT_ARTIFACT_MAX_BYTES:
+        _invalid_request(f"artifacts exceed the {_DBT_ARTIFACT_MAX_BYTES} byte cap")
+    return _paged(await (await get_client()).add_dbt_metadata(connection_id, raw, filename))
+
+
+upload_dbt_artifacts = sigma_upload_dbt_artifacts
