@@ -120,7 +120,7 @@ class Settings(BaseSettings):
         default="full",
         description=(
             "Server profile: 'full', 'readonly', or a job profile 'analyst', 'author', 'modeler', "
-            "'embed', 'access_admin' (see profiles.PROFILES)"
+            "'embed', 'access_admin', 'platform_admin' (see profiles.PROFILES)"
         ),
     )
 

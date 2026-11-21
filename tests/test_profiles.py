@@ -43,8 +43,45 @@ SIGNED_OFF = {
     "author": (57, 39),
     "modeler": (64, 34),
     "embed": (80, 33),
-    "access_admin": (102, 37),
+    "access_admin": (73, 28),
+    "platform_admin": (40, 14),
 }
+
+# Platform-setup tools moved out of access_admin. Allowed-IP tools, current user, and org
+# settings stay on access_admin as well as platform_admin.
+MOVED_TO_PLATFORM_ADMIN = frozenset(
+    {
+        "admin_activate_json_web_key",
+        "admin_activate_saml_certificate",
+        "admin_assign_ai_budget",
+        "admin_configure_org_ai",
+        "admin_create_audit_log_storage",
+        "admin_create_json_web_key",
+        "admin_create_jwk_set",
+        "admin_create_saml_certificate",
+        "admin_create_storage_integration",
+        "admin_deactivate_saml_certificate",
+        "admin_delete_ai_budget_assignment",
+        "admin_delete_audit_log_storage",
+        "admin_delete_json_web_key",
+        "admin_delete_jwk_set",
+        "admin_delete_saml_certificate",
+        "admin_delete_storage_integration",
+        "admin_get_audit_log_storage",
+        "admin_get_saml_certificate",
+        "admin_list_ai_budget_assignments",
+        "admin_list_export_email_templates",
+        "admin_list_json_web_keys",
+        "admin_list_jwk_set_keys",
+        "admin_list_saml_certificates",
+        "admin_list_saml_service_providers",
+        "admin_list_storage_integrations",
+        "admin_reset_org_email_branding",
+        "admin_reset_org_smtp",
+        "admin_update_audit_log_storage",
+        "admin_update_storage_integration",
+    }
+)
 
 READ = "workbooks_list_workbooks"
 WRITE = "workbooks_create_workbook"
@@ -123,16 +160,23 @@ async def test_full_is_exhaustive_and_every_tool_is_placed() -> None:
 
 
 def test_full_only_tools() -> None:
-    """The 32 full-only tools: both bulk tools, five workspace file/tag mutators, 25 admin tools."""
+    """The 27 full-only tools: both bulk tools, five workspace file/tag mutators, 20 admin tools."""
     assert FULL_ONLY_TOOLS == EXPECTED_FULL_ONLY
-    assert len(FULL_ONLY_TOOLS) == 32
+    assert len(FULL_ONLY_TOOLS) == 27
     assert BULK_DESTRUCTIVE_TOOLS <= FULL_ONLY_TOOLS
     assert server.FULL_ONLY_TOOLS is FULL_ONLY_TOOLS
 
 
-def test_job_profiles_are_the_signed_off_five() -> None:
+def test_job_profiles_are_the_signed_off_jobs() -> None:
     """builder is split into author and modeler; the old core/admin profiles are gone."""
-    assert {p.name for p in JOB_PROFILES} == {"analyst", "author", "modeler", "embed", "access_admin"}
+    assert {p.name for p in JOB_PROFILES} == {
+        "analyst",
+        "author",
+        "modeler",
+        "embed",
+        "access_admin",
+        "platform_admin",
+    }
     assert set(PROFILES) == set(SIGNED_OFF)
     for removed in ("core", "admin", "builder"):
         assert removed not in PROFILES
@@ -244,7 +288,25 @@ def test_unknown_profile_from_env_fails_at_build(monkeypatch: pytest.MonkeyPatch
         create_server()
 
 
-@pytest.mark.parametrize("profile", ["analyst", "author", "modeler", "embed", "access_admin"])
+@pytest.mark.asyncio
+async def test_platform_admin_holds_setup_tools_access_admin_does_not() -> None:
+    """platform_admin lists exactly 40 tools; the 29 moved setup tools are gone from access_admin."""
+    platform = PROFILES["platform_admin"]
+    access = PROFILES["access_admin"]
+    assert platform.tools is not None and access.tools is not None
+    assert len(platform.tools) == 40
+    assert len(access.tools) == 73
+    assert len(MOVED_TO_PLATFORM_ADMIN) == 29
+    assert MOVED_TO_PLATFORM_ADMIN <= platform.tools
+    assert not MOVED_TO_PLATFORM_ADMIN & access.tools
+    assert await _tool_names(create_server(profile="platform_admin")) == set(platform.tools)
+    assert await _tool_names(create_server(profile="access_admin")) == set(access.tools)
+
+
+@pytest.mark.parametrize(
+    "profile",
+    ["analyst", "author", "modeler", "embed", "access_admin", "platform_admin"],
+)
 def test_main_accepts_job_profile(monkeypatch: pytest.MonkeyPatch, profile: str) -> None:
     """Every job profile is a valid CLI choice."""
     fake_run = MagicMock()

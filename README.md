@@ -283,7 +283,7 @@ Configure behavior using environment variables:
 | `SIGMA_CLIENT_SECRET` | *Required* | Your Sigma API client secret. |
 | `SIGMA_API_BASE_URL` | *Required* | Region-specific Sigma API host URL. Must be HTTPS and a host in `SIGMA_ALLOWED_HOSTS`. |
 | `SIGMA_ALLOWED_HOSTS` | official regional API hosts | Comma-separated hostname allowlist for `SIGMA_API_BASE_URL` and `X-Sigma-Base-Url`. Unset or empty uses the official Sigma regional API hosts. Loopback, private, link-local, and cloud-metadata targets are always rejected. |
-| `SIGMA_MCP_PROFILE` | `full` | Profile: `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin` (see [Profiles](#-profiles)). An unknown value fails at startup. |
+| `SIGMA_MCP_PROFILE` | `full` | Profile: `full`, `readonly`, `analyst`, `author`, `modeler`, `embed`, `access_admin`, `platform_admin` (see [Profiles](#-profiles)). An unknown value fails at startup. |
 | `SIGMA_MCP_READONLY` | `0` | Set `1` to list **only** tools annotated `readOnlyHint=true` and refuse every other call (146 tools on `full`). Composes with any profile. |
 | `SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE` | `0` | Set `1` to let the two listed bulk tools (`admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`) execute. Without it they are refused at call time. |
 | `SIGMA_MCP_ENABLE_TOOL_SEARCH` | `0` | Set `1` (or `--enable-tool-search`) for Tool Search on `full` only. |
@@ -313,9 +313,12 @@ Pick a profile with `--profile` or `SIGMA_MCP_PROFILE` (default `full`). Every p
 | `author` | Workbook author builds, versions and verifies workbooks, reports and templates, and inspects elements while editing. | **57** | 39 |
 | `modeler` | Data modeler maintains connections and data models, swaps workbook/report/model sources and materializes elements. | **64** | 34 |
 | `embed` | Embedded-analytics engineer provisions tenants and tenant dashboards: templates, deployments, source swaps, embeds, tenant user attributes and connection syncs. | **80** | 33 |
-| `access_admin` | Org admin onboards and offboards members, manages teams, grants and user attributes, workspace/workbook/connection access, and org security settings. | **102** | 37 |
+| `access_admin` | Org admin onboards and offboards members, manages teams, grants and user attributes, workspace/workbook/connection access, and org security settings. | **73** | 28 |
+| `platform_admin` | Org admin configures the platform: SAML certificates, JSON Web Keys, storage and audit-log integrations, SMTP and email branding, org AI provider and budgets, allowed IPs, org settings and plugins. | **40** | 14 |
 
-Thirty-two tools are in no job profile and are reachable only in `full`: `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`, `admin_api_capabilities`, `admin_list_recent_webhooks`, `workspace_update_tag`, `admin_list_api_credentials`, `admin_get_api_credential`, `admin_create_api_credential`, `admin_update_api_credential`, `admin_delete_api_credential`, `admin_get_translation`, `admin_get_translation_variant`, `admin_create_translation`, `admin_update_translation`, `admin_update_translation_variant`, `admin_delete_translation`, `admin_delete_translation_variant`, `admin_list_client_credentials`, `admin_create_client_credential`, `admin_delete_client_credential`, `admin_list_plugins`, `admin_get_plugin`, `admin_create_plugin`, `admin_update_plugin`, `admin_delete_plugin`, `admin_get_webhook_schema`, and `admin_send_webhook`.
+`tools/list` token counts (tiktoken `o200k_base`, compact JSON of the tools array) on locked FastMCP 4.2.1: not measured. `tiktoken` is not installed in that environment and was not added as a dependency. Tool counts are `platform_admin` **40** and `access_admin` **73**.
+
+Twenty-seven tools are in no job profile and are reachable only in `full`: `workspace_delete_file`, `workspace_update_file`, `workspace_create_tag`, `workspace_delete_tag`, `admin_list_translations`, `admin_bulk_deactivate_members`, `admin_bulk_remove_team_members`, `admin_api_capabilities`, `admin_list_recent_webhooks`, `workspace_update_tag`, `admin_list_api_credentials`, `admin_get_api_credential`, `admin_create_api_credential`, `admin_update_api_credential`, `admin_delete_api_credential`, `admin_get_translation`, `admin_get_translation_variant`, `admin_create_translation`, `admin_update_translation`, `admin_update_translation_variant`, `admin_delete_translation`, `admin_delete_translation_variant`, `admin_list_client_credentials`, `admin_create_client_credential`, `admin_delete_client_credential`, `admin_get_webhook_schema`, and `admin_send_webhook`.
 
 ### Read-only behavior
 

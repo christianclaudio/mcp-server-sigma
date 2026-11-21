@@ -9,7 +9,8 @@ Exposes every Sigma REST API operation as an MCP tool, organized by domain sub-s
 
 Environment variables controlling the gateway:
   SIGMA_MCP_PROFILE          - Profile (default: full): full, readonly, or a job allowlist profile
-                               analyst, author, modeler, embed, access_admin (see profiles.PROFILES).
+                               analyst, author, modeler, embed, access_admin, platform_admin
+                               (see profiles.PROFILES).
   SIGMA_MCP_READONLY=1       - Keep only tools annotated readOnlyHint=True and refuse every other call.
                                Composes with SIGMA_MCP_PROFILE.
   SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1 - Required to execute admin_bulk_deactivate_members and
@@ -736,7 +737,7 @@ def main() -> None:
         default=None,
         help=(
             "Server profile (default 'full'): full, readonly, or a job allowlist profile "
-            "analyst/author/modeler/embed/access_admin."
+            "analyst/author/modeler/embed/access_admin/platform_admin."
         ),
     )
     parser.add_argument(
