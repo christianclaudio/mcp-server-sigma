@@ -31,9 +31,10 @@ EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
     "author": (57, 39),
     "modeler": (64, 34),
     "embed": (80, 33),
-    "access_admin": (102, 37),
+    "access_admin": (73, 28),
+    "platform_admin": (40, 14),
 }
-JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin")
+JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin", "platform_admin")
 
 # Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
 EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
@@ -78,11 +79,6 @@ EXPECTED_FULL_ONLY = {
     "admin_list_client_credentials",
     "admin_create_client_credential",
     "admin_delete_client_credential",
-    "admin_list_plugins",
-    "admin_get_plugin",
-    "admin_create_plugin",
-    "admin_update_plugin",
-    "admin_delete_plugin",
     "admin_get_webhook_schema",
     "admin_send_webhook",
 }

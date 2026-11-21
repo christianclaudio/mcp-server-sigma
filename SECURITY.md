@@ -71,6 +71,7 @@ Every outbound request (the Sigma API, the documentation fetches and the drift m
 | **Building Data Models & Connections** | `SIGMA_MCP_PROFILE=modeler` |
 | **Embedded Analytics & Multi-Tenant** | `SIGMA_MCP_PROFILE=embed` |
 | **Users, Teams & Access** | `SIGMA_MCP_PROFILE=access_admin` |
+| **Platform Setup** | `SIGMA_MCP_PROFILE=platform_admin` |
 | **Full Operations (Default)** | `SIGMA_MCP_PROFILE=full` |
 
 Job profiles are tool allowlists; any of them can be combined with `SIGMA_MCP_READONLY=1`. Tool Search and Code Mode attach only on `full`.

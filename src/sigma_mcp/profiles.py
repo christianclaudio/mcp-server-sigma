@@ -7,7 +7,7 @@ Every profile mounts all five domain sub-servers (``workbooks``, ``datasets``,
 * ``readonly`` — every tool annotated ``readOnlyHint=True``.
 * **Job (allowlist) profiles** — ``tools`` is an explicit set of client-visible tool names
   applied over the full mounted catalog (``analyst``, ``author``, ``modeler``, ``embed``,
-  ``access_admin``). Filtering is tools-only: prompts and resources stay.
+  ``access_admin``, ``platform_admin``). Filtering is tools-only: prompts and resources stay.
 
 ``readonly=True`` keeps only tools whose MCP ``readOnlyHint`` annotation is ``True``.
 The annotation is the single source of truth for read-only classification; a missing
@@ -314,7 +314,7 @@ EMBED_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``access_admin`` (102 tools), in catalog order.
+# Job profile ``access_admin`` (73 tools), in catalog order.
 ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbook_grants",
@@ -364,8 +364,6 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_list_org_workbook_agents",
         "admin_get_org_setting",
         "admin_update_org_setting",
-        "admin_configure_org_ai",
-        "admin_reset_org_email_branding",
         "admin_list_allowed_ips",
         "admin_add_allowed_ips",
         "admin_remove_allowed_ips",
@@ -389,6 +387,23 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_revoke_member_tokens",
         "admin_update_team_admins",
         "admin_assign_user_attributes_to_team",
+        "admin_list_account_type_permissions",
+        "admin_update_account_type_permissions",
+        "admin_list_team_user_attributes",
+    }
+)
+
+# Job profile ``platform_admin`` (40 tools), in catalog order.
+PLATFORM_ADMIN_TOOLS: frozenset[str] = frozenset(
+    {
+        "admin_get_current_user",
+        "admin_get_org_setting",
+        "admin_update_org_setting",
+        "admin_configure_org_ai",
+        "admin_reset_org_email_branding",
+        "admin_list_allowed_ips",
+        "admin_add_allowed_ips",
+        "admin_remove_allowed_ips",
         "admin_list_json_web_keys",
         "admin_list_jwk_set_keys",
         "admin_create_jwk_set",
@@ -403,6 +418,11 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_activate_saml_certificate",
         "admin_deactivate_saml_certificate",
         "admin_delete_saml_certificate",
+        "admin_list_plugins",
+        "admin_get_plugin",
+        "admin_create_plugin",
+        "admin_update_plugin",
+        "admin_delete_plugin",
         "admin_reset_org_smtp",
         "admin_list_export_email_templates",
         "admin_list_storage_integrations",
@@ -416,9 +436,6 @@ ACCESS_ADMIN_TOOLS: frozenset[str] = frozenset(
         "admin_list_ai_budget_assignments",
         "admin_assign_ai_budget",
         "admin_delete_ai_budget_assignment",
-        "admin_list_account_type_permissions",
-        "admin_update_account_type_permissions",
-        "admin_list_team_user_attributes",
     }
 )
 
@@ -451,11 +468,6 @@ FULL_ONLY_TOOLS: frozenset[str] = frozenset(
         "admin_list_client_credentials",
         "admin_create_client_credential",
         "admin_delete_client_credential",
-        "admin_list_plugins",
-        "admin_get_plugin",
-        "admin_create_plugin",
-        "admin_update_plugin",
-        "admin_delete_plugin",
         "admin_get_webhook_schema",
         "admin_send_webhook",
     }
@@ -528,6 +540,15 @@ PROFILES: dict[str, Profile] = {
                 "workspace/workbook/connection access, and org security settings."
             ),
             tools=ACCESS_ADMIN_TOOLS,
+        ),
+        Profile(
+            name="platform_admin",
+            job=(
+                "Org admin configures the platform: SAML certificates, JSON Web Keys, storage and "
+                "audit-log integrations, SMTP and email branding, org AI provider and budgets, allowed "
+                "IPs, org settings and plugins."
+            ),
+            tools=PLATFORM_ADMIN_TOOLS,
         ),
     )
 }

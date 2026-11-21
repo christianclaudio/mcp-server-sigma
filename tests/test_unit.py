@@ -469,7 +469,7 @@ def test_job_profiles_are_distinct():
     from sigma_mcp.profiles import PROFILES
 
     allowlists = [p.tools for p in PROFILES.values() if p.tools is not None]
-    assert len(allowlists) == 5
+    assert len(allowlists) == 6
     assert len(set(allowlists)) == len(allowlists)
 
 
