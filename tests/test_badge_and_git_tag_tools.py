@@ -156,7 +156,6 @@ async def test_new_tool_annotations() -> None:
         assert a.open_world_hint is True
 
 
-
 def _resolve(schema: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
     while "$ref" in node:
         node = schema["$defs"][node["$ref"].rsplit("/", 1)[-1]]

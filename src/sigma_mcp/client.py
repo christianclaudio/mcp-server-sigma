@@ -74,6 +74,7 @@ class DataModelSourceTaggedVersion(BaseModel):
     fromVersionTagId: str | None
     toVersionTagId: str | None
 
+
 # Regional base URLs
 REGIONS = {
     "aws-us-west": "https://aws-api.sigmacomputing.com",
