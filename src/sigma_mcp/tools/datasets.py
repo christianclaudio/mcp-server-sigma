@@ -10,6 +10,8 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from sigma_mcp.client import (
+    DataModelSourceTaggedVersion,
+    GitSourceMapping,
     SigmaClient,
 )
 from sigma_mcp.tools.common import (
@@ -342,8 +344,8 @@ async def sigma_tag_git_repository(
     repository_path: str,
     ref: str,
     tag_name: str,
-    source_mapping_config: list[dict[str, Any]] | None = None,
-    data_model_source_tagged_versions: list[dict[str, Any]] | None = None,
+    source_mapping_config: list[GitSourceMapping] | None = None,
+    data_model_source_tagged_versions: list[DataModelSourceTaggedVersion] | None = None,
     is_default: bool | None = None,
     confirm: bool = False,
 ) -> str:
@@ -353,8 +355,10 @@ async def sigma_tag_git_repository(
     their sources. Needs the Admin account type; a non-Admin caller gets Sigma 403 back as a normal tool
     error. Private Beta endpoint. Spec operation: tagGitRepository (POST /v2/gitIntegration/tagRepository).
     repository_path: the repository as owner/repo. ref: a commit SHA or Git tag. tag_name: the version tag.
-    source_mapping_config: optional items {fromConnectionId, toConnectionId, paths: [{fromPath, toPath}]}.
-    data_model_source_tagged_versions: optional items {dataModelId, fromVersionTagId, toVersionTagId}.
+    source_mapping_config: optional items {fromConnectionId, toConnectionId, paths: [{fromPath, toPath}]};
+        every key is required in each item, and fromPath/toPath are string arrays.
+    data_model_source_tagged_versions: optional items {dataModelId, fromVersionTagId, toVersionTagId};
+        every key is required in each item, and the two version-tag IDs may be null.
     is_default: optional boolean, sent only when set.
     """
     if not confirm:

@@ -35,6 +35,7 @@ from urllib.parse import quote, urlparse
 import httpcore
 import httpx
 from httpx import Response
+from pydantic import BaseModel
 
 from sigma_mcp import __version__
 from sigma_mcp.config import settings
@@ -47,6 +48,31 @@ _ERROR_TEXT_CAP = 65_536
 
 # JSON type alias for return annotations
 JSONValue = dict[str, Any] | list[Any] | str | int | float | bool | None
+
+
+# Request records for POST /v2/gitIntegration/tagRepository (tagGitRepository). Field names are the
+# wire keys; every field is required and only the two version-tag IDs are nullable, per the spec.
+class GitSourcePathMapping(BaseModel):
+    """One ``sourceMappingConfig[].paths[]`` item: the source path to swap from and the path to swap to."""
+
+    fromPath: list[str]
+    toPath: list[str]
+
+
+class GitSourceMapping(BaseModel):
+    """One ``sourceMappingConfig[]`` item: swap sources from one connection to another when tagging."""
+
+    fromConnectionId: str
+    toConnectionId: str
+    paths: list[GitSourcePathMapping]
+
+
+class DataModelSourceTaggedVersion(BaseModel):
+    """One ``dataModelSourceTaggedVersions[]`` item: which tagged version of a data model to use as the source."""
+
+    dataModelId: str
+    fromVersionTagId: str | None
+    toVersionTagId: str | None
 
 # Regional base URLs
 REGIONS = {
@@ -1448,8 +1474,8 @@ class SigmaClient:
         repository_path: str,
         ref: str,
         tag_name: str,
-        source_mapping_config: list[dict[str, Any]] | None = None,
-        data_model_source_tagged_versions: list[dict[str, Any]] | None = None,
+        source_mapping_config: list[GitSourceMapping] | None = None,
+        data_model_source_tagged_versions: list[DataModelSourceTaggedVersion] | None = None,
         is_default: bool | None = None,
     ) -> JSONValue:
         """Tag the data models linked to a Git repository (tagGitRepository). Needs the Admin account type.
@@ -1459,9 +1485,9 @@ class SigmaClient:
         """
         body: dict[str, Any] = {"repositoryPath": repository_path, "ref": ref, "tagName": tag_name}
         if source_mapping_config is not None:
-            body["sourceMappingConfig"] = source_mapping_config
+            body["sourceMappingConfig"] = [item.model_dump() for item in source_mapping_config]
         if data_model_source_tagged_versions is not None:
-            body["dataModelSourceTaggedVersions"] = data_model_source_tagged_versions
+            body["dataModelSourceTaggedVersions"] = [item.model_dump() for item in data_model_source_tagged_versions]
         if is_default is not None:
             body["isDefault"] = is_default
         return await self.post("/v2/gitIntegration/tagRepository", body)

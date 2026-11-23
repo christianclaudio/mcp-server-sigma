@@ -19,8 +19,8 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from sigma_mcp import server
-from sigma_mcp.client import SigmaClient
-from sigma_mcp.server import DOMAIN_SERVERS
+from sigma_mcp.client import DataModelSourceTaggedVersion, GitSourceMapping, GitSourcePathMapping, SigmaClient
+from sigma_mcp.server import DOMAIN_SERVERS, create_server
 
 BASE = "https://api.sigmacomputing.com"
 
@@ -92,8 +92,14 @@ async def test_tag_git_repository_posts_body(http: AsyncMock) -> None:
     assert kw["json"] == {"repositoryPath": "acme/models", "ref": "abc123", "tagName": "Production"}
     assert out == {"success": True}
 
-    mapping = [{"fromConnectionId": "c-1", "toConnectionId": "c-2", "paths": [{"fromPath": ["A"], "toPath": ["B"]}]}]
-    versions = [{"dataModelId": "dm-1", "fromVersionTagId": None, "toVersionTagId": "t-2"}]
+    mapping = [
+        GitSourceMapping(
+            fromConnectionId="c-1",
+            toConnectionId="c-2",
+            paths=[GitSourcePathMapping(fromPath=["DB", "S"], toPath=["DB2", "S2"])],
+        )
+    ]
+    versions = [DataModelSourceTaggedVersion(dataModelId="dm-1", fromVersionTagId=None, toVersionTagId="t-2")]
     await tool(
         "acme/models",
         "v1.2.0",
@@ -103,14 +109,23 @@ async def test_tag_git_repository_posts_body(http: AsyncMock) -> None:
         is_default=False,
         confirm=True,
     )
-    assert http.request.call_args[1]["json"] == {
+    wire = http.request.call_args[1]["json"]
+    assert wire == {
         "repositoryPath": "acme/models",
         "ref": "v1.2.0",
         "tagName": "Production",
-        "sourceMappingConfig": mapping,
-        "dataModelSourceTaggedVersions": versions,
+        "sourceMappingConfig": [
+            {
+                "fromConnectionId": "c-1",
+                "toConnectionId": "c-2",
+                "paths": [{"fromPath": ["DB", "S"], "toPath": ["DB2", "S2"]}],
+            }
+        ],
+        "dataModelSourceTaggedVersions": [{"dataModelId": "dm-1", "fromVersionTagId": None, "toVersionTagId": "t-2"}],
         "isDefault": False,
     }
+    # The body is plain JSON: the records serialize to the wire keys, and the nullable IDs stay null.
+    assert json.loads(json.dumps(wire)) == wire
 
 
 @pytest.mark.parametrize("field", ["repository_path", "ref", "tag_name"])
@@ -139,3 +154,51 @@ async def test_new_tool_annotations() -> None:
         assert a.destructive_hint is False
         assert a.idempotent_hint is True
         assert a.open_world_hint is True
+
+
+
+def _resolve(schema: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
+    while "$ref" in node:
+        node = schema["$defs"][node["$ref"].rsplit("/", 1)[-1]]
+    return node
+
+
+def _item_schema(schema: dict[str, Any], param: str) -> dict[str, Any]:
+    prop = schema["properties"][param]
+    arrays = [_resolve(schema, branch) for branch in prop.get("anyOf", [prop])]
+    array = next(branch for branch in arrays if branch.get("type") == "array")
+    return _resolve(schema, array["items"])
+
+
+async def test_tag_git_repository_input_schema_matches_spec() -> None:
+    tools = {t.name: t for t in await create_server(profile="full").list_tools()}
+    schema = tools["datasets_tag_git_repository"].parameters
+    assert set(schema["required"]) == {"repository_path", "ref", "tag_name"}
+
+    mapping = _item_schema(schema, "source_mapping_config")
+    assert set(mapping["required"]) == {"fromConnectionId", "toConnectionId", "paths"}
+    assert set(mapping["properties"]) == {"fromConnectionId", "toConnectionId", "paths"}
+    assert mapping["properties"]["fromConnectionId"]["type"] == "string"
+    assert mapping["properties"]["toConnectionId"]["type"] == "string"
+    path = _resolve(schema, mapping["properties"]["paths"]["items"])
+    assert set(path["required"]) == {"fromPath", "toPath"}
+    assert set(path["properties"]) == {"fromPath", "toPath"}
+    for key in ("fromPath", "toPath"):
+        assert path["properties"][key]["type"] == "array"
+        assert path["properties"][key]["items"] == {"type": "string"}
+
+    version = _item_schema(schema, "data_model_source_tagged_versions")
+    assert set(version["required"]) == {"dataModelId", "fromVersionTagId", "toVersionTagId"}
+    assert set(version["properties"]) == {"dataModelId", "fromVersionTagId", "toVersionTagId"}
+    assert version["properties"]["dataModelId"]["type"] == "string"
+    for key in ("fromVersionTagId", "toVersionTagId"):
+        assert {b["type"] for b in version["properties"][key]["anyOf"]} == {"string", "null"}
+
+
+def test_records_require_every_spec_field() -> None:
+    with pytest.raises(ValueError, match="toVersionTagId"):
+        DataModelSourceTaggedVersion.model_validate({"dataModelId": "dm-1", "fromVersionTagId": None})
+    with pytest.raises(ValueError, match="paths"):
+        GitSourceMapping.model_validate({"fromConnectionId": "c-1", "toConnectionId": "c-2"})
+    with pytest.raises(ValueError, match="toPath"):
+        GitSourcePathMapping.model_validate({"fromPath": ["A"]})
