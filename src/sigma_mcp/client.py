@@ -35,6 +35,7 @@ from urllib.parse import quote, urlparse
 import httpcore
 import httpx
 from httpx import Response
+from pydantic import BaseModel
 
 from sigma_mcp import __version__
 from sigma_mcp.config import settings
@@ -47,6 +48,32 @@ _ERROR_TEXT_CAP = 65_536
 
 # JSON type alias for return annotations
 JSONValue = dict[str, Any] | list[Any] | str | int | float | bool | None
+
+
+# Request records for POST /v2/gitIntegration/tagRepository (tagGitRepository). Field names are the
+# wire keys; every field is required and only the two version-tag IDs are nullable, per the spec.
+class GitSourcePathMapping(BaseModel):
+    """One ``sourceMappingConfig[].paths[]`` item: the source path to swap from and the path to swap to."""
+
+    fromPath: list[str]
+    toPath: list[str]
+
+
+class GitSourceMapping(BaseModel):
+    """One ``sourceMappingConfig[]`` item: swap sources from one connection to another when tagging."""
+
+    fromConnectionId: str
+    toConnectionId: str
+    paths: list[GitSourcePathMapping]
+
+
+class DataModelSourceTaggedVersion(BaseModel):
+    """One ``dataModelSourceTaggedVersions[]`` item: which tagged version of a data model to use as the source."""
+
+    dataModelId: str
+    fromVersionTagId: str | None
+    toVersionTagId: str | None
+
 
 # Regional base URLs
 REGIONS = {
@@ -92,6 +119,14 @@ _METADATA_IPS = frozenset(
 
 # Documentation fetches are pinned to Sigma's public docs host.
 DOCS_ALLOWED_HOSTS = frozenset({"help.sigmacomputing.com"})
+
+
+def _badge_body(badge: str, badge_note: str | None) -> dict[str, Any]:
+    """Body for the three badge PUTs: ``badge``, plus ``badgeNote`` only when given (omitting it clears the note)."""
+    body: dict[str, Any] = {"badge": badge}
+    if badge_note is not None:
+        body["badgeNote"] = badge_note
+    return body
 
 
 def _region_api_hosts() -> set[str]:
@@ -1352,6 +1387,10 @@ class SigmaClient:
     async def remove_workbook_tag(self, workbook_id: str, tag_id: str) -> int:
         return await self.delete(f"/v2/workbooks/{workbook_id}/tags/{tag_id}")
 
+    async def set_workbook_badge(self, workbook_id: str, badge: str, badge_note: str | None = None) -> JSONValue:
+        """Set or replace a workbook badge (setWorkbookBadge). Omitting ``badgeNote`` clears the note."""
+        return await self.put(f"/v2/workbooks/{workbook_id}/badge", _badge_body(badge, badge_note))
+
     # ─── Templates ─────────────────────────────────────────────────────────
     async def list_templates(self, limit: int = 200) -> JSONValue:
         return await self.paged_list("/v2/templates", limit=limit)
@@ -1426,6 +1465,33 @@ class SigmaClient:
         POST /v2/dataModels/tag takes the tag NAME under the key "tag".
         """
         return await self.post("/v2/dataModels/tag", {"dataModelId": data_model_id, "tag": tag_name})
+
+    async def set_data_model_badge(self, data_model_id: str, badge: str, badge_note: str | None = None) -> JSONValue:
+        """Set or replace a data model badge (setDataModelBadge). Omitting ``badgeNote`` clears the note."""
+        return await self.put(f"/v2/dataModels/{data_model_id}/badge", _badge_body(badge, badge_note))
+
+    async def tag_git_repository(
+        self,
+        repository_path: str,
+        ref: str,
+        tag_name: str,
+        source_mapping_config: list[GitSourceMapping] | None = None,
+        data_model_source_tagged_versions: list[DataModelSourceTaggedVersion] | None = None,
+        is_default: bool | None = None,
+    ) -> JSONValue:
+        """Tag the data models linked to a Git repository (tagGitRepository). Needs the Admin account type.
+
+        POST /v2/gitIntegration/tagRepository requires ``repositoryPath`` (owner/repo), ``ref`` (a
+        commit SHA or Git tag) and ``tagName``. The optional keys are sent only when set.
+        """
+        body: dict[str, Any] = {"repositoryPath": repository_path, "ref": ref, "tagName": tag_name}
+        if source_mapping_config is not None:
+            body["sourceMappingConfig"] = [item.model_dump() for item in source_mapping_config]
+        if data_model_source_tagged_versions is not None:
+            body["dataModelSourceTaggedVersions"] = [item.model_dump() for item in data_model_source_tagged_versions]
+        if is_default is not None:
+            body["isDefault"] = is_default
+        return await self.post("/v2/gitIntegration/tagRepository", body)
 
     async def list_data_model_tags(self, data_model_id: str) -> JSONValue:
         return await self.paged_list(f"/v2/dataModels/{data_model_id}/tags")
@@ -1744,6 +1810,10 @@ class SigmaClient:
 
     async def remove_report_tag(self, report_id: str, tag_id: str) -> int:
         return await self.delete(f"/v2/reports/{report_id}/tags/{tag_id}")
+
+    async def set_report_badge(self, report_id: str, badge: str, badge_note: str | None = None) -> JSONValue:
+        """Set or replace a report badge (setReportBadge). Omitting ``badgeNote`` clears the note."""
+        return await self.put(f"/v2/reports/{report_id}/badge", _badge_body(badge, badge_note))
 
     async def convert_workbook_to_report(self, workbook_id: str, body: dict[str, Any]) -> JSONValue:
         return await self.post(f"/v2/workbooks/{workbook_id}/convertToReport", body)

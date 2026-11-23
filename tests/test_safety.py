@@ -323,8 +323,8 @@ class TestProfileFiltering:
     def test_profile_counts(self) -> None:
         expected = {
             "analyst": 59,
-            "author": 57,
-            "modeler": 64,
+            "author": 59,
+            "modeler": 66,
             "embed": 80,
             "access_admin": 73,
             "platform_admin": 40,

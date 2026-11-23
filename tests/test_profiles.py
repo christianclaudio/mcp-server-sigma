@@ -37,11 +37,11 @@ ANALYST = PROFILES["analyst"]
 
 # Signed-off counts (total tools, read-only tools); Nexus gates on these.
 SIGNED_OFF = {
-    "full": (334, 146),
+    "full": (338, 146),
     "readonly": (146, 146),
     "analyst": (59, 38),
-    "author": (57, 39),
-    "modeler": (64, 34),
+    "author": (59, 39),
+    "modeler": (66, 34),
     "embed": (80, 33),
     "access_admin": (73, 28),
     "platform_admin": (40, 14),
@@ -198,7 +198,7 @@ async def test_every_tool_has_explicit_read_only_hint() -> None:
     reads = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is True}
     writes = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is False}
     assert len(reads) == 146
-    assert len(writes) == 188
+    assert len(writes) == 192
 
 
 @pytest.mark.asyncio
