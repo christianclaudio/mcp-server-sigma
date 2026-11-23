@@ -118,11 +118,11 @@ domain sub-servers. Build order:
 
 | Profile | Job | Tools | Read-only |
 |---------|-----|------:|----------:|
-| `full` (default) | Every tool, including the 27 in `FULL_ONLY_TOOLS` | 334 | 146 |
+| `full` (default) | Every tool, including the 27 in `FULL_ONLY_TOOLS` | 338 | 146 |
 | `readonly` | Every `readOnlyHint=True` tool | 146 | 146 |
 | `analyst` | Consume workbooks and reports | 59 | 38 |
-| `author` | Build workbooks and reports | 57 | 39 |
-| `modeler` | Build data models and manage connections | 64 | 34 |
+| `author` | Build workbooks and reports | 59 | 39 |
+| `modeler` | Build data models and manage connections | 66 | 34 |
 | `embed` | Embedded analytics and multi-tenant | 80 | 33 |
 | `access_admin` | Users, teams, grants, and access | 73 | 28 |
 | `platform_admin` | Platform setup: SAML, JWK, storage, SMTP, AI, IPs, plugins | 40 | 14 |

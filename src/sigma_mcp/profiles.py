@@ -95,7 +95,7 @@ ANALYST_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``author`` (57 tools), in catalog order.
+# Job profile ``author`` (59 tools), in catalog order.
 AUTHOR_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -109,6 +109,7 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
         "workbooks_convert_workbook_to_report",
         "workbooks_get_workbook_tags",
         "workbooks_tag_workbook",
+        "workbooks_set_workbook_badge",
         "workbooks_remove_workbook_tag",
         "workbooks_list_templates",
         "workbooks_get_template",
@@ -148,6 +149,7 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
         "workbooks_get_report_version_history",
         "workbooks_list_report_tags",
         "workbooks_tag_report",
+        "workbooks_set_report_badge",
         "workbooks_remove_report_tag",
         "elements_list_element_lineage",
         "workspace_get_file",
@@ -158,7 +160,7 @@ AUTHOR_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Job profile ``modeler`` (64 tools), in catalog order.
+# Job profile ``modeler`` (66 tools), in catalog order.
 MODELER_TOOLS: frozenset[str] = frozenset(
     {
         "workbooks_list_workbooks",
@@ -179,6 +181,8 @@ MODELER_TOOLS: frozenset[str] = frozenset(
         "datasets_swap_data_model_sources",
         "datasets_list_data_model_lineage",
         "datasets_tag_data_model",
+        "datasets_set_data_model_badge",
+        "datasets_tag_git_repository",
         "datasets_swap_report_sources",
         "datasets_sync_all_tables_in_schema",
         "datasets_list_all_data_models",

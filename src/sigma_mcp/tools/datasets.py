@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
-from typing import Any
+from typing import Any, Literal
 
 from fastmcp import FastMCP
 
@@ -315,6 +315,59 @@ async def sigma_tag_data_model(data_model_id: str, tag_name: str) -> str:
 
 
 tag_data_model = sigma_tag_data_model
+
+
+@datasets_server.tool(name="set_data_model_badge", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"})
+@sigma_tool
+async def sigma_set_data_model_badge(
+    data_model_id: str, badge: Literal["Deprecated", "Warning", "Endorsed"], badge_note: str | None = None
+) -> str:
+    """Set or replace the badge on a data model: Deprecated, Warning or Endorsed, with an optional note.
+
+    Omitting badge_note CLEARS the existing badge note; pass the current note to keep it. Calling with a
+    tagged-version ID sets the badge on the original document. The API cannot remove a badge (removal is
+    UI-only, Set badge > Delete). Needs the Manage all badges permission; a 403 comes back as a tool error.
+    Beta endpoint. Spec operation: setDataModelBadge.
+    """
+    _require_ids(data_model_id=data_model_id)
+    return json.dumps(await (await get_client()).set_data_model_badge(data_model_id, badge, badge_note), indent=2)
+
+
+set_data_model_badge = sigma_set_data_model_badge
+
+
+@datasets_server.tool(name="tag_git_repository", annotations=ANNOTATION_IDEMPOTENT, tags={"datasets", "idempotent"})
+@sigma_tool
+async def sigma_tag_git_repository(
+    repository_path: str,
+    ref: str,
+    tag_name: str,
+    source_mapping_config: list[dict[str, Any]] | None = None,
+    data_model_source_tagged_versions: list[dict[str, Any]] | None = None,
+    is_default: bool | None = None,
+    confirm: bool = False,
+) -> str:
+    """Tag every data model linked to a Git repository at a commit SHA or Git tag. Requires confirm=True.
+
+    Guarded write: one call applies tag_name to every data model linked to the repository and can swap
+    their sources. Needs the Admin account type; a non-Admin caller gets Sigma 403 back as a normal tool
+    error. Private Beta endpoint. Spec operation: tagGitRepository (POST /v2/gitIntegration/tagRepository).
+    repository_path: the repository as owner/repo. ref: a commit SHA or Git tag. tag_name: the version tag.
+    source_mapping_config: optional items {fromConnectionId, toConnectionId, paths: [{fromPath, toPath}]}.
+    data_model_source_tagged_versions: optional items {dataModelId, fromVersionTagId, toVersionTagId}.
+    is_default: optional boolean, sent only when set.
+    """
+    if not confirm:
+        return _confirm_required("Tagging every data model in the repository")
+    _require_ids(repository_path=repository_path, ref=ref, tag_name=tag_name)
+    client = await get_client()
+    result = await client.tag_git_repository(
+        repository_path, ref, tag_name, source_mapping_config, data_model_source_tagged_versions, is_default
+    )
+    return json.dumps(result, indent=2)
+
+
+tag_git_repository = sigma_tag_git_repository
 
 
 @datasets_server.tool(name="swap_report_sources", annotations=ANNOTATION_WRITE_SAFE, tags={"datasets", "mutation"})

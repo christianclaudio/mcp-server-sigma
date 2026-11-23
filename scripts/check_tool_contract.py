@@ -24,12 +24,12 @@ REPO = Path(__file__).resolve().parent.parent
 # Expected (total tools, tools annotated readOnlyHint=True) per profile. ``full`` is exhaustive:
 # the two bulk tools are listed and refused at call time unless SIGMA_MCP_ALLOW_BULK_DESTRUCTIVE=1.
 EXPECTED_PROFILE_COUNTS: dict[str, tuple[int, int]] = {
-    "full": (334, 146),
+    "full": (338, 146),
     "readonly": (146, 146),
     # Job (allowlist) profiles
     "analyst": (59, 38),
-    "author": (57, 39),
-    "modeler": (64, 34),
+    "author": (59, 39),
+    "modeler": (66, 34),
     "embed": (80, 33),
     "access_admin": (73, 28),
     "platform_admin": (40, 14),
@@ -38,8 +38,8 @@ JOB_PROFILES = ("analyst", "author", "modeler", "embed", "access_admin", "platfo
 
 # Expected tools per domain mount on ``full`` (README "Feature & Tool Summary" table).
 EXPECTED_DOMAIN_COUNTS: dict[str, int] = {
-    "workbooks": 86,
-    "datasets": 52,
+    "workbooks": 88,
+    "datasets": 54,
     "elements": 30,
     "workspace": 26,
     "admin": 140,
@@ -50,7 +50,7 @@ EXPECTED_DEFAULT = EXPECTED_PROFILE_COUNTS["full"][0]
 EXPECTED_READONLY = EXPECTED_PROFILE_COUNTS["readonly"][0]
 EXPECTED_READ_ONLY = 146
 EXPECTED_DESTRUCTIVE = 57
-EXPECTED_IDEMPOTENT = 12
+EXPECTED_IDEMPOTENT = 16
 
 BULK_TOOLS = ("admin_bulk_deactivate_members", "admin_bulk_remove_team_members")
 EXPECTED_FULL_ONLY = {

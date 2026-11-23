@@ -392,6 +392,25 @@ async def sigma_tag_workbook(workbook_id: str, tag_name: str) -> str:
 tag_workbook = sigma_tag_workbook
 
 
+@workbooks_server.tool(name="set_workbook_badge", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"})
+@sigma_tool
+async def sigma_set_workbook_badge(
+    workbook_id: str, badge: Literal["Deprecated", "Warning", "Endorsed"], badge_note: str | None = None
+) -> str:
+    """Set or replace the badge on a workbook: Deprecated, Warning or Endorsed, with an optional note.
+
+    Omitting badge_note CLEARS the existing badge note; pass the current note to keep it. Calling with a
+    tagged-version ID sets the badge on the original document. The API cannot remove a badge (removal is
+    UI-only, Set badge > Delete). Needs the Manage all badges permission; a 403 comes back as a tool error.
+    Beta endpoint. Spec operation: setWorkbookBadge.
+    """
+    _require_ids(workbook_id=workbook_id)
+    return json.dumps(await (await get_client()).set_workbook_badge(workbook_id, badge, badge_note), indent=2)
+
+
+set_workbook_badge = sigma_set_workbook_badge
+
+
 @workbooks_server.tool(
     name="remove_workbook_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"}
 )
@@ -1531,6 +1550,25 @@ async def sigma_tag_report(report_id: str, tag_name: str) -> str:
 
 
 tag_report = sigma_tag_report
+
+
+@workbooks_server.tool(name="set_report_badge", annotations=ANNOTATION_IDEMPOTENT, tags={"workbooks", "idempotent"})
+@sigma_tool
+async def sigma_set_report_badge(
+    report_id: str, badge: Literal["Deprecated", "Warning", "Endorsed"], badge_note: str | None = None
+) -> str:
+    """Set or replace the badge on a report: Deprecated, Warning or Endorsed, with an optional note.
+
+    Omitting badge_note CLEARS the existing badge note; pass the current note to keep it. Calling with a
+    tagged-version ID sets the badge on the original document. The API cannot remove a badge (removal is
+    UI-only, Set badge > Delete). Needs the Manage all badges permission; a 403 comes back as a tool error.
+    Beta endpoint. Spec operation: setReportBadge.
+    """
+    _require_ids(report_id=report_id)
+    return json.dumps(await (await get_client()).set_report_badge(report_id, badge, badge_note), indent=2)
+
+
+set_report_badge = sigma_set_report_badge
 
 
 @workbooks_server.tool(name="remove_report_tag", annotations=ANNOTATION_DESTRUCTIVE, tags={"workbooks", "destructive"})
