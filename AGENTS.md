@@ -99,7 +99,7 @@ coderabbit review --agent --uncommitted
 ## 🔄 CI & Releases
 
 - **CI (`.github/workflows/ci.yml`):** runs on `push`/`pull_request` to `main`, weekly schedule, and `workflow_dispatch` (`fetch-depth: 0` on package jobs). Jobs: Lint and types, Tests (Python 3.11–3.14, 100% cov + aggregate Tests), Tool contract assertions, OpenAPI drift, Protocol conformance, Build and package check, Container image build (no push; verifies stripped build deps, stdio `initialize`/`tools/list`, negative `CA_CERTIFICATES_FLOOR`), and Check API Drift (schedule/manual only; opens issue on drift). CodeQL runs via GitHub default setup.
-- **Dependabot (`dependabot-automerge.yml`):** squash-merges minor/patch PRs after CI passes; major & docker updates wait for human review.
+- **Dependabot (`dependabot-automerge.yml`):** squash-merges minor/patch PRs after CI passes on that head commit, only when every commit is Dependabot's or a clean GitHub update-branch merge; major and `docker` updates always wait for human review.
 - **Releases (`.github/workflows/release.yml`):** triggered on `v*` tags (`fetch-depth: 0`); verifies wheel matches tag, publishes to PyPI, creates GitHub Release from `scripts/release_notes.py`, pushes Docker image (`UV_DYNAMIC_VERSIONING_BYPASS` set to tag version because the Docker build context has no `.git`), and stamps `server.json` & publishes to MCP Registry.
 
 ---
